@@ -5,9 +5,13 @@ An original zombie survival game set on the IIM Jammu campus at Jagti, built in 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 0, grey-box campus
+## Current phase: 1, terrain, roads and trees
 
-You can walk the whole campus from the gate to Sindhu Hostel. Every building is a grey block placed at its traced footprint and storey count, with roads, lawns, the track, courts and the boundary wall. Floating labels name the main places.
+The campus now sits on a hilltop. The main gate is down near the highway, the serpentine drive climbs about 16 m to the academic block, and wooded ravines fall away outside the boundary wall, with farmland across the highway and hills on the horizon. The ground is painted with grass, dry grass, bare soil and rock, grass tufts grow near you, and about 11,500 trees (neem-like broadleaf, eucalyptus, chir pine and scrub) line the roads and fill the ravines. Roads, the wall and every building follow the ground, and a navigation mesh for the zombies is baked over the campus. Buildings are still grey blocks; real buildings start in Phase 2.
+
+The terrain shape is a design based on the hilltop setting, not survey data. Tell me where it feels wrong.
+
+**Updating from Phase 0:** pull the new version in GitHub Desktop, then open the project. It notices the new data and rebuilds the scene by itself (a progress bar shows; the navigation mesh step can take a minute or two). If it doesn't, use **Jagti > Build Campus**.
 
 ## How to open it (first time)
 
@@ -15,10 +19,10 @@ You can walk the whole campus from the gate to Sindhu Hostel. Every building is 
 2. Get the project onto your laptop. The easiest way is **GitHub Desktop**: File > Clone repository > `hclaude194-arch/jagti-outbreak`. You can also use the green "Code > Download ZIP" button on GitHub and unzip it.
 3. In Unity Hub: **Add > Add project from disk**, and pick the `jagti-outbreak` folder. If Hub asks which editor version to use, pick your Unity 6 LTS.
 4. Open it. The first open takes a few minutes while Unity downloads packages.
-5. When it finishes, the project sets itself up: it switches on the laptop graphics settings and builds `Assets/Scenes/Campus_Greybox.unity`, then opens it. Watch the Console for `[Jagti] Built grey-box campus`.
+5. When it finishes, the project sets itself up: it switches on the laptop graphics settings and builds `Assets/Scenes/Campus_Greybox.unity`, then opens it. Watch the Console for `[Jagti] Built campus`.
 6. Press **Play** (the triangle at the top).
 
-If the scene doesn't appear, use the menu **Jagti > Build Grey-box Campus**. If everything looks pink, use **Jagti > Set Up Laptop Graphics (URP)**.
+If the scene doesn't appear, use the menu **Jagti > Build Campus**. If everything looks pink, use **Jagti > Set Up Laptop Graphics (URP)**.
 
 ## Controls
 
@@ -38,9 +42,10 @@ The overlay in the top-left shows your frame rate and the nearest place. Please 
 ## How the project is built
 
 - `tools/layout/generate_layout.py` holds the campus geometry traced from the vision map and writes `Assets/Data/campus_layout.json` (1 unit = 1 metre, origin at the central roundabout).
-- `Assets/Editor/CampusGreyboxBuilder.cs` turns that JSON into the scene.
-- `Assets/Editor/JagtiProjectSetup.cs` sets up URP for integrated graphics and builds the scene on first open.
+- `tools/layout/generate_terrain.py` shapes the hilltop, flattens roads and building plots into it, paints the ground, and places grass and trees. It writes `Assets/Data/terrain_*.bytes` and `campus_terrain.json`.
+- `Assets/Editor/CampusGreyboxBuilder.cs` turns that data into the scene; `CampusTerrainBuilder.cs` makes the Unity Terrain; `ProceduralAssets.cs` makes the ground textures and tree models from code, saved under `Assets/Generated` (rebuilt each time, not stored in Git).
+- `Assets/Editor/JagtiProjectSetup.cs` sets up URP for integrated graphics and rebuilds the scene whenever the layout data is newer than the last build.
 - `Assets/Scripts/` holds runtime code: the first-person controller, labels and the test overlay.
 - Models, textures and audio are stored with Git LFS (see `.gitattributes`).
 
-To change the layout, edit `generate_layout.py`, run `python3 tools/layout/generate_layout.py`, then use **Jagti > Build Grey-box Campus** in Unity.
+To change the layout, edit `generate_layout.py` (raise `VERSION`), run `python3 tools/layout/generate_layout.py` and then `python3 tools/layout/generate_terrain.py`, and open Unity.

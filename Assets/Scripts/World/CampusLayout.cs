@@ -12,6 +12,7 @@ namespace Jagti.World
     public class CampusLayout
     {
         public string info;
+        public int version;      // bump in generate_layout.py to make Unity rebuild the scene
         public float floorHeight;
         public BuildingData[] buildings;
         public RoadData[] roads;

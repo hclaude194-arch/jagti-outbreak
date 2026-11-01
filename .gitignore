@@ -33,3 +33,10 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Rebuilt by Jagti > Build Campus on each computer
+/Assets/Generated/
+/Assets/Generated.meta
+
+# Layout preview images (for checking only)
+tools/layout/preview/
