@@ -11,7 +11,7 @@ The main landmarks are now real models instead of grey blocks: the academic bloc
 
 The look (warm plaster, terracotta brick, white trim) is a best guess, because little detail about the real facades is public. Photos of the real buildings would make the next pass much closer.
 
-Phase 1 added the hilltop terrain, ground paint, grass, about 11,500 trees and the zombie navigation mesh. The hill's shape is a design, not survey data.
+The terrain is a foothill ridge: the campus sits 34 to 52 m above the highway in terraces with hillocks between the buildings, the serpentine drive climbs about 30 m from the gate, steep wooded ravines drop 40 to 55 m outside the wall, and ridges up to about 175 m line the horizon (fog now starts at 150 m so you can see them). About 17,000 trees, ground paint, grass and the zombie navigation mesh came with Phase 1. The shape is a design, not survey data.
 
 **Updating:** pull the new version in GitHub Desktop, then open the project. It notices the new data and rebuilds the scene by itself (a progress bar shows; the navigation mesh step can take a minute or two). If it doesn't, use **Jagti > Build Campus**.
 

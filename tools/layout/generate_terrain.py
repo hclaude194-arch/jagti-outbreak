@@ -7,10 +7,11 @@ Reads the campus geometry from generate_layout.py and writes:
   Assets/Data/terrain_grass.bytes   1024 x 1024 uint8 grass density 0..255
   Assets/Data/campus_terrain.json   terrain size, offsets and tree list
 
-The shape is a design, not survey data: the campus sits on a hilltop plateau
-about 20 m above the highway, the gate is low, the serpentine drive climbs the
-slope, and wooded ravines fall away outside the boundary wall. Rolling hills
-fill the horizon. Roads and building plots are flattened into the ground.
+The shape is a design, not survey data, modelled on the Shivalik foothills: the
+campus sits on a rolling ridge 34 to 48 m above the highway, the gate is low and
+the serpentine drive climbs about 30 m, steep wooded ravines drop 40 to 55 m
+outside the boundary wall, and ridges of 80 to 140 m close the horizon. Roads
+and building plots are cut into the ground as level terraces.
 
 Run:  python3 tools/layout/generate_terrain.py   (after generate_layout.py)
 Preview images go to tools/layout/preview/ (not used by Unity).
@@ -29,11 +30,11 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DATA = os.path.join(ROOT, "Assets", "Data")
 
 RES = 1025            # heightmap samples per side
-SIZE = 1600.0         # metres per side
-MIN_X, MIN_Z = -760.0, -800.0
+SIZE = 2048.0         # metres per side (2 m per sample)
+MIN_X, MIN_Z = -1000.0, -1044.0
 CELL = SIZE / (RES - 1)
-H_MIN, H_RANGE = -20.0, 80.0   # heights stored relative to this range
-SPLAT_RES = 512
+H_MIN, H_RANGE = -60.0, 240.0  # heights stored relative to this range
+SPLAT_RES = 1024
 GRASS_RES = 1024
 SEED = 7
 
@@ -165,37 +166,6 @@ order = np.argsort(hw_x)
 hw_x, hw_z = hw_x[order], hw_z[order]
 
 # ------------------------------------------------------------------ base shape
-sd = polygon_signed_distance(X, Z, boundary)          # negative inside the wall
-outside = np.maximum(sd, 0.0)
-
-n_low = fbm(RES, 6, 4, SEED + 1)
-n_mid = fbm(RES, 18, 4, SEED + 2)
-n_hills = fbm(RES, 4, 5, SEED + 3)
-n_ravine = fbm(RES, 10, 3, SEED + 4)
-
-# Plateau: about 20 m above the highway, rising gently towards Sindhu Hostel.
-plateau = 20.0 + 6.0 * np.clip((300.0 - Z) / 900.0, 0, 1) + 1.2 * n_low
-# Gate slope: the serpentine drive climbs from the gate (about 3 m) to the plateau.
-gate_ramp = smoothstep(385.0, 525.0, Z)
-plateau = plateau * (1 - gate_ramp) + 3.0 * gate_ramp
-
-# Outside the wall the ground drops into ravines, then rises into far hills.
-ravine_floor = 6.0 + 5.0 * n_mid - 10.0 * (1 - np.abs(n_ravine)) ** 4 * smoothstep(30, 120, outside)
-drop = smoothstep(4.0, 95.0, outside)
-height = plateau * (1 - drop) + ravine_floor * drop
-height += 38.0 * smoothstep(180.0, 650.0, outside) * (0.55 + 0.45 * n_hills)
-
-# North of the highway: flat farmland near highway level.
-hwz_at_x = np.interp(X, hw_x, hw_z)
-north = Z - hwz_at_x
-farm = 1.5 + 1.2 * n_mid
-farm_mask = smoothstep(-35.0, 25.0, north)
-height = height * (1 - farm_mask) + farm * farm_mask
-height += 0.35 * fbm(RES, 60, 2, SEED + 5)  # small bumps everywhere
-height = blur(height, 2)
-
-
-# ------------------------------------------------------------------ flatten plots and roads
 def pad_distance(px, pz, cx, cz, hw, hd, ellipse):
     if ellipse:
         nx, nz = (px - cx) / hw, (pz - cz) / hd
@@ -206,6 +176,85 @@ def pad_distance(px, pz, cx, cz, hw, hd, ellipse):
     return np.sqrt(dx * dx + dz * dz)
 
 
+sd = polygon_signed_distance(X, Z, boundary)          # negative inside the wall
+
+
+def polyline_distance(px, pz, pts, reach):
+    """Distance from grid points to a polyline, only computed within `reach` of it."""
+    best = np.full(px.shape, np.inf)
+    p = np.array(pts)
+    for k in range(len(p) - 1):
+        (ax, az), (bx, bz) = p[k], p[k + 1]
+        rows, cols = window((ax + bx) / 2, (az + bz) / 2, math.hypot(bx - ax, bz - az) / 2 + reach)
+        qx, qz = px[rows, cols], pz[rows, cols]
+        ex, ez = bx - ax, bz - az
+        t = np.clip(((qx - ax) * ex + (qz - az) * ez) / max(ex * ex + ez * ez, 1e-6), 0, 1)
+        d = np.hypot(qx - (ax + t * ex), qz - (az + t * ez))
+        best[rows, cols] = np.minimum(best[rows, cols], d)
+    return best
+
+
+# Campus roads that run out past the wall keep a spur of high ground under them,
+# so they leave along a ridge instead of plunging into a ravine.
+campus_road_dist = np.full(X.shape, np.inf)
+for name, width, pts in roads:
+    if name != "Highway":
+        campus_road_dist = np.minimum(campus_road_dist, polyline_distance(X, Z, pts, 120.0) - width / 2 - 6.0)
+outside = np.maximum(np.minimum(np.maximum(sd, 0.0), np.maximum(campus_road_dist, 0.0)), 0.0)
+
+n_low = fbm(RES, 8, 4, SEED + 1)
+n_mid = fbm(RES, 24, 4, SEED + 2)
+n_hills = fbm(RES, 5, 5, SEED + 3)
+n_ravine = fbm(RES, 14, 3, SEED + 4)
+n_ridge = fbm(RES, 7, 5, SEED + 9)
+
+# Ridge top: 34 m at the academic block, climbing to about 48 m at Sindhu Hostel,
+# with knolls and dips of up to about 8 m either way.
+# The ridge climbs in terraces: academic zone, central zone, hostels, Sindhu Hostel,
+# joined by visible banks where the roads ramp up.
+terraces = (34.0 + 5.0 * smoothstep(20.0, -40.0, Z) + 5.0 * smoothstep(-200.0, -250.0, Z)
+            + 5.0 * smoothstep(-370.0, -410.0, Z))
+plateau = terraces + 6.0 * n_low + 2.0 * n_mid
+# Hillocks in the open ground between roads and buildings, up to about 9 m high.
+dev_dist = campus_road_dist.copy()
+for g, cx, cz, hw, hd, ell in pads:
+    rows, cols = window(cx, cz, max(hw, hd) + 60)
+    dd = pad_distance(X[rows, cols], Z[rows, cols], cx, cz, hw, hd, ell)
+    dev_dist[rows, cols] = np.minimum(dev_dist[rows, cols], dd)
+n_knoll = fbm(RES, 20, 3, SEED + 10)
+plateau += 9.0 * np.clip(n_knoll + 0.25, 0, None) * smoothstep(12.0, 45.0, dev_dist)
+# Gate slope: the serpentine drive climbs from the gate (about 3 m) up to the ridge.
+gate_ramp = smoothstep(380.0, 528.0, Z)
+plateau = plateau * (1 - gate_ramp) + 3.0 * gate_ramp
+
+# Distance south of the highway, which runs along the valley floor.
+hwz_at_x = np.interp(X, hw_x, hw_z)
+north = Z - hwz_at_x
+valley = smoothstep(260.0, 30.0, -north)  # 1 near the highway, 0 far south of it
+
+# Outside the wall: a short shoulder, then a steep drop into ravines cut by stream channels.
+channels = (1 - np.abs(n_ravine)) ** 6
+ravine_floor = -2.0 + 6.0 * n_mid - 16.0 * channels * smoothstep(20, 90, outside)
+drop = smoothstep(6.0, 80.0, outside) ** 0.8
+height = plateau * (1 - drop) + ravine_floor * drop
+
+# Across the ravines: wooded spurs a little below the campus ridge, then sharp
+# foothill ridges rising to 80-140 m that close the horizon.
+ridges = (1 - np.abs(n_ridge)) ** 2.2
+near_hills = (14.0 + 22.0 * ridges + 10.0 * n_hills) * smoothstep(90.0, 260.0, outside)
+far_ridges = (55.0 + 75.0 * ridges + 20.0 * n_hills) * smoothstep(380.0, 850.0, outside)
+hills = near_hills + far_ridges
+height += hills * (1 - 0.85 * valley)
+
+# North of the highway: the flat valley floor with fields, and hills again in the distance.
+farm = 0.5 + 1.0 * n_mid + (40.0 + 50.0 * ridges) * smoothstep(380.0, 800.0, north)
+farm_mask = smoothstep(-30.0, 20.0, north)
+height = height * (1 - farm_mask) + farm * farm_mask
+height += 0.6 * fbm(RES, 80, 2, SEED + 5)  # small bumps everywhere
+height = blur(height, 1)
+
+
+# ------------------------------------------------------------------ flatten plots and roads
 def flatten_pads(h, margin, blend, heights=None):
     if heights is None:
         groups = {}
@@ -238,7 +287,8 @@ def flatten_roads(h):
     shoulder = 9.0
     for name, width, pts in roads:
         p = np.array(pts)
-        prof = smooth_profile(sample(h, p[:, 0], p[:, 1]), 15 if name != "Highway" else 25)
+        window_pts = {"Highway": 25, "Serpentine Drive": 40}.get(name, 15)
+        prof = smooth_profile(sample(h, p[:, 0], p[:, 1]), window_pts)
         reach = width / 2 + 1.0 + shoulder
         for k in range(len(p) - 1):
             (ax, az), (bx, bz) = p[k], p[k + 1]
@@ -314,7 +364,7 @@ ang = math.radians(14)
 rx, rz = X * math.cos(ang) - Z * math.sin(ang), X * math.sin(ang) + Z * math.cos(ang)
 field_table = np.random.default_rng(SEED + 8).random((400, 400))
 crop = field_table[(np.floor((rz + 3000) / 26) % 400).astype(int), (np.floor((rx + 3000) / 47) % 400).astype(int)]
-fz = farm_zone * smoothstep(0.6, 0.9, farm_mask)
+fz = farm_zone * smoothstep(0.6, 0.9, farm_mask) * (1 - smoothstep(330.0, 520.0, north)) * (1 - smoothstep(8, 14, slope))
 grass = grass * (1 - fz) + fz * (crop < 0.45) * 1.0
 soil = soil * (1 - fz) + fz * ((crop >= 0.45) & (crop < 0.75)) * 1.0
 dry = dry * (1 - fz) + fz * (crop >= 0.75) * 1.0
@@ -401,7 +451,7 @@ fi = np.clip(((JZ - MIN_Z) / CELL).round().astype(int), 0, RES - 1)
 fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
 o = outside[fi, fj]
 density = np.where(sd[fi, fj] < 0, 0.035,
-                   0.30 * (1 - smoothstep(250, 480, o)) * smoothstep(3, 15, o))
+                   (0.30 - 0.22 * smoothstep(200, 650, o)) * (1 - smoothstep(650, 900, o)) * smoothstep(3, 15, o))
 density *= 0.5 + 0.8 * np.clip(0.5 - n_patch[fi, fj], 0, 1)   # clumps
 density *= 1 - farm_mask[fi, fj] * 0.92                        # few trees in fields
 density *= 1 - 0.7 * lawn_mask[fi, fj]

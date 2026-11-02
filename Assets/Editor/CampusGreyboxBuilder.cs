@@ -379,8 +379,8 @@ namespace Jagti.EditorTools
             RenderSettings.ambientGroundColor = new Color(0.25f, 0.23f, 0.20f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 70f;
-            RenderSettings.fogEndDistance = 420f;
+            RenderSettings.fogStartDistance = 150f;
+            RenderSettings.fogEndDistance = 1100f; // far enough to see the ridges on the horizon
             RenderSettings.fogColor = new Color(0.72f, 0.76f, 0.79f);
 
             // Hazy Jammu sky; fog fades the far hills into its horizon colour.
@@ -412,8 +412,8 @@ namespace Jagti.EditorTools
             var go = new GameObject("Zombie NavMesh");
             var surface = go.AddComponent<NavMeshSurface>();
             surface.collectObjects = CollectObjects.Volume;
-            surface.center = new Vector3((minX + maxX) / 2f, 20f, (minZ + maxZ) / 2f);
-            surface.size = new Vector3(maxX - minX + margin * 2f, 90f, maxZ - minZ + margin * 2f);
+            surface.center = new Vector3((minX + maxX) / 2f, 30f, (minZ + maxZ) / 2f);
+            surface.size = new Vector3(maxX - minX + margin * 2f, 140f, maxZ - minZ + margin * 2f);
             surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             surface.overrideVoxelSize = true;
             surface.voxelSize = 0.25f;
@@ -447,7 +447,7 @@ namespace Jagti.EditorTools
             cameraObject.transform.localPosition = new Vector3(0f, 1.65f, 0f);
             var cam = cameraObject.AddComponent<Camera>();
             cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 700f;
+            cam.farClipPlane = 1800f;
             cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             cam.backgroundColor = RenderSettings.fogColor;
             cameraObject.AddComponent<AudioListener>();
