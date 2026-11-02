@@ -122,11 +122,15 @@ namespace Jagti.EditorTools
             foreach (var place in layout.places) MakeLabel(place, labelRoot);
 
             MakeLighting();
-            var player = MakePlayer(layout);
-            CampusBusBuilder.Build(layout, Ground, RoadTop);
 
+            // Bake before the player and crates exist so they do not punch holes in the NavMesh.
             Progress("Zombie navigation mesh (this can take a minute)", 0.7f);
             MakeNavMesh(layout);
+            var player = MakePlayer(layout);
+
+            Progress("Zombies, weapons and supply crates", 0.9f);
+            GameplayBuilder.Build(layout, player, root.transform, Ground);
+            CampusBusBuilder.Build(layout, Ground, RoadTop);   // after the bake, so it doesn't cut the NavMesh
 
             var hud = new GameObject("Debug HUD").AddComponent<DebugHud>();
             hud.player = player;

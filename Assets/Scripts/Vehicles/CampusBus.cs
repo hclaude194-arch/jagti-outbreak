@@ -1,3 +1,4 @@
+using Jagti.Gameplay;
 using Jagti.Player;
 using UnityEngine;
 
@@ -63,6 +64,7 @@ namespace Jagti.Vehicles
         string message;
         float messageUntil;
         Collider[] ownColliders;
+        Behaviour[] onFoot;          // weapons and searching, off while aboard
         AudioSource engine, horn;
 
         void Start()
@@ -74,6 +76,8 @@ namespace Jagti.Vehicles
                 cameraTransform = player.cameraPivot != null ? player.cameraPivot : player.GetComponentInChildren<Camera>().transform;
             }
             ownColliders = GetComponentsInChildren<Collider>();
+            if (player != null)
+                onFoot = new Behaviour[] { player.GetComponent<WeaponController>(), player.GetComponent<Interactor>() };
             target = route != null && route.Length > 0 ? (startIndex + 1) % route.Length : 0;
             nextStop = FirstStopAfter(startIndex);
             if (mode == Mode.Route && route != null && route.Length > 0) waitUntil = Time.time + stopSeconds;
@@ -85,6 +89,12 @@ namespace Jagti.Vehicles
         void Update()
         {
             if (player == null) return;
+            if (aboard && GameState.PlayerDead) GetOff();
+            if (GameState.Paused || GameState.PlayerDead)
+            {
+                if (engine != null) engine.volume = 0f;
+                return;
+            }
             bool nearDoor = !aboard && door != null &&
                             (player.transform.position - door.position).sqrMagnitude < 3.2f * 3.2f;
 
@@ -125,6 +135,7 @@ namespace Jagti.Vehicles
             aboard = true;
             player.enabled = false;
             if (playerController != null) playerController.enabled = false;
+            SetOnFoot(false);
             if (drive) { mode = Mode.Driving; atWheel = true; }
             else atWheel = false;
             SeatPlayer();
@@ -156,8 +167,15 @@ namespace Jagti.Vehicles
             player.transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y - 90f, 0f);
             if (playerController != null) playerController.enabled = true;
             player.enabled = true;
+            SetOnFoot(true);
             player.Teleport(p);
             if (cameraTransform != null) cameraTransform.localRotation = Quaternion.identity;
+        }
+
+        void SetOnFoot(bool on)
+        {
+            if (onFoot == null) return;
+            foreach (var b in onFoot) if (b != null) b.enabled = on;
         }
 
         void SwapDriver()
@@ -204,9 +222,13 @@ namespace Jagti.Vehicles
 
         void Look()
         {
-            // The walking controller is off while aboard, so handle the cursor here.
-            if (Input.GetKeyDown(KeyCode.Escape)) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
-            if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) { Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false; }
+            // The walking controller is off while aboard, so handle the cursor here
+            // (unless the game HUD owns Esc for its pause menu).
+            if (!GameState.HudActive)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape)) GameState.SetCursorLocked(false);
+                if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) GameState.SetCursorLocked(true);
+            }
             if (Cursor.lockState != CursorLockMode.Locked) return;
             float s = player.mouseSensitivity;
             lookYaw += Input.GetAxis("Mouse X") * s;
@@ -357,6 +379,17 @@ namespace Jagti.Vehicles
                 if (h.collider is TerrainCollider) continue;
                 if (h.normal.y > 0.6f) continue;                 // ground, kerbs and ramps
                 if (h.distance <= 0f) continue;                  // already overlapping: let it drive out
+                var health = h.collider.GetComponentInParent<Health>();
+                if (health != null && !IsPlayer(h.collider))
+                {
+                    if (health.IsDead) continue;                 // drive over the fallen
+                    if (Mathf.Abs(Speed) > 2.5f)
+                    {
+                        // Zombies in the road: knock them down instead of stopping.
+                        health.Damage(Mathf.Abs(Speed) * 18f, transform.position);
+                        continue;
+                    }
+                }
                 return true;
             }
             return false;
