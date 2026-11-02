@@ -412,6 +412,9 @@ rock = np.zeros(height.shape)
 # Wild ground: dry grass with green patches and bare soil.
 dry += 0.65 + 0.35 * n_patch
 grass += np.clip(0.25 - 0.6 * n_patch, 0, 1) + 0.15 * inside
+# Inside the campus wall the ground is kept green, as on the campus model.
+grass += 0.9 * inside
+dry *= 1 - 0.6 * inside
 soil += np.clip(0.3 * n_fine + 0.15 * (n_patch > 0.35), 0, 1)
 # Farmland: a patchwork of crop, ploughed and fallow fields.
 ang = math.radians(14)
@@ -478,7 +481,7 @@ def clear_at(x, z, gap):
 
 # Avenue trees along the main campus roads.
 AVENUES = {
-    "Spine Road North": (EUCA, 13), "Spine Road South": (EUCA, 13), "Academic Ring": (BROAD, 15),
+    "Spine Road North": (EUCA, 13), "Spine Road South": (EUCA, 13), "Academic Ring": (BROAD, 15), "Academic West Drive": (BROAD, 15),
     "Central East-West Road": (BROAD, 14), "Serpentine Drive": (BROAD, 16), "Gate Approach": (EUCA, 10),
     "Southern East-West Road": (BROAD, 15), "Track Road": (EUCA, 16), "Oval Road West": (BROAD, 14),
 }

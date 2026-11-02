@@ -91,7 +91,9 @@ namespace Jagti.EditorTools
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
             var roadRoot = Child(root.transform, "Roads");
-            concreteRoad = null;
+            asphaltRoad = null;
+            asphaltLined = null;
+            pavedRoad = null;
             kerbMaterial = null;
             foreach (var road in layout.roads) MakeRoad(road, layout.roads, roadRoot, materials);
             MakeWater(layout, Child(root.transform, "Water"));
@@ -174,10 +176,10 @@ namespace Jagti.EditorTools
 
         static Color BuildingColor(BuildingData b)
         {
-            if (b.name.Contains("Hostel")) return new Color(0.80f, 0.74f, 0.64f);
-            if (b.zone == "academic") return new Color(0.86f, 0.82f, 0.74f);
+            if (b.name.Contains("Hostel")) return new Color(0.89f, 0.85f, 0.79f);
+            if (b.zone == "academic") return new Color(0.90f, 0.84f, 0.77f); // pinkish cream, as on the campus model
             if (b.name.Contains("Shed") || b.name.Contains("Substation")) return new Color(0.55f, 0.55f, 0.52f);
-            return new Color(0.74f, 0.72f, 0.68f);
+            return new Color(0.86f, 0.82f, 0.76f);
         }
 
         static void MakeArea(AreaData a, Transform parent, MaterialLibrary materials)
@@ -189,12 +191,12 @@ namespace Jagti.EditorTools
             float top = AreaTop;
             switch (a.type)
             {
-                case "parking": color = new Color(0.30f, 0.30f, 0.30f); top = RoadTop; break;
+                case "parking": color = new Color(0.42f, 0.42f, 0.41f); top = RoadTop; break;
                 case "court": color = new Color(0.30f, 0.42f, 0.48f); top = RoadTop; break;
                 case "track": color = new Color(0.62f, 0.30f, 0.22f); top = RoadTop; break;
-                case "field": color = new Color(0.38f, 0.48f, 0.26f); top = FieldTop; break;
-                case "amphitheatre": color = new Color(0.62f, 0.58f, 0.50f); break;
-                case "roundabout": color = new Color(0.35f, 0.47f, 0.25f); top = 0.35f; break;
+                case "field": color = new Color(0.32f, 0.50f, 0.20f); top = FieldTop; break;
+                case "amphitheatre": color = new Color(0.82f, 0.77f, 0.68f); break;
+                case "roundabout": color = new Color(0.28f, 0.48f, 0.18f); top = 0.35f; break;
                 case "substation": color = new Color(0.52f, 0.50f, 0.44f); break;
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
@@ -215,7 +217,7 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        static Material concreteRoad, kerbMaterial;
+        static Material asphaltRoad, asphaltLined, pavedRoad, kerbMaterial;
 
         static void MakeRoad(RoadData road, RoadData[] allRoads, Transform parent, MaterialLibrary materials)
         {
@@ -228,6 +230,7 @@ namespace Jagti.EditorTools
             var triangles = new List<int>();
             float half = road.width / 2f;
             float distance = 0f;
+            bool paved = IsPaved(road.name);
 
             for (int i = 0; i < count; i++)
             {
@@ -244,8 +247,17 @@ namespace Jagti.EditorTools
                 Vector2 left = p + normal * half, right = p - normal * half;
                 vertices.Add(new Vector3(left.x, Ground(left.x, left.y) + RoadTop, left.y));
                 vertices.Add(new Vector3(right.x, Ground(right.x, right.y) + RoadTop, right.y));
-                uvs.Add(new Vector2(0f, distance / road.width));
-                uvs.Add(new Vector2(1f, distance / road.width));
+                if (paved)
+                {
+                    // Paving tiles in metres so the slabs keep their size on every path width.
+                    uvs.Add(new Vector2(0f, distance / PavingTile));
+                    uvs.Add(new Vector2(road.width / PavingTile, distance / PavingTile));
+                }
+                else
+                {
+                    uvs.Add(new Vector2(0f, distance / road.width));
+                    uvs.Add(new Vector2(1f, distance / road.width));
+                }
 
                 if (i > 0)
                 {
@@ -266,17 +278,7 @@ namespace Jagti.EditorTools
             go.transform.SetParent(parent);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            // Campus roads are light concrete slabs (from the owner's photos); the highway is asphalt.
-            if (road.name == "Highway")
-                renderer.sharedMaterial = materials.Get("Road", new Color(0.24f, 0.24f, 0.25f));
-            else if (road.name == "Clock Tower Walkway")
-                renderer.sharedMaterial = materials.Get("Walkway", new Color(0.72f, 0.68f, 0.60f));
-            else
-            {
-                if (concreteRoad == null)
-                    concreteRoad = ProceduralAssets.LitMaterial("Road_Concrete", Color.white, ProceduralAssets.ConcreteRoadTexture(), 0.1f);
-                renderer.sharedMaterial = concreteRoad;
-            }
+            renderer.sharedMaterial = RoadMaterial(road, paved);
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
 
@@ -284,12 +286,40 @@ namespace Jagti.EditorTools
                 MakeKerbs(road, points, allRoads, go.transform);
         }
 
+        const float PavingTile = 3f; // metres per paving texture tile (5 x 5 slabs of 0.6 m)
+
+        // Cream stone paving on the academic ring drive, the plazas and the garden paths, as on the campus model.
+        static bool IsPaved(string name)
+        {
+            return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ");
+        }
+
+        // Grey asphalt elsewhere (campus model); two-lane roads (6 m and wider) get a dashed white centre line.
+        static Material RoadMaterial(RoadData road, bool paved)
+        {
+            if (paved)
+            {
+                if (pavedRoad == null)
+                    pavedRoad = ProceduralAssets.LitMaterial("Road_Paving", Color.white, ProceduralAssets.PavingTexture(), 0.12f);
+                return pavedRoad;
+            }
+            if (road.width >= 6f)
+            {
+                if (asphaltLined == null)
+                    asphaltLined = ProceduralAssets.LitMaterial("Road_Asphalt_Lined", Color.white, ProceduralAssets.AsphaltTexture(true), 0.15f);
+                return asphaltLined;
+            }
+            if (asphaltRoad == null)
+                asphaltRoad = ProceduralAssets.LitMaterial("Road_Asphalt", Color.white, ProceduralAssets.AsphaltTexture(false), 0.15f);
+            return asphaltRoad;
+        }
+
         // Water channels on the terraces and round pools, from the campus model.
         static void MakeWater(CampusLayout layout, Transform parent)
         {
             if ((layout.water == null || layout.water.Length == 0) && (layout.pools == null || layout.pools.Length == 0)) return;
-            var water = ProceduralAssets.LitMaterial("Water_Channel", new Color(0.12f, 0.32f, 0.36f), null, 0.92f);
-            var stone = ProceduralAssets.LitMaterial("Water_Edge", new Color(0.82f, 0.80f, 0.74f), null, 0.15f);
+            var water = ProceduralAssets.LitMaterial("Water_Channel", new Color(0.20f, 0.56f, 0.58f), null, 0.92f); // turquoise, as on the campus model
+            var stone = ProceduralAssets.LitMaterial("Water_Edge", new Color(0.88f, 0.83f, 0.76f), null, 0.15f);
             if (layout.water != null)
             {
                 foreach (var ch in layout.water)
@@ -370,7 +400,7 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        // Black-and-white painted kerbs along both edges, left open where another road joins.
+        // Light stone kerbs along both edges, left open where another road joins.
         static void MakeKerbs(RoadData road, float[] points, RoadData[] allRoads, Transform parent)
         {
             if (kerbMaterial == null)
