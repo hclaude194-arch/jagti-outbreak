@@ -49,6 +49,7 @@ MATERIALS = {
     "Roof": (6.0, 6.0, (0.38, 0.37, 0.35)),
     "Metal": (2.0, 2.0, (0.22, 0.23, 0.24)),
     "ClockFace": (1.0, 1.0, (0.95, 0.94, 0.90)),
+    "Emblem": (1.0, 1.0, (0.12, 0.30, 0.62)),
     "Water": (4.0, 4.0, (0.20, 0.45, 0.50)),
     "Stone": (3.0, 3.0, (0.84, 0.77, 0.64)),
     "Planter": (2.0, 2.0, (0.30, 0.42, 0.20)),
@@ -671,35 +672,62 @@ def academic_block():
         r.box(0, r.L, 2 * FLOOR + 0.6, 2 * FLOOR + 2.3, 0.0, 0.05, "Glass", top=False, bottom=False)
     m.face([(bc[0], bc[1], 3 * FLOOR + 0.6)] + [(p[0], p[1], 3 * FLOOR + 0.6) for p in pts], "Roof", (0, 0, 1))
     m.cylinder_local(bc[0], bc[1], bay_r + 0.4, 3 * FLOOR + 0.6, 3 * FLOOR + 1.0, "Concrete", None, segments=28)
-    # Porte-cochere: a flat slab with a curved front edge on six square columns.
-    cz0 = OZ1 + bay_r - 2.0
-    cz1 = cz0 + 11.0
-    cw = 12.0
-    slab = [m.b(ex - cw, cz0), m.b(ex + cw, cz0)]
-    front = [m.b(ex + cw * math.cos(t), cz1 - 3.0 + 3.0 * math.sin(t)) for t in [math.pi * k / 10 for k in range(11)]]
-    outline = slab + front[::1]
-    zs0, zs1 = 6.8, 7.6
-    # Slab top, soffit and edge.
-    m.face([(p[0], p[1], zs1) for p in outline], "Concrete", (0, 0, 1))
-    m.face([(p[0], p[1], zs0) for p in outline], "Concrete", (0, 0, -1))
-    cxl = sum(p[0] for p in outline) / len(outline)
-    cyl = sum(p[1] for p in outline) / len(outline)
-    for k in range(len(outline)):
-        a, b_ = outline[k], outline[(k + 1) % len(outline)]
-        mx, my = (a[0] + b_[0]) / 2 - cxl, (a[1] + b_[1]) / 2 - cyl
-        m.face([(a[0], a[1], zs0), (b_[0], b_[1], zs0), (b_[0], b_[1], zs1), (a[0], a[1], zs1)], "Concrete", (mx, my, 0))
-    for X in (ex - cw + 1.2, ex - cw / 3, ex + cw / 3, ex + cw - 1.2):
-        for Z in (cz1 - 2.2,):
-            c = m.b(X, Z)
-            m.box_local(c[0] - 0.4, c[0] + 0.4, c[1] - 0.4, c[1] + 0.4, -0.3, zs0, "Stone", None)
-    # Entrance plaza steps and the round fountain pool.
-    for k in range(4):
-        z = 0.45 - k * 0.15
-        a = m.b(ex - 9, cz1 + 0.6 * k)
-        b_ = m.b(ex + 9, cz1 + 0.6 * (k + 1))
-        m.box_local(min(a[0], b_[0]), max(a[0], b_[0]), min(a[1], b_[1]), max(a[1], b_[1]), -0.6, z, "Concrete", "Concrete")
-    plaza = rect_poly(m, ex - cw - 2, ex + cw + 2, OZ1, cz1)
+    # Porte-cochere: a deep square slab on stone columns, as on the model's top view, with
+    # the curved glass bay tucked under its back edge.
+    cw = 11.0
+    cz0, cz1 = OZ1 + 1.0, OZ1 + 19.0
+    zs0, zs1 = 7.0, 8.0
+    m.box(ex - cw, ex + cw, cz0, cz1, zs0, zs1, "Stone", "Concrete", bottom=True)
+    m.box(ex - cw - 0.3, ex + cw + 0.3, cz0, cz1 + 0.3, zs1, zs1 + 0.6, "Concrete", "Roof", bottom=True)
+    # Coffers under the slab: a shallow beam grid.
+    for k in range(1, 4):
+        xb = ex - cw + 2 * cw * k / 4
+        m.box(xb - 0.25, xb + 0.25, cz0, cz1, zs0 - 0.5, zs0, "Concrete", None, bottom=True)
+    for k in range(1, 3):
+        zb = cz0 + (cz1 - cz0) * k / 3
+        m.box(ex - cw, ex + cw, zb - 0.25, zb + 0.25, zs0 - 0.5, zs0, "Concrete", None, bottom=True)
+    for X in (ex - cw + 0.9, ex + cw - 0.9):
+        for Z in (cz0 + (cz1 - cz0) / 2, cz1 - 0.9):
+            m.box(X - 0.6, X + 0.6, Z - 0.6, Z + 0.6, -0.3, zs0, "Stone", None)
+            m.box(X - 0.8, X + 0.8, Z - 0.8, Z + 0.8, -0.3, 0.9, "Concrete", "Concrete")
+    # Entrance plaza under the porch, with steps down to the drive at its front.
+    plaza = rect_poly(m, ex - cw - 2, ex + cw + 2, OZ1, cz1 + 1.0)
     m.prism(plaza, -0.6, 0.45, "Concrete", "Concrete")
+    for k in range(3):
+        z = 0.30 - k * 0.15
+        m.box(ex - 8, ex + 8, cz1 + 1.0 + 0.45 * k, cz1 + 1.45 + 0.45 * k, -0.6, z, "Concrete", "Concrete")
+    # Red flower beds with rounded ends on both sides of the porch.
+    for side in (-1, 1):
+        bx = ex + side * (cw + 6.5)
+        bed = [m.b(bx + 3.0 * math.cos(t), OZ1 + 15.0 + 3.0 * math.sin(t)) for t in [math.pi * k / 8 for k in range(9)]]
+        bed += [m.b(bx + 3.0 * math.cos(t), OZ1 + 5.0 + 3.0 * math.sin(t)) for t in [math.pi + math.pi * k / 8 for k in range(9)]]
+        bed = anticlockwise(dedupe(bed))
+        m.prism(bed, -0.3, 0.35, "Concrete", "Concrete")
+        m.prism(inset_polygon(bed, 0.25), 0.35, 0.6, "Planter", "Planter")
+    # Square frame round the fountain (the water itself is drawn by the scene builder), with
+    # a quarter-round planter in each corner.
+    fx, fz = ex - 2.0, OZ1 + 27.0
+    hf = 5.5
+    for (X0, X1, Z0, Z1) in ((fx - hf, fx + hf, fz - hf, fz - hf + 0.5), (fx - hf, fx + hf, fz + hf - 0.5, fz + hf),
+                             (fx - hf, fx - hf + 0.5, fz - hf, fz + hf), (fx + hf - 0.5, fx + hf, fz - hf, fz + hf)):
+        m.box(X0, X1, Z0, Z1, -0.3, 0.45, "Stone", "Concrete")
+    for (cxs, czs) in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        c0 = (fx + cxs * (hf - 0.5), fz + czs * (hf - 0.5))
+        a0 = math.atan2(-czs, -cxs)
+        q = [m.b(*c0)] + [m.b(c0[0] + 1.8 * math.cos(a0 + (k / 6 - 0.5) * math.pi / 2), c0[1] + 1.8 * math.sin(a0 + (k / 6 - 0.5) * math.pi / 2)) for k in range(7)]
+        m.prism(anticlockwise(q), -0.2, 0.55, "Concrete", "Planter")
+
+    # --- courtyard garden: kerbed beds round a raised centre square (paths are drawn by the scene)
+    gx, gz = (IX0 + IX1) / 2, (IZ0 + IZ1) / 2
+    m.box(gx - 3.5, gx + 3.5, gz - 3.5, gz + 3.5, -0.3, 0.35, "Stone", "Concrete")
+    m.cylinder_local(*m.b(gx, gz), 1.6, 0.35, 0.8, "Stone", "Planter", segments=16)
+    # Kerbs round the four beds inside the loop path (map x 476.5-501.5, y 695.5-734.5).
+    for (mx0, mx1) in ((476.5, 487.5), (490.5, 501.5)):
+        for (my0, my1) in ((695.5, 713.5), (716.5, 734.5)):
+            X0, X1, Z1, Z0 = mx0 - 414.0, mx1 - 414.0, 996.0 - my0, 996.0 - my1
+            for (x0_, x1_, z0_, z1_) in ((X0, X1, Z0, Z0 + 0.25), (X0, X1, Z1 - 0.25, Z1),
+                                         (X0, X0 + 0.25, Z0, Z1), (X1 - 0.25, X1, Z0, Z1)):
+                m.box(x0_, x1_, z0_, z1_, -0.2, 0.3, "Concrete", "Concrete")
 
     # --- the auditorium hall on the west, its far end curved
     au = BUILDINGS["Mandapam Auditorium (west drum)"]
@@ -787,9 +815,9 @@ def academic_block():
 
 
 def clock_tower():
-    """Slender stone tower as on the campus model: a tall shaft with a recessed channel
-    up each face, a clock stage near the top under a thin cornice, standing on an
-    elongated hexagonal plinth with steps, in the middle of the walkway."""
+    """Slender white tower as on the campus model: a tall shaft with a recessed glazed channel
+    up each face, a top stage with a blue emblem panel facing along the walkway and clock
+    dials on the sides, standing on an elongated hexagonal plinth with steps."""
     name = "Clock Tower"
     m = Model("Clock_Tower", *centre(name))
     bd = BUILDINGS[name]
@@ -801,7 +829,7 @@ def clock_tower():
         hexa = [(0, -hl), (hw, -hl + hw * 0.6), (hw, hl - hw * 0.6), (0, hl), (-hw, hl - hw * 0.6), (-hw, -hl + hw * 0.6)]
         m.prism(hexa, -3.0 if k == 0 else 0.0, z, "Concrete", "Concrete")
     hw = w / 2
-    m.box_local(-hw - 0.3, hw + 0.3, -hw - 0.3, hw + 0.3, 0.45, 1.6, "Stone", "Concrete")      # base course
+    m.box_local(-hw - 0.3, hw + 0.3, -hw - 0.3, hw + 0.3, 0.45, 1.6, "Plaster", "Concrete")      # base course
     shaft_top = H - 4.0
     for (nx, ny) in ((0, -1), (1, 0), (0, 1), (-1, 0)):
         tx, ty = -ny, nx
@@ -810,25 +838,27 @@ def clock_tower():
         r = Run(m, a, b_, (nx, ny))
         L = r.L
         # Corner piers and a deep vertical channel with a glass slit.
-        r.rect(0, 0.9, 1.6, shaft_top, 0, "Stone")
-        r.rect(L - 0.9, L, 1.6, shaft_top, 0, "Stone")
-        r.rect(0.9, L - 0.9, 1.6, 2.6, 0, "Stone")
-        r.side(0.9, 2.6, shaft_top, 0, -0.45, "Stone", 1)
-        r.side(L - 0.9, 2.6, shaft_top, 0, -0.45, "Stone", -1)
-        r.hband(0.9, L - 0.9, 2.6, 0, -0.45, "Stone", up=True)
+        r.rect(0, 0.9, 1.6, shaft_top, 0, "Plaster")
+        r.rect(L - 0.9, L, 1.6, shaft_top, 0, "Plaster")
+        r.rect(0.9, L - 0.9, 1.6, 2.6, 0, "Plaster")
+        r.side(0.9, 2.6, shaft_top, 0, -0.45, "Plaster", 1)
+        r.side(L - 0.9, 2.6, shaft_top, 0, -0.45, "Plaster", -1)
+        r.hband(0.9, L - 0.9, 2.6, 0, -0.45, "Plaster", up=True)
         r.rect(0.9, L - 0.9, 2.6, shaft_top, -0.45, "Glass")
         for z in range(6, int(shaft_top) - 1, 4):
-            r.box(0.9, L - 0.9, z, z + 0.25, -0.45, 0.0, "Stone")
+            r.box(0.9, L - 0.9, z, z + 0.25, -0.45, 0.0, "Plaster")
         # Clock stage.
-        r.rect(-0.25, L + 0.25, shaft_top, H, 0.25, "Stone")
+        r.rect(-0.25, L + 0.25, shaft_top, H, 0.25, "Plaster")
         r.box(-0.4, L + 0.4, shaft_top - 0.3, shaft_top, 0.0, 0.5, "Concrete")
         r.box(-0.45, L + 0.45, H, H + 0.5, 0.0, 0.6, "Concrete")
         c = r.P(L / 2, 0.27, 0)
-        dial = 1.0
+        # Blue emblem panel on the faces along the walkway, clock dials on the other two.
+        emblem = ny != 0
+        dial = 1.2 if emblem else 1.0
         zc = shaft_top + 2.0
         m.face([(c[0] - tx * dial, c[1] - ty * dial, zc - dial), (c[0] + tx * dial, c[1] + ty * dial, zc - dial),
                 (c[0] + tx * dial, c[1] + ty * dial, zc + dial), (c[0] - tx * dial, c[1] - ty * dial, zc + dial)],
-               "ClockFace", (nx, ny, 0))
+               "Emblem" if emblem else "ClockFace", (nx, ny, 0))
     # Side walls of the clock stage at its overhang, and the roof.
     m.box_local(-hw - 0.25, hw + 0.25, -hw - 0.25, hw + 0.25, H + 0.5, H + 0.5, "Concrete", "Roof")
     m.box_local(-0.5, 0.5, -0.5, 0.5, H + 0.5, H + 2.5, "Metal", "Metal")  # mast
@@ -838,60 +868,85 @@ def clock_tower():
 
 
 def main_gate():
-    """The main gate from the campus model: two sandstone guard pavilions under one deep,
-    flat portal canopy with a coffered top, curved low walls sweeping out on both sides,
-    and a triangular planter island in front on the highway side."""
+    """The main gate from the campus model (view from the highway): one broad flat canopy with
+    a coffered top spanning the drive, carried by a guard room on the west and slim piers on
+    the east; low boundary walls either side; a sculpted curved wall rising round the small
+    roundabout just inside; and a triangular planter island on the apron in front."""
     name = "Main Gate"
     bd = BUILDINGS[name]
     m = Model("Main_Gate", bd["x"], bd["z"])
     m.replaces.append(name)
-    X, Z, w, d = bd["x"], bd["z"], bd["width"], bd["depth"]
+    Z = bd["z"]
     road_x = -118.0  # Gate Approach centre line (map x 296)
-    gap = 5.0        # half opening; the road is 8 m wide
-    Z0, Z1 = Z - d / 2, Z + d / 2
-    # Guard pavilions.
-    for (a, b_) in ((road_x - gap - 7.0, road_x - gap), (road_x + gap, road_x + gap + 7.0)):
-        poly = rect_poly(m, a, b_, Z0 + 0.5, Z1 - 0.5)
-        m.face([(p[0], p[1], 4.2) for p in poly], "Roof", (0, 0, 1))
-        for run in outline_runs(m, poly):
-            run.box(0, run.L, -0.8, 0.45, 0.0, 0.15, "Concrete", bottom=False)
-            run.window(0, run.L, 0.45, 4.2, 1.0, run.L - 1.0, 1.0, 3.0, 0.25, wall="Stone")
-            for k in range(1, int(run.L / 0.9)):
-                sx = run.L * k / int(run.L / 0.9)
-                if 1.0 < sx < run.L - 1.0:
-                    run.box(sx - 0.03, sx + 0.03, 1.0, 3.0, -0.25, -0.15, "Metal", top=False, bottom=False)
-    # Portal canopy: a deep flat slab over both pavilions and the road, edged with stone.
-    cx0, cx1 = road_x - gap - 8.5, road_x + gap + 8.5
-    cz0, cz1 = Z0 - 1.5, Z1 + 1.5
-    m.box(cx0, cx1, cz0, cz1, 6.2, 7.4, "Stone", "Concrete", bottom=True)
-    # Coffered top: a grid of upstand beams.
-    for k in range(9):
+    Z0, Z1 = Z - 4.5, Z + 4.5
+    # Canopy: 24 m across the drive, 11 m deep, 1.1 m thick, coffered top in 4 x 2 panels.
+    cx0, cx1 = road_x - 13.0, road_x + 11.0
+    cz0, cz1 = Z0 - 1.0, Z1 + 1.0
+    m.box(cx0, cx1, cz0, cz1, 6.0, 7.1, "Stone", "Concrete", bottom=True)
+    for k in range(5):
+        xb = cx0 + (cx1 - cx0) * k / 4
+        m.box(max(cx0, xb - 0.35), min(cx1, xb + 0.35), cz0 + 0.7, cz1 - 0.7, 7.1, 7.6, "Concrete", "Concrete")
+    for zb in (cz0 + 0.35, (cz0 + cz1) / 2, cz1 - 0.35):
+        m.box(cx0, cx1, zb - 0.35, zb + 0.35, 7.1, 7.5, "Concrete", "Concrete")
+    # Soffit grid under the slab.
+    for k in range(1, 8):
         xb = cx0 + (cx1 - cx0) * k / 8
-        m.box(xb - 0.2, xb + 0.2, cz0, cz1, 7.4, 7.9, "Concrete", "Concrete")
-    for zb in (cz0 + 0.2, (cz0 + cz1) / 2, cz1 - 0.2):
-        m.box(cx0, cx1, zb - 0.2, zb + 0.2, 7.4, 7.9, "Concrete", "Concrete")
-    # Four piers carry the canopy beside the road.
-    for px_ in (road_x - gap - 0.9, road_x + gap + 0.1):
-        for pz in (cz0 + 0.6, cz1 - 1.4):
-            m.box(px_, px_ + 0.8, pz, pz + 0.8, -0.6, 6.2, "Stone", None)
-    # Curved walls sweeping out from the pavilions towards the highway (north, +Z).
-    for side in (-1, 1):
-        x_start = road_x + side * (gap + 7.0)
-        pts = [(x_start + side * 14.0 * (1 - math.cos(t)), Z1 + 10.0 * math.sin(t)) for t in [math.pi / 2 * k / 10 for k in range(11)]]
-        for (pa, pb) in zip(pts[:-1], pts[1:]):
-            a, b_ = m.b(*pa), m.b(*pb)
-            r = Run(m, a, b_)
-            for nn in (1, -1):
-                r.n = (r.n[0] * nn, r.n[1] * nn) if nn == -1 else r.n
-                r.rect(0, r.L, -0.6, 1.6, 0.18, "Stone")
-            r.box(-0.02, r.L + 0.02, 1.6, 1.8, -0.3, 0.3, "Concrete")
-    # Triangular planter island in front of the gate, on the highway side.
-    tri = [m.b(road_x - 9.0, Z1 + 16.0), m.b(road_x + 9.0, Z1 + 16.0), m.b(road_x, Z1 + 9.0)]
-    area = sum(tri[k][0] * tri[(k + 1) % 3][1] - tri[(k + 1) % 3][0] * tri[k][1] for k in range(3))
-    if area < 0:
-        tri = tri[::-1]
+        m.box(xb - 0.15, xb + 0.15, cz0 + 0.5, cz1 - 0.5, 5.75, 6.0, "Concrete", None, bottom=True)
+    # Guard room under the west end of the canopy, with a band of windows and a door.
+    gx0, gx1 = cx0 + 0.8, road_x - 5.0
+    poly = rect_poly(m, gx0, gx1, Z0 + 0.8, Z1 - 0.8)
+    m.face([(p[0], p[1], 3.6) for p in poly], "Roof", (0, 0, 1))
+    for run in outline_runs(m, poly):
+        run.box(0, run.L, -0.8, 0.45, 0.0, 0.15, "Concrete", bottom=False)
+        run.window(0, run.L, 0.45, 3.0, 0.9, run.L - 0.9, 1.0, 2.5, 0.2, wall="Stone")
+        run.rect(0, run.L, 3.0, 3.4, 0.0, "Stone")
+        run.box(-0.05, run.L + 0.05, 3.4, 3.6, 0.0, 0.25, "Concrete")
+    # A solid stone pier rises from the guard room's outer end to the canopy.
+    m.box(cx0, cx0 + 1.6, Z0 - 0.2, Z1 + 0.2, -0.6, 6.0, "Stone", None)
+    # Slim paired piers on the east side of the drive.
+    for pz in (cz0 + 1.0, cz1 - 1.8):
+        m.box(cx1 - 2.2, cx1 - 1.4, pz, pz + 0.8, -0.6, 6.0, "Stone", None)
+        m.box(cx1 - 2.4, cx1 - 1.2, pz - 0.2, pz + 1.0, -0.6, 0.6, "Concrete", "Concrete")
+    # Boom barrier booth line: a kerbed island between the lanes.
+    m.box(road_x - 0.6, road_x + 0.6, Z0, Z1, -0.3, 0.25, "Concrete", "Concrete")
+    # Low boundary walls running out either side, stone with a pale coping.
+    for (x0_, x1_) in ((cx0 - 22.0, cx0), (cx1, cx1 + 22.0)):
+        m.box(x0_, x1_, Z - 0.25, Z + 0.25, -0.8, 1.3, "Stone", "Concrete")
+        m.box(x0_, x1_, Z - 0.35, Z + 0.35, 1.3, 1.45, "Concrete", "Concrete")
+    # Curved wall round the north-east of the little roundabout inside the gate, its top
+    # rising from 1.2 m by the gate to 4.2 m at its far end.
+    rcx, rcz, rr = road_x, 509.0, 15.0
+    a0_, a1_ = math.radians(72.0), math.radians(20.0)
+    n = 18
+    pts = [(rcx + rr * math.cos(a0_ + (a1_ - a0_) * k / n), rcz + rr * math.sin(a0_ + (a1_ - a0_) * k / n)) for k in range(n + 1)]
+    for k in range(n):
+        (X0_, Z0_), (X1_, Z1_) = pts[k], pts[k + 1]
+        h0 = 1.2 + 3.0 * (0.5 - 0.5 * math.cos(math.pi * k / n))
+        h1 = 1.2 + 3.0 * (0.5 - 0.5 * math.cos(math.pi * (k + 1) / n))
+        oa = (math.cos(a0_ + (a1_ - a0_) * (k + 0.5) / n), math.sin(a0_ + (a1_ - a0_) * (k + 0.5) / n))
+        for t_, sgn in ((0.0, 1), (-0.4, -1)):
+            pa = m.b(X0_ + oa[0] * t_, Z0_ + oa[1] * t_)
+            pb = m.b(X1_ + oa[0] * t_, Z1_ + oa[1] * t_)
+            hint = (-oa[0] * sgn, -oa[1] * sgn, 0)
+            m.face([(pa[0], pa[1], -0.6), (pb[0], pb[1], -0.6), (pb[0], pb[1], h1), (pa[0], pa[1], h0)], "Stone", hint)
+        qa, qb = m.b(X0_, Z0_), m.b(X1_, Z1_)
+        ia, ib = m.b(X0_ - oa[0] * 0.4, Z0_ - oa[1] * 0.4), m.b(X1_ - oa[0] * 0.4, Z1_ - oa[1] * 0.4)
+        m.face([(qa[0], qa[1], h0), (qb[0], qb[1], h1), (ib[0], ib[1], h1), (ia[0], ia[1], h0)], "Concrete", (0, 0, 1))
+    # End caps of the curved wall.
+    for k, (X_, Z_) in ((0, pts[0]), (n, pts[-1])):
+        ang = a0_ + (a1_ - a0_) * k / n
+        oa = (math.cos(ang), math.sin(ang))
+        h = 1.2 + 3.0 * (0.5 - 0.5 * math.cos(math.pi * k / n))
+        pa, pb = m.b(X_, Z_), m.b(X_ - oa[0] * 0.4, Z_ - oa[1] * 0.4)
+        tang = (-oa[1], oa[0]) if k == 0 else (oa[1], -oa[0])
+        m.face([(pa[0], pa[1], -0.6), (pb[0], pb[1], -0.6), (pb[0], pb[1], h), (pa[0], pa[1], h)], "Stone", (-tang[0], -tang[1], 0))
+    # Flower bed in the middle of the roundabout.
+    m.cylinder_local(*m.b(rcx, rcz), 3.6, -0.3, 0.35, "Concrete", "Concrete", segments=20)
+    m.cylinder_local(*m.b(rcx, rcz), 3.3, 0.35, 0.6, "Planter", "Planter", segments=20)
+    # Triangular planter island on the apron in front, pointing at the gate.
+    tri = anticlockwise([m.b(road_x - 7.0, Z1 + 11.0), m.b(road_x + 7.0, Z1 + 11.0), m.b(road_x, Z1 + 3.5)])
     m.prism(tri, -0.4, 0.35, "Concrete", "Concrete")
-    m.prism(inset_polygon(tri, 0.35), 0.35, 0.55, "Planter", "Planter")
+    m.prism(inset_polygon(tri, 0.35), 0.35, 0.6, "Planter", "Planter")
     m.local_bounds_to_solid()  # canopy, walls and island reach beyond the layout footprint
     return m
 
@@ -1125,30 +1180,61 @@ def auto_models():
     return out
 
 
+def clip_half_plane(poly, p, q, keep_left=True):
+    """Sutherland-Hodgman: the part of a polygon on one side of the line p -> q."""
+    def side(r):
+        v = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+        return v if keep_left else -v
+    out = []
+    for k in range(len(poly)):
+        a, b_ = poly[k], poly[(k + 1) % len(poly)]
+        sa, sb = side(a), side(b_)
+        if sa >= 0:
+            out.append(a)
+        if (sa >= 0) != (sb >= 0):
+            t = sa / (sa - sb)
+            out.append((a[0] + (b_[0] - a[0]) * t, a[1] + (b_[1] - a[1]) * t))
+    return out
+
+
+def anticlockwise(poly):
+    area = sum(poly[k][0] * poly[(k + 1) % len(poly)][1] - poly[(k + 1) % len(poly)][0] * poly[k][1] for k in range(len(poly)))
+    return poly if area > 0 else poly[::-1]
+
+
 def amphitheatre_pond():
-    """Open-air amphitheatre beside the academic block's east front, with the stepped
-    cascade pond beside it, as on the institute's campus model. Sits on the flat
-    'amphitheatre' pad from the layout."""
-    ax, az = 158.0, 284.0  # stage centre: world X, Z (map 572, 712), across the ring road from block 1
-    m = Model("Amphitheatre_Pond", ax, az)
+    """Open-air amphitheatre and stepped pond east of the academic block's curved front, traced
+    from the top view of the institute's model. The seating fan is a wide shallow sector whose
+    rows rise west towards the building; a flat stage fills its narrow east end; the pond wraps
+    the stage on the east and south, its basins split by zig-zag weirs and stepping down away
+    from the stage, with a round lobe beside the stage."""
+    def M(px, py):
+        # Photo pixel (west up, north right) -> map units, scaled on the academic block.
+        return (543.0 + (py - 860.0) / 4.8, 790.0 - (px - 720.0) / 4.0)
 
-    def L(X, Z):
-        return m.b(X, Z)
+    def W(x, y):                      # map -> world
+        return (x - 414.0, 996.0 - y)
 
-    # Seating fan: tiers rise away from the stage, facing back towards the building.
-    axis = math.radians(-5.0)  # opens east (world angle from +X towards +Z)
-    half = math.radians(52.0)
-    r0, tread, rise, tiers = 6.0, 1.35, 0.38, 10
-    segs = 12
+    apex = W(610.0, 711.0)            # centre of the fan's arcs, out over the pond
+    pivot = W(588.0, 711.0)           # middle of the stage
+    m = Model("Amphitheatre_Pond", *pivot)
+    ax, az = apex
+    axis = math.pi                    # the fan opens west (world angle from +X towards +Z)
+    half = math.radians(39.0)
+    r_in, r_stage = 16.0, 27.4        # stage from r_in to r_stage, seats beyond
+    tiers = 11
+    tread = (43.0 - r_stage) / tiers
+    rise = 0.36
+    segs = 16
     angles = [axis - half + 2 * half * j / segs for j in range(segs + 1)]
 
     def P(r, a, z):
-        x, y = L(ax + r * math.cos(a), az + r * math.sin(a))
+        x, y = m.b(ax + r * math.cos(a), az + r * math.sin(a))
         return (x, y, z)
 
-    sx, sy = L(ax, az)
+    sx, sy = m.b(ax, az)
     for k in range(tiers):
-        ri, ro = r0 + k * tread, r0 + (k + 1) * tread
+        ri, ro = r_stage + k * tread, r_stage + (k + 1) * tread
         z = (k + 1) * rise
         for j in range(segs):
             a0, a1 = angles[j], angles[j + 1]
@@ -1156,52 +1242,62 @@ def amphitheatre_pond():
             inward = P(ri, (a0 + a1) / 2, 0)
             m.face([P(ri, a0, z - rise), P(ri, a1, z - rise), P(ri, a1, z), P(ri, a0, z)], "Concrete",
                    (sx - inward[0], sy - inward[1], 0))
-        # Stepped side walls at both ends of the fan.
         for a, sgn in ((angles[0], -1), (angles[-1], 1)):
-            na = a + sgn * math.pi / 2
-            hint = P(1.0, na, 0)
-            m.face([P(ri, a, -0.5), P(ro, a, -0.5), P(ro, a, z), P(ri, a, z)], "Concrete",
+            hint = P(1.0, a + sgn * math.pi / 2, 0)
+            m.face([P(ri, a, -0.5), P(ro, a, -0.5), P(ro, a, z), P(ri, a, z)], "Stone",
                    (hint[0] - sx, hint[1] - sy, 0))
-    rmax = r0 + tiers * tread
+    rmax = r_stage + tiers * tread
     ztop = tiers * rise
+    # Two aisles of half-height steps.
+    for aisle in (axis - half / 2, axis + half / 2):
+        for k in range(tiers):
+            ri = r_stage + k * tread
+            da = 0.8 / ri
+            z = k * rise + rise / 2
+            m.face([P(ri, aisle - da, z), P(ri + tread / 2, aisle - da, z), P(ri + tread / 2, aisle + da, z), P(ri, aisle + da, z)],
+                   "Stone", (0, 0, 1))
+    # Top walk, low parapet and the outer wall with piers.
     for j in range(segs):
         a0, a1 = angles[j], angles[j + 1]
         out = P(rmax + 1, (a0 + a1) / 2, 0)
-        m.face([P(rmax, a0, -0.5), P(rmax, a1, -0.5), P(rmax, a1, ztop + 1.0), P(rmax, a0, ztop + 1.0)], "Stone",
-               (out[0] - sx, out[1] - sy, 0))
-        # A stone pier at every segment joint breaks up the back wall.
-        ca, sa = math.cos(a0), math.sin(a0)
-        r = Run(m, P(rmax, a0 - 0.012, 0)[:2], P(rmax, a0 + 0.012, 0)[:2], (out[0] - sx, out[1] - sy))
+        o = (out[0] - sx, out[1] - sy, 0)
+        i_ = (-o[0], -o[1], 0)
+        m.face([P(rmax, a0, ztop), P(rmax + 2.0, a0, ztop), P(rmax + 2.0, a1, ztop), P(rmax, a1, ztop)], "Stone", (0, 0, 1))
+        m.face([P(rmax + 2.0, a0, -0.8), P(rmax + 2.0, a1, -0.8), P(rmax + 2.0, a1, ztop), P(rmax + 2.0, a0, ztop)], "Stone", o)
+        m.face([P(rmax + 1.75, a0, ztop + 0.9), P(rmax + 2.05, a0, ztop + 0.9), P(rmax + 2.05, a1, ztop + 0.9), P(rmax + 1.75, a1, ztop + 0.9)],
+               "Concrete", (0, 0, 1))
+        m.face([P(rmax + 1.75, a0, ztop), P(rmax + 1.75, a1, ztop), P(rmax + 1.75, a1, ztop + 0.9), P(rmax + 1.75, a0, ztop + 0.9)], "Concrete", i_)
+        m.face([P(rmax + 2.05, a0, ztop), P(rmax + 2.05, a1, ztop), P(rmax + 2.05, a1, ztop + 0.9), P(rmax + 2.05, a0, ztop + 0.9)], "Concrete", o)
+        r = Run(m, P(rmax + 2.0, a0 - 0.006, 0)[:2], P(rmax + 2.0, a0 + 0.006, 0)[:2], (o[0], o[1]))
         L0 = math.hypot(*r.n)
         r.n = (r.n[0] / L0, r.n[1] / L0)
-        r.box(0, r.L, -0.5, ztop + 1.0, 0.0, 0.35, "Stone", bottom=False)
-        m.face([P(rmax - 0.01, a0, ztop + 1.0), P(rmax + 0.4, a0, ztop + 1.0), P(rmax + 0.4, a1, ztop + 1.0), P(rmax - 0.01, a1, ztop + 1.0)],
-               "Concrete", (0, 0, 1))
-    # Stage: a low half-round platform at the focus.
-    arc = [P(r0 - 0.2, axis - math.pi / 2 + math.pi * j / 14, 0)[:2] for j in range(15)]
-    m.prism(arc + [(sx, sy)], -0.4, 0.4, "Concrete", "Concrete")
+        r.box(0, r.L, -0.8, ztop - 0.2, 0.0, 0.3, "Stone", bottom=False)
+    # Entry stair from the academic apron down to the top walk, on the axis.
+    n_steps = int(ztop / 0.18)
+    da = 1.6 / rmax
+    for k in range(n_steps):
+        r1 = rmax + 2.0 + (n_steps - k) * 0.3
+        z = (k + 1) * 0.18
+        m.face([P(rmax + 2.0, axis - da, z), P(r1, axis - da, z), P(r1, axis + da, z), P(rmax + 2.0, axis + da, z)], "Stone", (0, 0, 1))
+        m.face([P(r1, axis - da, z - 0.18), P(r1, axis + da, z - 0.18), P(r1, axis + da, z), P(r1, axis - da, z)], "Stone",
+               (-math.cos(axis), math.sin(axis), 0))
+    # Stage: a flat paved trapezoid filling the narrow end of the fan.
+    stage = [P(r_in, a, 0)[:2] for a in angles] + [P(r_stage, a, 0)[:2] for a in angles[::-1]]
+    m.prism(anticlockwise(dedupe(stage)), -0.4, 0.3, "Stone", "Concrete")
 
-    # Stepped cascade pond south of the fan: three slanting basins, each lower than the
-    # last, spilling into a broad lower pool.
-    def poly(pts):
-        return [L(X, Z) for X, Z in pts]
-    # The cascade: five long slanting basins side by side, each 30 cm lower than the one
-    # before, so the water steps down towards the broad lower pool.
-    d = (0.94, -0.34)          # along the basins (world X, Z)
-    q = (-0.34, -0.94)         # across them, stepping south
-    for k in range(5):
-        cx_, cz_ = 176 + q[0] * 4.0 * k, 258 + q[1] * 4.0 * k
-        hl, hw = 15.0 - 1.2 * k, 2.0
-        corners = [(cx_ - d[0] * hl - q[0] * hw, cz_ - d[1] * hl - q[1] * hw),
-                   (cx_ + d[0] * hl - q[0] * hw, cz_ + d[1] * hl - q[1] * hw),
-                   (cx_ + d[0] * hl + q[0] * hw, cz_ + d[1] * hl + q[1] * hw),
-                   (cx_ - d[0] * hl + q[0] * hw, cz_ - d[1] * hl + q[1] * hw)]
-        rim = 1.8 - 0.3 * k
-        m.pool(poly(corners), rim, rim - 0.15, inset=0.3)
-    # The broad lower pool with a rounded outline.
-    lower = [(175 + 26 * math.cos(t) * (1.0 if math.cos(t) > 0 else 0.9), 228 + 12 * math.sin(t))
-             for t in [2 * math.pi * k / 24 for k in range(24)]]
-    m.pool(poly(lower), 0.45, 0.3)
+    # The pond: four basins traced from the photo, each a step lower than the one before.
+    basins = [
+        [(705, 1062), (720, 1060), (850, 1040), (900, 1035), (950, 1070), (990, 1105), (1060, 1105), (1075, 1070),
+         (1100, 1060), (1120, 1065), (1120, 1095), (1085, 1125), (1080, 1150), (1095, 1176), (865, 1064), (725, 1085)],
+        [(705, 1062), (725, 1085), (865, 1064), (1095, 1176), (1040, 1200), (822, 1106), (735, 1133), (684, 1098), (690, 1072)],
+        [(684, 1098), (735, 1133), (822, 1106), (1040, 1200), (980, 1205), (905, 1200), (745, 1213), (740, 1205),
+         (700, 1180), (685, 1150)],
+        [(745, 1213), (905, 1200), (900, 1235), (885, 1245), (760, 1260), (748, 1240)],
+    ]
+    for k, b_ in enumerate(basins):
+        poly = anticlockwise(dedupe([m.b(*W(*M(px, py))) for px, py in b_]))
+        rim = 1.2 - 0.3 * k
+        m.pool(poly, rim, rim - 0.18, inset=0.35)
     m.local_bounds_to_solid()
     return m
 

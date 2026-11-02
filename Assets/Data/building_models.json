@@ -27,14 +27,14 @@
   {
    "name": "Clock_Tower",
    "fbx": "Assets/Models/Buildings/Clock_Tower.fbx",
-   "pivotX": 63.0,
+   "pivotX": 72.0,
    "pivotZ": 451.0,
    "boundsMin": [
-    59.4,
+    68.4,
     445.0
    ],
    "boundsMax": [
-    66.6,
+    75.6,
     457.0
    ],
    "replaces": [
@@ -45,14 +45,14 @@
    "name": "Main_Gate",
    "fbx": "Assets/Models/Buildings/Main_Gate.fbx",
    "pivotX": -117.0,
-   "pivotZ": 534.5,
+   "pivotZ": 528.5,
    "boundsMin": [
-    -144.04,
-    528.5
+    -153.0,
+    505.4
    ],
    "boundsMax": [
-    -91.96,
-    555.0
+    -85.0,
+    544.0
    ],
    "replaces": [
     "Main Gate"
@@ -79,15 +79,15 @@
   {
    "name": "Amphitheatre_Pond",
    "fbx": "Assets/Models/Buildings/Amphitheatre_Pond.fbx",
-   "pivotX": 158.0,
-   "pivotZ": 284.0,
+   "pivotX": 174.0,
+   "pivotZ": 285.0,
    "boundsMin": [
-    151.6,
-    216.0
+    144.44,
+    197.0
    ],
    "boundsMax": [
-    201.0,
-    298.55
+    212.33,
+    313.71
    ],
    "replaces": []
   },

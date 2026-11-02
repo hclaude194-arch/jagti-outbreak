@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 7
+VERSION = 8
 
 
 def to_world(x, y):
@@ -47,15 +47,15 @@ def catmull(points, samples=6):
 # (name, zone, map x, map y, width, depth, storeys, shape)
 # x, y is the top-left corner on the map; shape is "box" or "cylinder".
 BUILDINGS = [
-    ("Main Gate", "gate", 286, 457, 22, 9, 2, "box"),
-    ("Clock Tower", "gate", 475.5, 543.5, 3, 3, 7, "box"),
+    ("Main Gate", "gate", 286, 463, 22, 9, 2, "box"),
+    ("Clock Tower", "gate", 484.5, 543.5, 3, 3, 9, "box"),
     # Academic block: four wings around the courtyard, entrance, two drums
     ("Academic Block - North Wing", "academic", 444, 646, 99, 32, 4, "box"),
     ("Academic Block - South Wing", "academic", 444, 752, 99, 38, 4, "box"),
     ("Academic Block - West Wing", "academic", 444, 678, 21, 74, 4, "box"),
     ("Academic Block - East Wing", "academic", 513, 678, 30, 74, 4, "box"),
     ("Academic Block - Entrance", "academic", 477, 634, 21, 13, 3, "box"),
-    ("Mandapam Auditorium (west drum)", "academic", 423, 692, 40, 40, 3, "cylinder"),
+    ("Mandapam Auditorium (west drum)", "academic", 423, 688, 40, 53, 3, "cylinder"),
     ("East Drum", "academic", 525, 696, 34, 34, 3, "cylinder"),
     ("Brahmaputra Hostel", "academic", 378, 782, 22, 26, 7, "box"),
     ("Brahmaputra Hostel - South", "academic", 371, 806, 25, 30, 7, "box"),
@@ -116,10 +116,12 @@ ROADS = [
     ("Oval Road West", 5, [[294, 990], [291, 1060], [293, 1140], [300, 1160]], True),
     ("Walled Residence Drive", 4, [[405, 936], [392, 936]], False),
     ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 782]], True),
-        ("Clock Tower Walkway", 4, [[477, 523], [477, 630]], False),
+        ("Clock Tower Walkway", 4, [[486, 523], [486, 613]], False),
     # Cross-shaped garden paths in the academic courtyard (campus model).
     ("Courtyard Path North-South", 2.5, [[489, 680], [489, 750]], False),
     ("Courtyard Path East-West", 2.5, [[467, 715], [511, 715]], False),
+    ("Courtyard Path Loop", 2.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
+    ("Courtyard Centre Square", 8.0, [[485, 715], [493, 715]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 
@@ -141,7 +143,7 @@ AREAS = [
     ("court", "box", 440, 1267, 26, 26),
     ("track", "ellipse", 517, 1261, 96, 170),
     ("field", "ellipse", 517, 1261, 74, 146),
-    ("amphitheatre", "box", 560, 692, 62, 110),
+    ("amphitheatre", "box", 565, 688, 64, 114),
     ("roundabout", "ellipse", 296, 487, 16, 16),
     ("roundabout", "ellipse", 414, 996, 18, 18),
     ("roundabout", "ellipse", 421, 1364, 14, 14),
@@ -150,11 +152,11 @@ AREAS = [
 # ---------------------------------------------------------------- places (labels, fast travel)
 PLACES = [
     ("Main Gate", 296, 470),
-    ("Clock Tower", 477, 545),
+    ("Clock Tower", 486, 545),
     ("Academic Block", 489, 708),
     ("Mandapam Auditorium", 440, 712),
-    ("Amphitheatre & Stepped Pond", 592, 745),
-    ("Water Terraces", 350, 690),
+    ("Amphitheatre & Stepped Pond", 598, 735),
+    ("Water Terraces", 345, 740),
     ("Brahmaputra Hostel (MDP Residential?)", 386, 808),
     ("Car Park", 389, 865),
     ("Power Substation", 262, 640),
@@ -173,25 +175,44 @@ PLACES = [
 ]
 
 # ---------------------------------------------------------------- water (campus model)
-# Terraced lawns west of the academic block, stepping down towards the west wall, with
-# channels along the foot of each step's ramp and two cascades running across them.
-# (map x0, y0, x1, y1, steps, drop per step m); steps run along x, highest at x1.
-TERRACES = [(318, 600, 380, 790, 4, 1.3)]
+# Terraced lawns west of the academic block, stepping down towards the west wall. Each step
+# line is the foot of a 3.5 m ramp; the ground west of it is one step lower, and a
+# water channel runs along the foot of the ramp. The lines jog like the channels on the
+# institute's model (top view), fitted between the west wall and the MDP block. A step fades
+# out over 8 m past the ends of its line.
+TERRACE_LINES = [
+    [[329.5, 604], [329.5, 653], [336, 660], [336, 708], [319, 743], [319, 784], [321, 791], [321, 850], [301, 864], [301, 872]],
+    [[340, 604], [343.7, 710], [334, 726], [334, 784], [340, 791], [340, 860], [328.5, 872]],
+    [[354, 604], [351, 722], [347.5, 740], [347.5, 784], [348.5, 791], [348.5, 821], [354, 829]],
+    [[356, 604], [356, 648], [360, 655], [360, 729], [359, 733], [359, 872]],
+    [[376, 608], [376, 740]],
+]
+# (map x0, y0, x1, y1, drop per step m, step lines)  highest along x1
+TERRACES = [(298, 600, 384, 876, 1.1, TERRACE_LINES)]
 # (name, width m, points)  water channels drawn on the ground
-WATER = [
-    ("Terrace Channel 1", 1.6, [[360, 606], [360, 784]]),
-    ("Terrace Channel 2", 1.6, [[344.5, 612], [344.5, 780]]),
-    ("Terrace Channel 3", 1.6, [[329, 620], [329, 772]]),
-    ("Terrace Cascade North", 2.2, [[378, 640], [365, 650], [350, 664], [335, 680], [326, 690]]),
-    ("Terrace Cascade South", 2.2, [[378, 752], [365, 742], [350, 728], [335, 712], [326, 702]]),
+WATER = []
+for _i, _pts in enumerate(TERRACE_LINES):
+    WATER.append(("Terrace Channel %d" % (_i + 1), 1.6, [[x - 1.0, y] for x, y in _pts]))
+WATER += [
+    # Two cascades cut across the steps, each with a square basin at its foot.
+    ("Terrace Cascade South", 3.0, [[357, 787.5], [306, 787.5]]),
+    ("Terrace Cascade South Basin", 11.0, [[300, 787.5], [311, 787.5]]),
+    ("Terrace Cascade North", 5.0, [[375, 738.5], [352, 728], [329, 713]]),
+    ("Terrace Cascade North Basin", 8.0, [[324, 711], [332, 714]]),
 ]
 # (name, map x, map y, radius m)  round pools
 POOLS = [
-    ("Entrance Fountain", 509, 639, 3.2),
+    # On the entrance axis in front of the porch, inside a square frame (see the academic model).
+    ("Entrance Fountain", 486, 619, 3.4),
 ]
+# Trees planted in rows or spots that the scattered planting would miss
+# (kind: 0 broadleaf, 1 eucalyptus, 2 pine, 3 shrub; spacing m; offset east of the line m).
+TREE_ROWS = [(0, 7.5, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 7.5, -3.5, TERRACE_LINES[4])]
+# Courtyard garden: a tree in each corner of the eight planted beds round the centre square.
+TREE_SPOTS = [(0, x, y) for x in (471, 480, 498, 507) for y in (686, 702, 728, 744)]
 
 # Boundary wall polygon from the map
-BOUNDARY = [[282, 468], [560, 468], [590, 600], [630, 700], [630, 830], [640, 1000], [640, 1200], [604, 1380], [560, 1565], [380, 1565], [332, 1440], [262, 1300], [262, 1000], [296, 850], [322, 700], [278, 560]]
+BOUNDARY = [[282, 468], [560, 468], [590, 600], [645, 690], [645, 830], [640, 1000], [640, 1200], [604, 1380], [560, 1565], [380, 1565], [332, 1440], [262, 1300], [262, 1000], [290, 860], [296, 700], [278, 560]]
 
 SPAWN = (392, 845)  # outside Brahmaputra Hostel, facing the academic block
 

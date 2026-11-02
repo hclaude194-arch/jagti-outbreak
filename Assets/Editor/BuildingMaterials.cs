@@ -36,6 +36,7 @@ namespace Jagti.EditorTools
                 ["Roof"] = ProceduralAssets.LitMaterial("Bld_Roof", Color.white, PlainWall("Tex_Roof", new Color(0.40f, 0.39f, 0.37f), 0.12f, 23), 0.05f),
                 ["Metal"] = ProceduralAssets.LitMaterial("Bld_Metal", Color.white, Metal(), 0.4f),
                 ["ClockFace"] = ProceduralAssets.LitMaterial("Bld_ClockFace", Color.white, ClockFace(), 0.3f),
+                ["Emblem"] = ProceduralAssets.LitMaterial("Bld_Emblem", Color.white, Emblem(), 0.35f),
                 ["Stone"] = ProceduralAssets.LitMaterial("Bld_Stone", Color.white, Stone(), 0.1f),
                 ["Water"] = ProceduralAssets.LitMaterial("Bld_Water", Color.white, Water(), 0.92f),
                 ["Planter"] = ProceduralAssets.LitMaterial("Bld_Planter", Color.white, Planter(), 0.05f),
@@ -348,6 +349,28 @@ namespace Jagti.EditorTools
             Hand(c, 0.5f, 0.5f, 60f, 0.26f, 0.018f, ink);   // hour hand at ten
             Hand(c, 0.5f, 0.5f, -60f, 0.38f, 0.012f, ink);  // minute hand at two
             return c.Save("Tex_ClockFace");
+        }
+
+        // Generic institute emblem for the clock tower: a blue panel, white border, white ring
+        // and a white sun in the middle. Not a copy of any real logo.
+        static Texture2D Emblem()
+        {
+            var c = new Canvas();
+            var blue = new Color(0.10f, 0.26f, 0.56f);
+            var white = new Color(0.95f, 0.95f, 0.93f);
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x / (float)Size, v = y / (float)Size;
+                    float dx = u - 0.5f, dy = v - 0.5f;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy);
+                    bool border = u < 0.05f || u > 0.95f || v < 0.05f || v > 0.95f;
+                    bool ring = r > 0.30f && r < 0.35f;
+                    float ang = Mathf.Atan2(dy, dx) / (Mathf.PI * 2f) * 16f;
+                    bool rays = r > 0.15f && r < 0.25f && Mathf.Abs(ang - Mathf.Round(ang)) < 0.18f;
+                    c.px[y * Size + x] = (border || ring || rays || r < 0.11f) ? white : blue;
+                }
+            return c.Save("Tex_Emblem");
         }
 
         static void Hand(Canvas c, float cx, float cy, float degreesFromUp, float length, float width, Color color)

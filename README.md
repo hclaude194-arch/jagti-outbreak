@@ -39,6 +39,23 @@ If the scene doesn't appear, use the menu **Jagti > Build Campus**. If everythin
 | H | Hide or show the help overlay |
 | Esc | Free the mouse (click to capture it again) |
 
+### Campus bus
+
+The white shuttle bus runs a loop on its own: Brahmaputra Hostel, Academic Block, Main Gate (via the serpentine drive), back past the Academic Block to Annapurna Mess and the hostels and sports courts, and round again. It waits at each stop. It starts at the stop beside where you spawn.
+
+| Key | Action |
+| --- | --- |
+| E (at the door, left side behind the front wheel) | Get on while it is stopped, or drive it if you parked it |
+| E (inside) | Get off |
+| T (inside) | Swap between riding and driving |
+| W / S | Accelerate / reverse |
+| A / D | Steer |
+| Space | Brake |
+| C | Swap between the driver's seat view and a view from behind |
+| G | Horn |
+
+When you get off after driving, the bus stays parked where you left it. Get back on and press T to hand it back to its driver, who carries on along the route.
+
 The overlay in the top-left shows your frame rate and the nearest place. Please send the frame rate you see when walking around outdoors.
 
 ## How the project is built

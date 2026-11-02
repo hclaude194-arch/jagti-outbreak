@@ -123,6 +123,7 @@ namespace Jagti.EditorTools
 
             MakeLighting();
             var player = MakePlayer(layout);
+            CampusBusBuilder.Build(layout, Ground, RoadTop);
 
             Progress("Zombie navigation mesh (this can take a minute)", 0.7f);
             MakeNavMesh(layout);
