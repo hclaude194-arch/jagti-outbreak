@@ -568,24 +568,36 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
     run.box(-0.05, L + 0.05, top + 1.1, top + 1.3, -0.35, 0.12, "Concrete")
 
 
-def fluted_facade(run, z0, floors, glass_top=True):
-    """The corner pavilions: closely spaced stone fins on the lower floors, a band of
-    windows, and a glazed top floor under a deep cornice."""
+def fluted_lower(run, z0, fin_top, windows=True):
+    """Plinth, stone fins and the row of square windows of a pavilion face."""
     L = run.L
-    top = z0 + floors * FLOOR
-    fin_top = z0 + (floors - 2) * FLOOR
     run.box(0, L, -0.8, z0 + 0.6, 0.0, 0.2, "Concrete", bottom=False)
     run.rect(0, L, z0 + 0.6, fin_top, 0, "Stone")
     n = max(2, int(L / 1.15))
     for i in range(n + 1):
         s = L * i / n
         run.box(max(0, s - 0.2), min(L, s + 0.2), z0 + 0.6, fin_top, 0.0, 0.45, "Stone", bottom=False)
+    if not windows:
+        run.rect(0, L, fin_top, fin_top + FLOOR, 0, "Stone")
+        return
     # A row of square windows.
     bays = max(1, round(L / 3.0))
     bw = L / bays
     for i in range(bays):
         s0 = i * bw
         run.window(s0, s0 + bw, fin_top, fin_top + FLOOR, s0 + 0.7, s0 + bw - 0.7, fin_top + 0.9, fin_top + FLOOR - 0.6, 0.3)
+
+
+def fluted_facade(run, z0, floors, glass_top=True, low=True, windows=True):
+    """The corner pavilions: closely spaced stone fins on the lower floors, a band of
+    windows, and a glazed top floor under a deep cornice. low=False draws only the glazed
+    top floor and cornice (for faces that are inside the wings below that); windows=False
+    leaves out the window row (for narrow slivers)."""
+    L = run.L
+    top = z0 + floors * FLOOR
+    fin_top = z0 + (floors - 2) * FLOOR
+    if low:
+        fluted_lower(run, z0, fin_top, windows)
     zg = fin_top + FLOOR
     if glass_top:
         run.rect(0, L, zg, zg + 0.3, 0, "Stone")
@@ -762,8 +774,27 @@ def academic_block():
         poly = rect_poly(m, X0, X0 + P, Z0, Z0 + P)
         top = PH_FLOORS * FLOOR
         m.face([(p[0], p[1], top + 0.4) for p in poly], "Roof", (0, 0, 1))
+        # The two inner faces run inside the wings below the wing roof: there only the
+        # proud strip gets the full facade, the rest just the glazed top floor.
+        inner_x = X0 + P if sx == OX0 else X0
+        inner_z = Z0 + P if sz == OZ0 else Z0
         for run in outline_runs(m, poly):
-            fluted_facade(run, 0.0, PH_FLOORS)
+            wa = (m.px - run.a[0], m.pz - run.a[1])
+            wb = (m.px - run.b[0], m.pz - run.b[1])
+            if abs(wa[0] - inner_x) < 0.01 and abs(wb[0] - inner_x) < 0.01:
+                cut, axis = sz, 1
+            elif abs(wa[1] - inner_z) < 0.01 and abs(wb[1] - inner_z) < 0.01:
+                cut, axis = sx, 0
+            else:
+                fluted_facade(run, 0.0, PH_FLOORS)
+                continue
+            fluted_facade(run, 0.0, PH_FLOORS, low=False)
+            s_cut = abs(cut - wa[axis])
+            lo, hi = (OZ0, OZ1) if axis == 1 else (OX0, OX1)
+            proud = (0.0, s_cut) if (wa[axis] < lo or wa[axis] > hi) else (s_cut, run.L)
+            pa, pb = run.P(proud[0], 0, 0), run.P(proud[1], 0, 0)
+            sub = Run(m, (pa[0], pa[1]), (pb[0], pb[1]), run.n)
+            fluted_lower(sub, 0.0, (PH_FLOORS - 2) * FLOOR, windows=False)
         c = m.b(X0 + P / 2, Z0 + P / 2)
         rooftop_box(m, c[0], c[1], 4.0, 4.0, top + 0.4, 2.6)
 
