@@ -340,6 +340,23 @@ pad_heights = flatten_pads(height, 3.0, 12.0)
 road_dist = flatten_roads(height)
 flatten_pads(height, 1.0, 3.0, pad_heights)
 
+# Terraced lawns from the campus model: level steps cut into the ground, each riser a
+# 3.5 m ramp so the player can still walk up it. Kept clear of the wall's inner edge.
+for x0, y0, x1, y1, steps, drop in L.TERRACES:
+    wx0, wz1 = L.to_world(x0, y0)
+    wx1, wz0 = L.to_world(x1, y1)
+    rows, cols = window((wx0 + wx1) / 2, (wz0 + wz1) / 2, max(wx1 - wx0, wz1 - wz0) / 2 + 10)
+    px, pz = X[rows, cols], Z[rows, cols]
+    top = float(sample(height, np.array([wx1 + 4.0]), np.array([(wz0 + wz1) / 2]))[0])
+    step_w = (wx1 - wx0) / steps
+    u = (wx1 - px) / step_w                      # 0 at the top (east) edge, steps at the west edge
+    k = np.floor(u)
+    ramp = smoothstep(0.0, 3.5 / step_w, u - k)  # each step starts with a short ramp down
+    level = top - drop * np.clip(k - 1 + ramp, 0, steps - 1)
+    inside = (1 - smoothstep(0.0, 6.0, np.maximum.reduce([wx0 - px, px - wx1, wz0 - pz, pz - wz1])))
+    inside *= smoothstep(4.0, 10.0, -sd[rows, cols])
+    height[rows, cols] = height[rows, cols] * (1 - inside) + level * inside
+
 height = np.clip(height, H_MIN + 0.5, H_MIN + H_RANGE - 0.5)
 
 # ------------------------------------------------------------------ write heightmap

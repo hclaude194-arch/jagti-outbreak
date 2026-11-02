@@ -94,6 +94,7 @@ namespace Jagti.EditorTools
             concreteRoad = null;
             kerbMaterial = null;
             foreach (var road in layout.roads) MakeRoad(road, layout.roads, roadRoot, materials);
+            MakeWater(layout, Child(root.transform, "Water"));
 
             // Landmark buildings come from Blender models; the rest stay grey blocks for now.
             var models = BuildingModels.Available();
@@ -276,6 +277,92 @@ namespace Jagti.EditorTools
 
             if (road.name != "Highway" && road.name != "Clock Tower Walkway" && road.width >= 4f)
                 MakeKerbs(road, points, allRoads, go.transform);
+        }
+
+        // Water channels on the terraces and round pools, from the campus model.
+        static void MakeWater(CampusLayout layout, Transform parent)
+        {
+            if ((layout.water == null || layout.water.Length == 0) && (layout.pools == null || layout.pools.Length == 0)) return;
+            var water = ProceduralAssets.LitMaterial("Water_Channel", new Color(0.12f, 0.32f, 0.36f), null, 0.92f);
+            var stone = ProceduralAssets.LitMaterial("Water_Edge", new Color(0.82f, 0.80f, 0.74f), null, 0.15f);
+            if (layout.water != null)
+            {
+                foreach (var ch in layout.water)
+                {
+                    float[] points = Densify(ch.points, 1.5f);
+                    int count = points.Length / 2;
+                    if (count < 2) continue;
+                    var wv = new List<Vector3>(); var wu = new List<Vector2>(); var wt = new List<int>();
+                    var ev = new List<Vector3>(); var eu = new List<Vector2>(); var et = new List<int>();
+                    float half = ch.width / 2f, rim = 0.3f, distance = 0f;
+                    for (int i = 0; i < count - 1; i++)
+                    {
+                        Vector2 p0 = Point(points, i), p1 = Point(points, i + 1);
+                        Vector2 dir = (p1 - p0).normalized;
+                        var n = new Vector2(-dir.y, dir.x);
+                        float u0 = distance / ch.width;
+                        distance += Vector2.Distance(p0, p1);
+                        float u1 = distance / ch.width;
+                        System.Func<Vector2, float, Vector3> at = (q, up) => new Vector3(q.x, Ground(q.x, q.y) + up, q.y);
+                        // Water surface sits a little below the edging.
+                        AddQuad(wv, wu, wt, at(p0 + n * half, 0.06f), at(p1 + n * half, 0.06f), at(p1 - n * half, 0.06f), at(p0 - n * half, 0.06f), u0, u1, Vector3.up);
+                        foreach (float side in new[] { 1f, -1f })
+                        {
+                            Vector2 a0 = p0 + n * side * half, a1 = p1 + n * side * half;
+                            Vector2 b0 = p0 + n * side * (half + rim), b1 = p1 + n * side * (half + rim);
+                            AddQuad(ev, eu, et, at(a0, 0.22f), at(a1, 0.22f), at(b1, 0.22f), at(b0, 0.22f), u0, u1, Vector3.up);
+                            var inward = new Vector3(-n.x * side, 0f, -n.y * side);
+                            AddQuad(ev, eu, et, at(a0, -0.05f), at(a1, -0.05f), at(a1, 0.22f), at(a0, 0.22f), u0, u1, inward);
+                            AddQuad(ev, eu, et, at(b0, -0.2f), at(b1, -0.2f), at(b1, 0.22f), at(b0, 0.22f), u0, u1, -inward);
+                        }
+                    }
+                    MakeMeshObject("Water - " + ch.name, parent, wv, wu, wt, water, false);
+                    MakeMeshObject("Water Edge - " + ch.name, parent, ev, eu, et, stone, true);
+                }
+            }
+            if (layout.pools != null)
+            {
+                foreach (var pool in layout.pools)
+                {
+                    const int segs = 32;
+                    float g = Ground(pool.x, pool.z);
+                    var wv = new List<Vector3>(); var wu = new List<Vector2>(); var wt = new List<int>();
+                    var ev = new List<Vector3>(); var eu = new List<Vector2>(); var et = new List<int>();
+                    var c = new Vector3(pool.x, g + 0.35f, pool.z);
+                    for (int k = 0; k < segs; k++)
+                    {
+                        float a0 = k * Mathf.PI * 2f / segs, a1 = (k + 1) * Mathf.PI * 2f / segs;
+                        var d0 = new Vector3(Mathf.Cos(a0), 0f, Mathf.Sin(a0));
+                        var d1 = new Vector3(Mathf.Cos(a1), 0f, Mathf.Sin(a1));
+                        float r = pool.radius, ro = pool.radius + 0.45f;
+                        // Water as a fan of thin quads (centre, edge, edge, centre).
+                        AddQuad(wv, wu, wt, c, c + d0 * r, c + d1 * r, c, 0f, 1f, Vector3.up);
+                        Vector3 top = Vector3.up * 0.2f;
+                        AddQuad(ev, eu, et, c + d0 * r + top, c + d0 * ro + top, c + d1 * ro + top, c + d1 * r + top, 0f, 1f, Vector3.up);
+                        AddQuad(ev, eu, et, c + d0 * ro + Vector3.down * 0.8f, c + d1 * ro + Vector3.down * 0.8f, c + d1 * ro + top, c + d0 * ro + top, 0f, 1f, (d0 + d1));
+                        AddQuad(ev, eu, et, c + d0 * r + Vector3.down * 0.1f, c + d1 * r + Vector3.down * 0.1f, c + d1 * r + top, c + d0 * r + top, 0f, 1f, -(d0 + d1));
+                    }
+                    MakeMeshObject("Pool - " + pool.name, parent, wv, wu, wt, water, false);
+                    MakeMeshObject("Pool Edge - " + pool.name, parent, ev, eu, et, stone, true);
+                }
+            }
+        }
+
+        static void MakeMeshObject(string name, Transform parent, List<Vector3> v, List<Vector2> uv, List<int> t, Material mat, bool collider)
+        {
+            var mesh = new Mesh { name = name };
+            if (v.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.SetVertices(v);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(t, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject(name);
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            if (collider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            MarkStatic(go);
         }
 
         // Black-and-white painted kerbs along both edges, left open where another road joins.

@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 5
+VERSION = 7
 
 
 def to_world(x, y):
@@ -97,6 +97,8 @@ BUILDINGS = [
     ("West Building 3", "sindhu", 325, 1418, 22, 13, 2, "box"),
     ("West Building 4", "hostels", 300, 1232, 26, 16, 2, "box"),
     ("Substation Control Room", "gate", 250, 668, 24, 40, 1, "box"),
+    # Overhead water tank on the hill behind the courts (seen on the institute's campus model).
+    ("Water Tower", "hostels", 369, 1244, 12, 12, 8, "cylinder"),
 ]
 
 # ---------------------------------------------------------------- roads
@@ -104,7 +106,7 @@ BUILDINGS = [
 ROADS = [
     ("Serpentine Drive", 7, [[296, 487], [380, 487], [480, 487], [505, 490], [513, 505], [503, 522], [400, 523], [318, 523], [302, 532], [304, 548], [322, 555], [420, 555], [440, 562], [446, 578], [438, 592], [418, 600], [408, 612], [405, 627]], True),
     ("Gate Approach", 8, [[296, 440], [296, 487]], False),
-    ("Academic Ring", 6, [[405, 627], [405, 812], [555, 812], [555, 627], [405, 627]], False),
+    ("Academic Ring", 6, [[405, 627], [405, 812], [555, 812], [555, 740], [563, 732], [563, 694], [555, 686], [555, 627], [405, 627]], False),
     ("Spine Road North", 8, [[405, 812], [405, 988]], False),
     ("Spine Road South", 8, [[421, 1004], [421, 1545]], False),
     ("Central East-West Road", 6, [[294, 990], [350, 990], [406, 995], [500, 985], [600, 972], [690, 962]], True),
@@ -114,8 +116,10 @@ ROADS = [
     ("Oval Road West", 5, [[294, 990], [291, 1060], [293, 1140], [300, 1160]], True),
     ("Walled Residence Drive", 4, [[405, 936], [392, 936]], False),
     ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 782]], True),
-    ("Amphitheatre Path", 3, [[555, 738], [562, 738]], False),
-    ("Clock Tower Walkway", 4, [[477, 523], [477, 630]], False),
+        ("Clock Tower Walkway", 4, [[477, 523], [477, 630]], False),
+    # Cross-shaped garden paths in the academic courtyard (campus model).
+    ("Courtyard Path North-South", 2.5, [[489, 680], [489, 750]], False),
+    ("Courtyard Path East-West", 2.5, [[467, 715], [511, 715]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 
@@ -127,7 +131,7 @@ AREAS = [
     ("lawn", "box", 430, 560, 40, 60),
     ("lawn", "box", 293, 908, 100, 72),
     ("lawn", "box", 460, 1409, 51, 88),
-    ("lawn", "box", 478, 1096, 43, 22),
+    ("court", "box", 480, 1097, 39, 20),
     ("courtyard", "box", 465, 678, 48, 74),
     ("lawn", "ellipse", 312, 1056, 22, 100),
     ("parking", "box", 379, 840, 20, 50),
@@ -137,7 +141,7 @@ AREAS = [
     ("court", "box", 440, 1267, 26, 26),
     ("track", "ellipse", 517, 1261, 96, 170),
     ("field", "ellipse", 517, 1261, 74, 146),
-    ("amphitheatre", "ellipse", 566, 738, 70, 104),
+    ("amphitheatre", "box", 560, 692, 62, 110),
     ("roundabout", "ellipse", 296, 487, 16, 16),
     ("roundabout", "ellipse", 414, 996, 18, 18),
     ("roundabout", "ellipse", 421, 1364, 14, 14),
@@ -149,20 +153,41 @@ PLACES = [
     ("Clock Tower", 477, 545),
     ("Academic Block", 489, 708),
     ("Mandapam Auditorium", 440, 712),
-    ("Amphitheatre", 588, 738),
-    ("Brahmaputra Hostel", 386, 808),
+    ("Amphitheatre & Stepped Pond", 592, 745),
+    ("Water Terraces", 350, 690),
+    ("Brahmaputra Hostel (MDP Residential?)", 386, 808),
     ("Car Park", 389, 865),
     ("Power Substation", 262, 640),
-    ("Walled Residence", 359, 936),
-    ("Shopping & Medical", 343, 1055),
-    ("Annapurna Mess", 392, 1108),
-    ("Staff Quarters", 278, 1080),
+    ("Director's Residence", 359, 936),
+    ("Medical Block", 343, 1023),
+    ("Shopping Block", 343, 1068),
+    ("Annapurna Mess (Dining Block)", 392, 1108),
+    ("Staff Residences", 278, 1080),
     ("Hostel Blocks", 498, 1098),
     ("Sports Courts", 453, 1237),
-    ("Sports Complex", 450, 1324),
+    ("Indoor Games Block", 450, 1324),
     ("Athletics Track", 517, 1261),
-    ("Sindhu Hostel", 448, 1442),
+    ("Water Tower", 375, 1250),
+    ("Sindhu Hostel (Executive Hostel?)", 448, 1442),
     ("Service Yard", 401, 1515),
+]
+
+# ---------------------------------------------------------------- water (campus model)
+# Terraced lawns west of the academic block, stepping down towards the west wall, with
+# channels along the foot of each step's ramp and two cascades running across them.
+# (map x0, y0, x1, y1, steps, drop per step m); steps run along x, highest at x1.
+TERRACES = [(318, 600, 380, 790, 4, 1.3)]
+# (name, width m, points)  water channels drawn on the ground
+WATER = [
+    ("Terrace Channel 1", 1.6, [[360, 606], [360, 784]]),
+    ("Terrace Channel 2", 1.6, [[344.5, 612], [344.5, 780]]),
+    ("Terrace Channel 3", 1.6, [[329, 620], [329, 772]]),
+    ("Terrace Cascade North", 2.2, [[378, 640], [365, 650], [350, 664], [335, 680], [326, 690]]),
+    ("Terrace Cascade South", 2.2, [[378, 752], [365, 742], [350, 728], [335, 712], [326, 702]]),
+]
+# (name, map x, map y, radius m)  round pools
+POOLS = [
+    ("Entrance Fountain", 509, 639, 3.2),
 ]
 
 # Boundary wall polygon from the map
@@ -189,6 +214,8 @@ def main():
         "areas": [],
         "places": [],
         "boundary": flat(BOUNDARY),
+        "water": [],
+        "pools": [],
         "spawn": {},
     }
     for name, zone, x, y, w, d, floors, shape in BUILDINGS:
@@ -207,6 +234,11 @@ def main():
         else:
             cx, cz = to_world(x, y)
         layout["areas"].append({"type": typ, "shape": shape, "x": cx, "z": cz, "width": w * SCALE, "depth": d * SCALE})
+    for name, width, pts in WATER:
+        layout["water"].append({"name": name, "width": width, "points": flat(pts)})
+    for name, x, y, r in POOLS:
+        wx, wz = to_world(x, y)
+        layout["pools"].append({"name": name, "x": wx, "z": wz, "radius": r})
     for name, x, y in PLACES:
         wx, wz = to_world(x, y)
         layout["places"].append({"name": name, "x": wx, "z": wz})

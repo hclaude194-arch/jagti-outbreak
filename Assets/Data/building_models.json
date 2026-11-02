@@ -19,9 +19,9 @@
     "Academic Block - South Wing",
     "Academic Block - West Wing",
     "Academic Block - East Wing",
+    "Academic Block - Entrance",
     "Mandapam Auditorium (west drum)",
-    "East Drum",
-    "Academic Block - Entrance"
+    "East Drum"
    ]
   },
   {
@@ -74,6 +74,38 @@
    "replaces": [
     "Annapurna Mess",
     "Annapurna Mess - Kitchen"
+   ]
+  },
+  {
+   "name": "Amphitheatre_Pond",
+   "fbx": "Assets/Models/Buildings/Amphitheatre_Pond.fbx",
+   "pivotX": 158.0,
+   "pivotZ": 284.0,
+   "boundsMin": [
+    151.6,
+    216.0
+   ],
+   "boundsMax": [
+    201.0,
+    298.55
+   ],
+   "replaces": []
+  },
+  {
+   "name": "Water_Tower",
+   "fbx": "Assets/Models/Buildings/Water_Tower.fbx",
+   "pivotX": -39.0,
+   "pivotZ": -254.0,
+   "boundsMin": [
+    -45.0,
+    -260.0
+   ],
+   "boundsMax": [
+    -33.0,
+    -248.0
+   ],
+   "replaces": [
+    "Water Tower"
    ]
   },
   {
