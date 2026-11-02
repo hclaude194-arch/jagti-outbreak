@@ -104,8 +104,8 @@ namespace Jagti.World
             string text = "<b>" + Mathf.RoundToInt(fps) + " fps</b>   Near: " + nearestName;
             if (showHelp)
             {
-                text += "\nWASD move · Mouse look · Shift sprint · Space jump · F flashlight"
-                      + "\n[ and ] fast travel between places · Esc frees the mouse · H hides this";
+                text += "\nWASD move · Shift sprint · F torch · Click attack · R reload · E search · Q heal"
+                      + "\n[ and ] fast travel (testing) · Esc pause · H hides this";
                 if (travelIndex >= 0 && places != null) text += "\nLast travel: " + places[travelIndex].name;
             }
 
