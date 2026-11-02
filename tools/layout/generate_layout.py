@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 12
+VERSION = 13
 
 
 def to_world(x, y):
@@ -57,8 +57,9 @@ BUILDINGS = [
     ("Academic Block - Entrance", "academic", 477, 634, 21, 13, 3, "box"),
     ("Mandapam Auditorium (west drum)", "academic", 423, 688, 40, 53, 3, "cylinder"),
     ("East Drum", "academic", 525, 696, 34, 34, 3, "cylinder"),
+    # Wings of one hostel touch but never overlap: build_hostel_interiors.py joins their corridors.
     ("Brahmaputra Hostel", "academic", 378, 782, 22, 26, 7, "box"),
-    ("Brahmaputra Hostel - South", "academic", 371, 806, 25, 30, 7, "box"),
+    ("Brahmaputra Hostel - South", "academic", 371, 808, 25, 28, 7, "box"),
     ("Walled Residence", "central", 348, 926, 22, 20, 2, "box"),
     ("Walled Residence - Wing", "central", 366, 936, 10, 16, 1, "box"),
     ("Block near ATM", "central", 376, 1017, 17, 22, 3, "box"),
@@ -84,10 +85,10 @@ BUILDINGS = [
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
     ("East Block 2", "hostels", 580, 1274, 34, 24, 2, "box"),
-    ("Sindhu Hostel - North", "sindhu", 466, 1379, 36, 30, 7, "box"),
+    ("Sindhu Hostel - North", "sindhu", 466, 1379, 36, 31, 7, "box"),
     ("Sindhu Hostel - Step 1", "sindhu", 433, 1410, 50, 27, 7, "box"),
     ("Sindhu Hostel - West", "sindhu", 434, 1437, 28, 40, 7, "box"),
-    ("Sindhu Hostel - Step 2", "sindhu", 437, 1477, 46, 24, 7, "box"),
+    ("Sindhu Hostel - Step 2", "sindhu", 437, 1477, 46, 22, 7, "box"),
     ("Sindhu Hostel - South", "sindhu", 471, 1499, 38, 38, 7, "box"),
     ("Service Shed 1", "sindhu", 388, 1490, 26, 13, 1, "box"),
     ("Service Shed 2", "sindhu", 392, 1512, 24, 12, 1, "box"),

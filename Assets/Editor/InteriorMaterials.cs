@@ -40,6 +40,9 @@ namespace Jagti.EditorTools
             mats["Glass_Clear"] = Transparent("Int_Glass_Clear", new Color(0.72f, 0.84f, 0.88f, 0.16f), 0.95f);
             mats["Red_Paint"] = Lit("Int_Red_Paint", Noise("Tex_Red_Paint", new Color(0.70f, 0.07f, 0.05f), 0.05f, 92, 6), 0.6f);
             mats["Cardboard"] = Lit("Int_Cardboard", Cardboard(), 0.05f);
+            mats["Bedsheet"] = Lit("Int_Bedsheet", Check(), 0.05f);
+            mats["Linen"] = Lit("Int_Linen", Weave("Tex_Linen", new Color(0.91f, 0.90f, 0.86f), 0.06f, 96, 256), 0.05f);
+            mats["Wall_Tile"] = Lit("Int_Wall_Tile", WallTile(), 0.75f);
         }
 
         // ------------------------------------------------------------------ material helpers
@@ -178,6 +181,45 @@ namespace Jagti.EditorTools
                     px[y * Size + x] = c * (1f + n * amount + speck) * wv;
                 }
             return Save(name, px);
+        }
+
+        // Checked cotton bedsheet: blue and white checks, 0.6 m tile (8 checks), woven.
+        static Texture2D Check()
+        {
+            var px = new Color[Size * Size];
+            var blue = new Color(0.28f, 0.40f, 0.66f);
+            var white = new Color(0.90f, 0.91f, 0.92f);
+            const int checks = 8;
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    int cx = x * checks / Size, cy = y * checks / Size;
+                    bool bx = cx % 2 == 0, by = cy % 2 == 0;
+                    Color c = bx && by ? blue : (bx || by ? Color.Lerp(blue, white, 0.55f) : white);
+                    float wv = ((x * 128 / Size + y * 128 / Size) % 2 == 0) ? 1.03f : 0.97f;
+                    float n = Fbm(x / (float)Size, y / (float)Size, 6, 3, 97) - 0.5f;
+                    px[y * Size + x] = c * wv * (1f + n * 0.08f);
+                }
+            return Save("Tex_Bedsheet", px);
+        }
+
+        // White glazed wall tiles, 0.3 m (four per 1.2 m tile), thin grey grout, slight sheen variation.
+        static Texture2D WallTile()
+        {
+            var px = new Color[Size * Size];
+            var baseC = new Color(0.93f, 0.94f, 0.94f);
+            var grout = new Color(0.70f, 0.71f, 0.70f);
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x / (float)Size, v = y / (float)Size;
+                    int tx = (int)(u * 4f), ty = (int)(v * 4f);
+                    float fu = u * 4f - tx, fv = v * 4f - ty;
+                    Color c = baseC * (0.98f + 0.04f * Hash(tx, ty, 15));
+                    if (fu < 0.012f || fu > 0.988f || fv < 0.012f || fv > 0.988f) c = grout;
+                    px[y * Size + x] = c;
+                }
+            return Save("Tex_Wall_Tile", px);
         }
 
         // Interior paint, one tile 3 m wide by one floor high: a dark skirting at floor level

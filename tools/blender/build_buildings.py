@@ -78,6 +78,9 @@ MATERIALS = {
     "Glass_Clear": (1.0, 1.0, (0.70, 0.82, 0.86)),
     "Red_Paint": (1.0, 1.0, (0.72, 0.08, 0.06)),
     "Cardboard": (0.6, 0.6, (0.62, 0.48, 0.32)),
+    "Bedsheet": (0.6, 0.6, (0.42, 0.52, 0.72)),
+    "Linen": (0.5, 0.5, (0.92, 0.91, 0.87)),
+    "Wall_Tile": (1.2, 1.2, (0.93, 0.94, 0.94)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 
@@ -1194,16 +1197,76 @@ class SubRun(Run):
         Run.__init__(self, run.m, a, b_, run.n)
 
 
-def hostel_facade(run, floors, top, slots=True):
+HOSTEL_WALL = 0.3     # the interior shell's outer walls stand this far inside the facade
+HOSTEL_DOOR_TOP = 2.75
+HOSTEL_FL = 0.6       # hostel floors sit 0.6 m above each storey line, as in the academic block
+
+
+def hostel_slots(L, slots=True):
+    """Centres of the jali stair slots on a hostel wall of length L: one every ~24 m on long walls."""
+    if not slots or L <= 20:
+        return []
+    n = int(L // 24) or 1
+    return [L * (k + 0.5) / n for k in range(n)]
+
+
+def hostel_pieces(L, slot_at):
+    """The stretches of wall between the slots, each split into window bays: [(p0, p1, bays, bw)]."""
+    pieces = []
+    last = 0.0
+    for c in slot_at:
+        pieces.append((last, c - 1.6))
+        last = c + 1.6
+    pieces.append((last, L))
+    out = []
+    for p0, p1 in pieces:
+        if p1 - p0 < 0.5:
+            continue
+        bays = max(1, round((p1 - p0) / 3.2))
+        out.append((p0, p1, bays, (p1 - p0) / bays))
+    return out
+
+
+def hostel_door_bay(L, slot_at):
+    """(s0, s1) of the ground-floor entrance bay: the first bay after the first slot."""
+    if not slot_at:
+        return None
+    for p0, p1, bays, bw in hostel_pieces(L, slot_at):
+        if p0 > slot_at[0] - 1e-6 and bw >= 2.0:
+            return (p0, p0 + bw)
+    return None
+
+
+def hostel_door(run, s0, s1):
+    """A hostel entrance: a doorway through the wall, a concrete canopy and steps."""
+    os0, os1 = s0 + 0.5, s1 - 0.5
+    t, fl = HOSTEL_WALL, HOSTEL_FL
+    run.rect(s0, os0, 0.5, FLOOR, 0, "Plaster")
+    run.rect(os1, s1, 0.5, FLOOR, 0, "Plaster")
+    run.rect(os0, os1, 0.5, fl, 0, "Concrete")
+    run.rect(os0, os1, HOSTEL_DOOR_TOP, FLOOR, 0, "Plaster")
+    run.side(os0, fl, HOSTEL_DOOR_TOP, 0, -t, "Concrete", 1)
+    run.side(os1, fl, HOSTEL_DOOR_TOP, 0, -t, "Concrete", -1)
+    run.hband(os0, os1, HOSTEL_DOOR_TOP, 0, -t, "Concrete", up=False)
+    run.hband(os0, os1, fl, 0.15, -t, "Concrete", up=True)
+    run.box(os0 - 0.6, os1 + 0.6, HOSTEL_DOOR_TOP + 0.15, HOSTEL_DOOR_TOP + 0.32, 0.0, 1.3, "Concrete", bottom=True)
+    # Dark metal door frame inside the opening.
+    run.box(os0, os0 + 0.08, fl, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os1 - 0.08, os1, fl, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os0, os1, HOSTEL_DOOR_TOP - 0.08, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal", top=False)
+    for k in range(3):
+        run.box(os0 - 0.4, os1 + 0.4, -0.8, fl - 0.15 * k, 0.15, 0.15 + 0.35 * (k + 1), "Concrete", bottom=False)
+
+
+def hostel_facade(run, floors, top, slots=True, door=False):
     """Off-white hostel walls as in the owner's photos: each pair of windows sits in a
-    projecting box frame, thin floor ledges, and jali-screened stair slots on long walls."""
+    projecting box frame, thin floor ledges, and jali-screened stair slots on long walls.
+    door=True puts the block's entrance in the bay beside the first stair slot."""
     L = run.L
     run.box(0, L, -0.8, 0.5, 0.0, 0.15, "Concrete", bottom=False)
     # Jali stair slots: one every ~24 m on long walls, 3 m wide, recessed.
-    slot_at = []
-    if slots and L > 20:
-        n = int(L // 24) or 1
-        slot_at = [L * (k + 0.5) / n for k in range(n)]
+    slot_at = hostel_slots(L, slots)
+    door_bay = hostel_door_bay(L, slot_at) if door else None
     pieces = []
     last = 0.0
     for c in slot_at:
@@ -1228,6 +1291,9 @@ def hostel_facade(run, floors, top, slots=True):
                 zb = 0.5 if f == 0 else zf
                 if bw < 2.0:
                     run.rect(s0, s1, zb, zf + FLOOR, 0, "Plaster")
+                    continue
+                if f == 0 and door_bay and abs(s0 - door_bay[0]) < 1e-6:
+                    hostel_door(run, s0, s1)
                     continue
                 ws0, ws1 = s0 + 0.55, s1 - 0.55
                 wz0, wz1 = zf + 0.9, zf + FLOOR - 0.55
@@ -1297,8 +1363,9 @@ def utility_facade(run, floors, top):
     run.box(-0.05, L + 0.05, top + 0.6, top + 0.75, -0.25, 0.1, "Concrete")
 
 
-def detailed_model(model_name, parts, style):
-    """One model from layout footprints; each part is a wing in the given style."""
+def detailed_model(model_name, parts, style, doors=()):
+    """One model from layout footprints; each part is a wing in the given style. doors lists
+    world points (X, Z) on civic facades where a ground-floor doorway replaces the windows."""
     m = Model(model_name, *centre(parts[0]))
     rects = []
     for name in parts:
@@ -1315,17 +1382,21 @@ def detailed_model(model_name, parts, style):
         poly = rect_poly(m, X0, X1, Z0, Z1)
         m.face([(p[0], p[1], top) for p in poly], "Roof", (0, 0, 1))
         others = rects[:k] + rects[k + 1:]
+        door_done = False
         for run in outline_runs(m, poly):
             for (s0, s1) in hidden_intervals(m, run, others):
                 sub = SubRun(run, s0, s1)
                 if style == "hostel":
-                    hostel_facade(sub, floors, top)
+                    door = not door_done and hostel_door_bay(sub.L, hostel_slots(sub.L)) is not None
+                    door_done = door_done or door
+                    hostel_facade(sub, floors, top, door=door)
                 elif style == "residential":
                     residential_facade(sub, floors, top)
                 elif style == "utility":
                     utility_facade(sub, floors, top)
                 else:
-                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True)
+                    door_bays = [bay_at(sub, X, Z) for X, Z in doors if run_has(sub, X, Z)]
+                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True, doors=door_bays)
         # Roof: a stair and lift room, water tanks on hostels and housing.
         cx, cy = m.b((X0 + X1) / 2, (Z0 + Z1) / 2)
         w, d = abs(X1 - X0), abs(Z1 - Z0)
@@ -1342,9 +1413,21 @@ def detailed_model(model_name, parts, style):
     return m
 
 
+def mess_doors():
+    """Entrances of Annapurna Mess: the middle of the hall's west front and of the open stretch
+    of its south front, and a service door in the kitchen's east wall."""
+    h, k = BUILDINGS["Annapurna Mess"], BUILDINGS["Annapurna Mess - Kitchen"]
+    hx0, hz0 = h["x"] - h["width"] / 2, h["z"] - h["depth"] / 2
+    kx0, kx1 = k["x"] - k["width"] / 2, k["x"] + k["width"] / 2
+    return [(hx0, h["z"]), ((hx0 + kx0) / 2, hz0), (kx1, k["z"] - 6.0)]
+
+
+MESS_DOORS = mess_doors()
+
+
 def mess():
     """Annapurna Mess (the model's dining block 5): sandstone hall with tall glazed bays."""
-    m = detailed_model("Annapurna_Mess", ["Annapurna Mess", "Annapurna Mess - Kitchen"], "civic")
+    m = detailed_model("Annapurna_Mess", ["Annapurna Mess", "Annapurna Mess - Kitchen"], "civic", doors=MESS_DOORS)
     # Double-height glazed bays on the hall's north front (the model's tall windows).
     bd = BUILDINGS["Annapurna Mess"]
     X0, X1, Z1 = bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] + bd["depth"] / 2

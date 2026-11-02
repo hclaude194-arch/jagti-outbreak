@@ -5,7 +5,19 @@ An original zombie survival game set on the IIM Jammu campus at Jagti, built in 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 4B, upper floors, stairs and the Mandapam auditorium
+## Current phase: 4C, walk-in hostels and Annapurna Mess
+
+Every hostel can now be entered and explored on all seven floors: Brahmaputra, Hostel U, the three chain blocks and Sindhu.
+
+- **Entrances:** each wing has a front door with a concrete canopy and steps, in the bay beside a jali stair slot. Glass doors stand open inside it, and the security desk and notice board are in the entrance lobby. The warden's office is next door.
+- **Floors:** one room behind every window pair, so each room has its window and curtains. Wide wings have a corridor running round a central core of washrooms, bathing areas, a pantry and a common room; narrow wings have a corridor down the middle. A dog-leg stair rises behind the jali screens (you can see the lattice from the landings) to the top floor. Where two wings meet, a passage joins their corridors, so you can walk right through Sindhu or round Hostel U without going outside.
+- **Rooms:** a single room has a cot with a checked sheet, a pillow and folded blanket and a steel trunk underneath, a study table with a shelf of books, a lamp and a laptop, a chair, a steel almirah with a suitcase on top, a bookshelf or pinboard, a ceiling fan and a tube light. The corner rooms are double rooms, study rooms or common rooms, and on the ground floor the common room (TV, sofas, carrom), the games room (table tennis) and the reading room.
+- **Washrooms and services:** WC cubicles and basin counters, shower stalls with a geyser, bucket and mug, white wall tiles; pantries with a kitchenette, fridge and water cooler; laundries with washing machines and clothes horses hung with washing; stores; jali sit-outs with benches and plants.
+- **Annapurna Mess:** a double-height dining hall with rows of long steel tables and benches laid with thalis, hand-wash troughs by the west door, water coolers, a plate return, and serving counters (rice, dal, sabzi, curry) under hatches through the kitchen wall. Doors on the west and south fronts. Behind, the kitchen has cooking ranges with big vessels under steel hoods, prep tables, double sinks, racks and fridges, and a service door at the back.
+
+As in the academic block, only your storey and the ones just above and below are drawn, and only nearby room lights are on.
+
+## Phase 4B: upper floors, stairs and the Mandapam auditorium
 
 The whole academic block can now be explored, not just the ground floor.
 
@@ -30,7 +42,7 @@ Each room has its own furniture, about 4,100 pieces in all: desks, office chairs
 
 Room lights switch on around you as you walk (within about 24 m), and the furniture is only drawn when you are in or near the building, so the rest of the campus runs as before. The renderer switches to Forward+ so a room can have more than eight lights. Zombies can follow you in: the navigation mesh now covers the corridors and rooms.
 
-Next: the hostels and mess (4C), then the remaining buildings and outdoor detail (4D).
+Next: the shops, medical, sports complex and outdoor detail (4D).
 
 ## Phase 3: survival gameplay
 

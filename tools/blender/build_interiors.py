@@ -476,9 +476,10 @@ class Stair:
         self.uz = 1.0 if sz == OZ1 else -1.0
         self.vx = 1.0 if sx == OX0 else -1.0
         self.o = (xw, zw - self.uz * ST_L)
+        self.U, self.V = (0.0, self.uz), (self.vx, 0.0)
 
     def P(self, u, v):
-        return (self.o[0] + self.vx * v, self.o[1] + self.uz * u)
+        return (self.o[0] + self.U[0] * u + self.V[0] * v, self.o[1] + self.U[1] * u + self.V[1] * v)
 
     def rect(self, u0, u1, v0, v1):
         (xa, za), (xb, zb) = self.P(u0, v0), self.P(u1, v1)
@@ -905,7 +906,8 @@ def st_face(m, st, corners, mat, hint_uv):
     """A face given as (u, v, height) corners; hint_uv = (du, dv, dz) in the stair frame."""
     pts = [(*m.b(*st.P(u, v)), h) for u, v, h in corners]
     du, dv, dz = hint_uv
-    wx, wz = st.vx * dv, st.uz * du
+    wx = st.U[0] * du + st.V[0] * dv
+    wz = st.U[1] * du + st.V[1] * dv
     m.face(pts, mat, (-wx, -wz, dz))
 
 
@@ -923,15 +925,20 @@ def st_wall(m, st, u0, u1, v0, v1, z0, z1):
     m.box(X0, X1, Z0, Z1, z0, z1, "Wall_Paint", "Wall_Paint")
 
 
-def stair_geometry(m):
-    """Flights, landings, walls and handrails of the four pavilion stairs. On the ground floor
-    the flights are solid; above it each tread is a 0.3 m slab, which leaves headroom over the
-    flight below."""
+def stair_geometry(m, stairs=None, top_level=None, floor_fn=None, ceil_fn=None, side_walls=False):
+    """Flights, landings, walls and handrails of the stairs (by default the four pavilion
+    stairs). On the ground floor the flights are solid; above it each tread is a 0.3 m slab,
+    which leaves headroom over the flight below."""
+    stairs = STAIRS if stairs is None else stairs
+    top_level = PAV_LEVEL if top_level is None else top_level
+    floor_fn = floor_fn or level_floor
+    ceil_fn = ceil_fn or level_ceil
     rise = FLOOR / (2 * RISERS)
-    top = level_ceil(PAV_LEVEL)
-    for st in STAIRS:
-        for k in range(PAV_LEVEL):
-            h = level_floor(k)
+    top = ceil_fn(top_level)
+    bottom = floor_fn(0)
+    for st in stairs:
+        for k in range(top_level):
+            h = floor_fn(k)
 
             def base(z):
                 return h if k == 0 else z - 0.3
@@ -953,13 +960,15 @@ def stair_geometry(m):
             rail(m, st, ST_MID, zm + rise + 0.9, ST_LAND, h + FLOOR + 0.9, 1.6 + 0.06)
             rail(m, st, ST_MID, zm + rise + 0.9, ST_LAND, h + FLOOR + 0.9, ST_W - 0.06)
             # The slab edge over the floor landing, seen from the stair.
-            st_face(m, st, [(ST_LAND, 0.0, level_ceil(k)), (ST_LAND, ST_W, level_ceil(k)),
-                            (ST_LAND, ST_W, level_floor(k + 1)), (ST_LAND, 0.0, level_floor(k + 1))], "Wall_Paint", (1, 0, 0))
+            st_face(m, st, [(ST_LAND, 0.0, ceil_fn(k)), (ST_LAND, ST_W, ceil_fn(k)),
+                            (ST_LAND, ST_W, floor_fn(k + 1)), (ST_LAND, 0.0, floor_fn(k + 1))], "Wall_Paint", (1, 0, 0))
         # Spine wall between the flights and the wall closing the stair off from the rooms.
-        st_wall(m, st, ST_LAND, ST_MID, 1.4, 1.6, FL, top)
-        st_wall(m, st, ST_LAND, ST_L, ST_W, ST_W + PART, FL, top)
+        st_wall(m, st, ST_LAND, ST_MID, 1.4, 1.6, bottom, top)
+        st_wall(m, st, ST_LAND, ST_L, ST_W, ST_W + PART, bottom, top)
+        if side_walls:
+            st_wall(m, st, ST_LAND, ST_L, -PART, 0.0, bottom, top)
         # On the top floor, a balustrade where flight A would have gone on up.
-        zt = level_floor(PAV_LEVEL)
+        zt = floor_fn(top_level)
         st_wall(m, st, ST_LAND, ST_LAND + 0.1, 0.0, 1.4, zt, zt + 1.05)
 
 
@@ -2788,12 +2797,34 @@ def export_model(m, path):
 
 def main():
     os.makedirs(PROP_DIR, exist_ok=True)
+    # The hostel module imports this one by name: make that this very module, not a second copy.
+    sys.modules.setdefault("build_interiors", sys.modules[__name__])
+    import build_hostel_interiors as HI   # registers the hostel and mess furniture too
     shell = academic_interior()
     furnish()
-    path = os.path.join(B.OUT_DIR, shell.name + ".fbx")
-    obj = export_model(shell, path)
-    print("%-26s %6d faces" % (shell.name, len(obj.data.polygons)))
-    lo, hi = shell.world_bounds()
+    rooms = [dict(name=r["name"], kind=r["kind"], rect=[round(v, 2) for v in r["rect"]], level=k, zone=0)
+             for k, lv in enumerate(LEVEL_PLANS) for r in lv["rooms"]]
+    buildings = [dict(shell=shell, name="Academic Block", floorOffset=FL, maxLevel=PAV_LEVEL)]
+    for extra in HI.build_all():
+        buildings.append(extra)
+        rooms += extra["rooms"]
+    shells, zones = [], []
+    for bd in buildings:
+        sh = bd["shell"]
+        path = os.path.join(B.OUT_DIR, sh.name + ".fbx")
+        obj = export_model(sh, path)
+        print("%-30s %6d faces" % (sh.name, len(obj.data.polygons)))
+        lo, hi = sh.world_bounds()
+        shells.append({
+            "name": sh.name, "fbx": "Assets/Models/Buildings/%s.fbx" % sh.name,
+            "pivotX": round(sh.px, 3), "pivotZ": round(sh.pz, 3),
+            "boundsMin": [round(v, 2) for v in lo], "boundsMax": [round(v, 2) for v in hi],
+            "replaces": [],
+        })
+        zones.append({"name": bd["name"], "shell": sh.name,
+                      "min": [round(lo[0] - 2, 2), round(lo[1] - 2, 2)], "max": [round(hi[0] + 2, 2), round(hi[1] + 2, 2)],
+                      "baseX": round(sh.px, 3), "baseZ": round(sh.pz, 3),
+                      "floorOffset": bd["floorOffset"], "maxLevel": bd["maxLevel"]})
     props_out = []
     used = sorted({p["prop"] for p in PLACED})
     for name in sorted(PROPS):
@@ -2804,25 +2835,17 @@ def main():
         print("  prop %-20s %4d faces%s" % (name, len(o.data.polygons), "" if name in used else "  (unused)"))
     data = {
         "info": "Generated by tools/blender/build_interiors.py. Heights are relative to the building base.",
-        "shells": [{
-            "name": shell.name, "fbx": "Assets/Models/Buildings/%s.fbx" % shell.name,
-            "pivotX": round(shell.px, 3), "pivotZ": round(shell.pz, 3),
-            "boundsMin": [round(v, 2) for v in lo], "boundsMax": [round(v, 2) for v in hi],
-            "replaces": [],
-        }],
-        "zones": [{"name": "Academic Block", "shell": shell.name,
-                   "min": [round(lo[0] - 2, 2), round(lo[1] - 2, 2)], "max": [round(hi[0] + 2, 2), round(hi[1] + 2, 2)],
-                   "baseX": round(shell.px, 3), "baseZ": round(shell.pz, 3)}],
+        "shells": shells,
+        "zones": zones,
         "propModels": props_out,
-        "props": [dict(p, zone=0) for p in PLACED],
-        "lights": [dict(l, zone=0) for l in LIGHTS],
+        "props": [dict(p, zone=p.get("zone", 0)) for p in PLACED],
+        "lights": [dict(l, zone=l.get("zone", 0)) for l in LIGHTS],
         "levelHeight": FLOOR,
-        "rooms": [dict(name=r["name"], kind=r["kind"], rect=[round(v, 2) for v in r["rect"]], level=k, zone=0)
-                  for k, lv in enumerate(LEVEL_PLANS) for r in lv["rooms"]],
+        "rooms": rooms,
     }
     with open(OUT_JSON, "w") as f:
         json.dump(data, f, separators=(",", ":"))
-    print("Wrote %s: %d props, %d lights, %d rooms" % (OUT_JSON, len(PLACED), len(LIGHTS), len(data["rooms"])))
+    print("Wrote %s: %d buildings, %d props, %d lights, %d rooms" % (OUT_JSON, len(zones), len(PLACED), len(LIGHTS), len(rooms)))
 
 
 if __name__ == "__main__":
