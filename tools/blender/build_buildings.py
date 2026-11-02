@@ -62,6 +62,7 @@ MATERIALS = {
     "Wood": (1.0, 1.0, (0.55, 0.37, 0.22)),
     "Laminate": (1.2, 1.2, (0.82, 0.73, 0.60)),
     "Fabric": (0.5, 0.5, (0.16, 0.24, 0.42)),
+    "Velvet": (0.5, 0.5, (0.42, 0.07, 0.09)),
     "Leather": (0.6, 0.6, (0.36, 0.21, 0.13)),
     "Plastic": (1.0, 1.0, (0.13, 0.13, 0.14)),
     "Steel": (1.0, 1.0, (0.70, 0.71, 0.72)),
@@ -513,10 +514,42 @@ def facade_door(run, s0, s1, kind, steps=True):
             run.box(os0 - 0.6, os1 + 0.6, -0.8, 0.45 - 0.15 * k, 0.18, 0.18 + 0.35 * (k + 1), "Concrete", bottom=False)
 
 
-def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True):
+def open_spans(bays, bw, skip):
+    """The stretches of a run (s0, s1) not covered by skipped bays."""
+    out, s = [], None
+    for i in range(bays):
+        if i in skip:
+            if s is not None:
+                out.append((s, i * bw))
+                s = None
+        elif s is None:
+            s = i * bw
+    if s is not None:
+        out.append((s, bays * bw))
+    return out
+
+
+def hall_bays(A, B_):
+    """Bays of an academic outer run (world X/Z endpoints) that lie inside the Mandapam
+    auditorium hall, which is built against the west wing: the hall's interior opens there."""
+    nw = BUILDINGS["Academic Block - North Wing"]
+    ox0 = nw["x"] - nw["width"] / 2
+    if abs(A[0] - ox0) > 1e-6 or abs(B_[0] - ox0) > 1e-6:
+        return []
+    au = BUILDINGS["Mandapam Auditorium (west drum)"]
+    z0, z1 = au["z"] - au["depth"] / 2, au["z"] + au["depth"] / 2
+    L = math.dist(A, B_)
+    bays, bw = facade_bays(L)
+    sgn = 1 if B_[1] > A[1] else -1
+    return [i for i in range(bays) if z0 < A[1] + sgn * (i + 0.5) * bw < z1]
+
+
+def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True, skip=()):
     """Sandstone facade from the campus model: tall recessed windows between pilasters,
     a blue glass ribbon on the top floor, string courses and a parapet with coping.
-    Bays listed in doors get a ground-floor doorway instead of windows."""
+    Bays listed in doors get a ground-floor doorway instead of windows; bays listed in skip
+    are left open (where another part of the building covers the facade, and the interior
+    shell supplies the wall)."""
     L = run.L
     bays, bw = facade_bays(L)
     top = z0 + floors * FLOOR
@@ -525,6 +558,8 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
     # Plinth.
     run.box(0, L, -0.8, z0 + 0.6, 0.0, 0.18, "Concrete", bottom=False)
     for i in range(bays):
+        if i in skip:
+            continue
         s0, s1 = i * bw, (i + 1) * bw
         for f in range(lower):
             zf = z0 + f * FLOOR
@@ -556,11 +591,14 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
     if pilasters:
         zp = z0 + lower * FLOOR
         for i in range(bays + 1):
+            if i in skip and i - 1 in skip:
+                continue
             s = i * bw
             run.box(max(0, s - 0.28), min(L, s + 0.28), z0 + 0.6, zp, 0.0, 0.32, "Stone", bottom=False)
     if ribbon:
         zc = z0 + lower * FLOOR
-        run.box(0, L, zc - 0.1, zc + 0.15, 0.0, 0.42, "Concrete")
+        for c0, c1 in open_spans(bays, bw, skip):
+            run.box(c0, c1, zc - 0.1, zc + 0.15, 0.0, 0.42, "Concrete")
     # Parapet with coping.
     run.rect(0, L, top, top + 1.1, 0, "Stone")
     if inner:
@@ -751,7 +789,7 @@ def academic_block():
         if r.n[0] * (mid[0] - c[0]) + r.n[1] * (mid[1] - c[1]) < 0:
             r.n = (-r.n[0], -r.n[1])
         doors = [bay_at(r, *d) for d in OUTER_DOORS if run_has(r, *d)]
-        academic_facade(r, 0.0, floors, "outer", doors=doors, steps=False)
+        academic_facade(r, 0.0, floors, "outer", doors=doors, steps=False, skip=hall_bays(A, Bp))
     court = [((IX0, IZ0), (IX1, IZ0)), ((IX1, IZ0), (IX1, IZ1)), ((IX1, IZ1), (IX0, IZ1)), ((IX0, IZ1), (IX0, IZ0))]
     cc = m.b((IX0 + IX1) / 2, (IZ0 + IZ1) / 2)
     for (A, Bp) in court:
