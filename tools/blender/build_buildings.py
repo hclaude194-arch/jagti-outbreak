@@ -51,6 +51,7 @@ MATERIALS = {
     "ClockFace": (1.0, 1.0, (0.95, 0.94, 0.90)),
     "Water": (4.0, 4.0, (0.20, 0.45, 0.50)),
     "Stone": (3.0, 3.0, (0.84, 0.77, 0.64)),
+    "Planter": (2.0, 2.0, (0.30, 0.42, 0.20)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 
@@ -560,8 +561,8 @@ def outline_runs(m, poly, skip=()):
     return runs
 
 
-def rooftop_box(m, x, y, w, d, top, h=3.2):
-    m.box_local(x - w / 2, x + w / 2, y - d / 2, y + d / 2, top, top + h, "Stone", "Roof")
+def rooftop_box(m, x, y, w, d, top, h=3.2, mat="Stone"):
+    m.box_local(x - w / 2, x + w / 2, y - d / 2, y + d / 2, top, top + h, mat, "Roof")
     m.box_local(x - w / 2 - 0.15, x + w / 2 + 0.15, y - d / 2 - 0.15, y + d / 2 + 0.15, top + h, top + h + 0.25, "Concrete", "Concrete", bottom=True)
 
 
@@ -786,78 +787,342 @@ def academic_block():
 
 
 def clock_tower():
+    """Slender stone tower as on the campus model: a tall shaft with a recessed channel
+    up each face, a clock stage near the top under a thin cornice, standing on an
+    elongated hexagonal plinth with steps, in the middle of the walkway."""
     name = "Clock Tower"
     m = Model("Clock_Tower", *centre(name))
     bd = BUILDINGS[name]
     m.replaces.append(name)
     w = bd["width"]
     H = bd["floors"] * FLOOR
-    m.solid.append((bd["x"] - w / 2, bd["x"] + w / 2, bd["z"] - w / 2, bd["z"] + w / 2))
+    # Plinth: an elongated hexagon along the walkway (world Z), three steps high, with a skirt for the slope.
+    for k, (hw, hl, z) in enumerate(((3.6, 6.0, 0.15), (3.2, 5.4, 0.30), (2.8, 4.8, 0.45))):
+        hexa = [(0, -hl), (hw, -hl + hw * 0.6), (hw, hl - hw * 0.6), (0, hl), (-hw, hl - hw * 0.6), (-hw, -hl + hw * 0.6)]
+        m.prism(hexa, -3.0 if k == 0 else 0.0, z, "Concrete", "Concrete")
     hw = w / 2
-    m.box_local(-hw - 1.4, hw + 1.4, -hw - 1.4, hw + 1.4, -0.8, 0.5, "Concrete", "Concrete")  # base
-    m.box_local(-hw - 0.8, hw + 0.8, -hw - 0.8, hw + 0.8, 0.5, 1.0, "Concrete", "Concrete")
-    m.box_local(-hw, hw, -hw, hw, 1.0, H - 4.5, "Brick", None)
-    # Pilasters on the corners.
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            m.box_local(sx * hw - 0.25, sx * hw + 0.25, sy * hw - 0.25, sy * hw + 0.25, 1.0, H - 4.5, "Plaster", None)
-    # Clock head: wider plaster block with a dial on each side.
-    ch = hw + 0.35
-    z0, z1 = H - 4.5, H
-    m.box_local(-ch, ch, -ch, ch, z0, z1, "Plaster", None)
-    m.box_local(-ch - 0.15, ch + 0.15, -ch - 0.15, ch + 0.15, z0 - 0.25, z0, "Concrete", "Concrete", bottom=True)
-    m.box_local(-ch - 0.2, ch + 0.2, -ch - 0.2, ch + 0.2, z1, z1 + 0.3, "Concrete", "Concrete", bottom=True)
-    dial = 1.25
-    zc = (z0 + z1) / 2
-    off = ch + 0.03
+    m.box_local(-hw - 0.3, hw + 0.3, -hw - 0.3, hw + 0.3, 0.45, 1.6, "Stone", "Concrete")      # base course
+    shaft_top = H - 4.0
     for (nx, ny) in ((0, -1), (1, 0), (0, 1), (-1, 0)):
-        # Right-hand direction seen from outside.
-        rx, ry = -ny, nx
-        c = (nx * off, ny * off)
-        a = (c[0] - rx * dial, c[1] - ry * dial)
-        bpt = (c[0] + rx * dial, c[1] + ry * dial)
-        m.quad([(a[0], a[1], zc - dial), (bpt[0], bpt[1], zc - dial), (bpt[0], bpt[1], zc + dial), (a[0], a[1], zc + dial)],
-               "ClockFace", [(0, 0), (1, 0), (1, 1), (0, 1)])
-    m.pyramid_local(-ch - 0.2, ch + 0.2, -ch - 0.2, ch + 0.2, z1 + 0.3, z1 + 3.2, "Metal")
-    m.box_local(-0.06, 0.06, -0.06, 0.06, z1 + 3.0, z1 + 4.6, "Metal", "Metal")  # finial
+        tx, ty = -ny, nx
+        a = (nx * hw - tx * hw, ny * hw - ty * hw)
+        b_ = (nx * hw + tx * hw, ny * hw + ty * hw)
+        r = Run(m, a, b_, (nx, ny))
+        L = r.L
+        # Corner piers and a deep vertical channel with a glass slit.
+        r.rect(0, 0.9, 1.6, shaft_top, 0, "Stone")
+        r.rect(L - 0.9, L, 1.6, shaft_top, 0, "Stone")
+        r.rect(0.9, L - 0.9, 1.6, 2.6, 0, "Stone")
+        r.side(0.9, 2.6, shaft_top, 0, -0.45, "Stone", 1)
+        r.side(L - 0.9, 2.6, shaft_top, 0, -0.45, "Stone", -1)
+        r.hband(0.9, L - 0.9, 2.6, 0, -0.45, "Stone", up=True)
+        r.rect(0.9, L - 0.9, 2.6, shaft_top, -0.45, "Glass")
+        for z in range(6, int(shaft_top) - 1, 4):
+            r.box(0.9, L - 0.9, z, z + 0.25, -0.45, 0.0, "Stone")
+        # Clock stage.
+        r.rect(-0.25, L + 0.25, shaft_top, H, 0.25, "Stone")
+        r.box(-0.4, L + 0.4, shaft_top - 0.3, shaft_top, 0.0, 0.5, "Concrete")
+        r.box(-0.45, L + 0.45, H, H + 0.5, 0.0, 0.6, "Concrete")
+        c = r.P(L / 2, 0.27, 0)
+        dial = 1.0
+        zc = shaft_top + 2.0
+        m.face([(c[0] - tx * dial, c[1] - ty * dial, zc - dial), (c[0] + tx * dial, c[1] + ty * dial, zc - dial),
+                (c[0] + tx * dial, c[1] + ty * dial, zc + dial), (c[0] - tx * dial, c[1] - ty * dial, zc + dial)],
+               "ClockFace", (nx, ny, 0))
+    # Side walls of the clock stage at its overhang, and the roof.
+    m.box_local(-hw - 0.25, hw + 0.25, -hw - 0.25, hw + 0.25, H + 0.5, H + 0.5, "Concrete", "Roof")
+    m.box_local(-0.5, 0.5, -0.5, 0.5, H + 0.5, H + 2.5, "Metal", "Metal")  # mast
+    m.solid = []
+    m.local_bounds_to_solid()
     return m
 
 
 def main_gate():
+    """The main gate from the campus model: two sandstone guard pavilions under one deep,
+    flat portal canopy with a coffered top, curved low walls sweeping out on both sides,
+    and a triangular planter island in front on the highway side."""
     name = "Main Gate"
     bd = BUILDINGS[name]
     m = Model("Main_Gate", bd["x"], bd["z"])
     m.replaces.append(name)
     X, Z, w, d = bd["x"], bd["z"], bd["width"], bd["depth"]
-    X0, X1, Z0, Z1 = X - w / 2, X + w / 2, Z - d / 2, Z + d / 2
-    m.solid.append((X0, X1, Z0, Z1))
     road_x = -118.0  # Gate Approach centre line (map x 296)
-    gap = 6.0        # half opening; the road is 8 m wide
-    # Guard rooms on both sides of the opening.
-    m.box(X0, road_x - gap - 1.2, Z0 + 1.5, Z1 - 1.5, -0.6, FLOOR, "Facade_Hostel", "Roof", zbase=0.0)
-    m.box(road_x + gap + 1.2, X1, Z0 + 1.5, Z1 - 1.5, -0.6, FLOOR, "Facade_Hostel", "Roof", zbase=0.0)
-    for (a, b_) in ((X0 - 0.3, road_x - gap - 0.9), (road_x + gap + 0.9, X1 + 0.3)):
-        m.box(a, b_, Z0 + 1.2, Z1 - 1.2, FLOOR, FLOOR + 0.5, "Concrete", "Concrete", bottom=True)
-    # Brick pylons and the overhead beam.
-    for px in (road_x - gap - 1.2, road_x + gap):
-        m.box(px, px + 1.2, Z - 1.0, Z + 1.0, -0.6, 9.0, "Brick", "Concrete")
-    m.box(road_x - gap - 1.6, road_x + gap + 1.6, Z - 1.2, Z + 1.2, 6.6, 8.2, "Plaster", "Concrete", bottom=True)
-    m.box(road_x - gap - 1.8, road_x + gap + 1.8, Z - 1.3, Z + 1.3, 8.2, 8.5, "Concrete", "Concrete", bottom=True)
+    gap = 5.0        # half opening; the road is 8 m wide
+    Z0, Z1 = Z - d / 2, Z + d / 2
+    # Guard pavilions.
+    for (a, b_) in ((road_x - gap - 7.0, road_x - gap), (road_x + gap, road_x + gap + 7.0)):
+        poly = rect_poly(m, a, b_, Z0 + 0.5, Z1 - 0.5)
+        m.face([(p[0], p[1], 4.2) for p in poly], "Roof", (0, 0, 1))
+        for run in outline_runs(m, poly):
+            run.box(0, run.L, -0.8, 0.45, 0.0, 0.15, "Concrete", bottom=False)
+            run.window(0, run.L, 0.45, 4.2, 1.0, run.L - 1.0, 1.0, 3.0, 0.25, wall="Stone")
+            for k in range(1, int(run.L / 0.9)):
+                sx = run.L * k / int(run.L / 0.9)
+                if 1.0 < sx < run.L - 1.0:
+                    run.box(sx - 0.03, sx + 0.03, 1.0, 3.0, -0.25, -0.15, "Metal", top=False, bottom=False)
+    # Portal canopy: a deep flat slab over both pavilions and the road, edged with stone.
+    cx0, cx1 = road_x - gap - 8.5, road_x + gap + 8.5
+    cz0, cz1 = Z0 - 1.5, Z1 + 1.5
+    m.box(cx0, cx1, cz0, cz1, 6.2, 7.4, "Stone", "Concrete", bottom=True)
+    # Coffered top: a grid of upstand beams.
+    for k in range(9):
+        xb = cx0 + (cx1 - cx0) * k / 8
+        m.box(xb - 0.2, xb + 0.2, cz0, cz1, 7.4, 7.9, "Concrete", "Concrete")
+    for zb in (cz0 + 0.2, (cz0 + cz1) / 2, cz1 - 0.2):
+        m.box(cx0, cx1, zb - 0.2, zb + 0.2, 7.4, 7.9, "Concrete", "Concrete")
+    # Four piers carry the canopy beside the road.
+    for px_ in (road_x - gap - 0.9, road_x + gap + 0.1):
+        for pz in (cz0 + 0.6, cz1 - 1.4):
+            m.box(px_, px_ + 0.8, pz, pz + 0.8, -0.6, 6.2, "Stone", None)
+    # Curved walls sweeping out from the pavilions towards the highway (north, +Z).
+    for side in (-1, 1):
+        x_start = road_x + side * (gap + 7.0)
+        pts = [(x_start + side * 14.0 * (1 - math.cos(t)), Z1 + 10.0 * math.sin(t)) for t in [math.pi / 2 * k / 10 for k in range(11)]]
+        for (pa, pb) in zip(pts[:-1], pts[1:]):
+            a, b_ = m.b(*pa), m.b(*pb)
+            r = Run(m, a, b_)
+            for nn in (1, -1):
+                r.n = (r.n[0] * nn, r.n[1] * nn) if nn == -1 else r.n
+                r.rect(0, r.L, -0.6, 1.6, 0.18, "Stone")
+            r.box(-0.02, r.L + 0.02, 1.6, 1.8, -0.3, 0.3, "Concrete")
+    # Triangular planter island in front of the gate, on the highway side.
+    tri = [m.b(road_x - 9.0, Z1 + 16.0), m.b(road_x + 9.0, Z1 + 16.0), m.b(road_x, Z1 + 9.0)]
+    area = sum(tri[k][0] * tri[(k + 1) % 3][1] - tri[(k + 1) % 3][0] * tri[k][1] for k in range(3))
+    if area < 0:
+        tri = tri[::-1]
+    m.prism(tri, -0.4, 0.35, "Concrete", "Concrete")
+    m.prism(inset_polygon(tri, 0.35), 0.35, 0.55, "Planter", "Planter")
+    m.local_bounds_to_solid()  # canopy, walls and island reach beyond the layout footprint
     return m
 
 
-def hostel(model_name, parts):
+# ------------------------------------------------------------------ hostels, residences, civic blocks
+def hidden_intervals(m, run, others):
+    """Parts of a run (0..L) whose outside face is buried inside another wing of the model."""
+    cuts = [0.0, run.L]
+    for (X0, X1, Z0, Z1) in others:
+        for X in (X0, X1):
+            for Z in (Z0, Z1):
+                lx, ly = m.b(X, Z)
+                s_ = (lx - run.a[0]) * run.t[0] + (ly - run.a[1]) * run.t[1]
+                if 0 < s_ < run.L:
+                    cuts.append(s_)
+    cuts = sorted(set(round(c, 4) for c in cuts))
+    visible = []
+    for c0, c1 in zip(cuts[:-1], cuts[1:]):
+        mid = run.P((c0 + c1) / 2, 0.15, 0)
+        X, Z = m.px - mid[0], m.pz - mid[1]
+        buried = any(X0 - 1e-3 < X < X1 + 1e-3 and Z0 - 1e-3 < Z < Z1 + 1e-3 for (X0, X1, Z0, Z1) in others)
+        if not buried:
+            if visible and abs(visible[-1][1] - c0) < 1e-3:
+                visible[-1] = (visible[-1][0], c1)
+            else:
+                visible.append((c0, c1))
+    return visible
+
+
+class SubRun(Run):
+    """A piece s0..s1 of a run, re-based to start at 0."""
+
+    def __init__(self, run, s0, s1):
+        a = run.P(s0, 0, 0)[:2]
+        b_ = run.P(s1, 0, 0)[:2]
+        Run.__init__(self, run.m, a, b_, run.n)
+
+
+def hostel_facade(run, floors, top, slots=True):
+    """Off-white hostel walls as in the owner's photos: each pair of windows sits in a
+    projecting box frame, thin floor ledges, and jali-screened stair slots on long walls."""
+    L = run.L
+    run.box(0, L, -0.8, 0.5, 0.0, 0.15, "Concrete", bottom=False)
+    # Jali stair slots: one every ~24 m on long walls, 3 m wide, recessed.
+    slot_at = []
+    if slots and L > 20:
+        n = int(L // 24) or 1
+        slot_at = [L * (k + 0.5) / n for k in range(n)]
+    pieces = []
+    last = 0.0
+    for c in slot_at:
+        pieces.append((last, c - 1.6))
+        last = c + 1.6
+    pieces.append((last, L))
+    for c in slot_at:
+        s0, s1 = c - 1.6, c + 1.6
+        run.rect(s0, s1, 0.5, top, -0.6, "Jali")
+        run.side(s0, 0.5, top, 0, -0.6, "Concrete", 1)
+        run.side(s1, 0.5, top, 0, -0.6, "Concrete", -1)
+        run.hband(s0, s1, top, 0, -0.6, "Concrete", up=False)
+    for (p0, p1) in pieces:
+        if p1 - p0 < 0.5:
+            continue
+        bays = max(1, round((p1 - p0) / 3.2))
+        bw = (p1 - p0) / bays
+        for i in range(bays):
+            s0, s1 = p0 + i * bw, p0 + (i + 1) * bw
+            for f in range(floors):
+                zf = f * FLOOR
+                zb = 0.5 if f == 0 else zf
+                if bw < 2.0:
+                    run.rect(s0, s1, zb, zf + FLOOR, 0, "Plaster")
+                    continue
+                ws0, ws1 = s0 + 0.55, s1 - 0.55
+                wz0, wz1 = zf + 0.9, zf + FLOOR - 0.55
+                run.window(s0, s1, zb, zf + FLOOR, ws0, ws1, wz0, wz1, 0.18, wall="Plaster", reveal="Concrete", frame=False)
+                # Box frame standing proud of the wall.
+                fo, fd = 0.16, 0.32
+                run.box(ws0 - fo, ws1 + fo, wz1, wz1 + fo, 0.0, fd, "Concrete")
+                run.box(ws0 - fo, ws1 + fo, wz0 - fo, wz0, 0.0, fd, "Concrete")
+                run.box(ws0 - fo, ws0, wz0, wz1, 0.0, fd, "Concrete", top=False, bottom=False)
+                run.box(ws1, ws1 + fo, wz0, wz1, 0.0, fd, "Concrete", top=False, bottom=False)
+                mid = (ws0 + ws1) / 2
+                run.box(mid - 0.05, mid + 0.05, wz0, wz1, -0.18, -0.08, "Concrete", top=False, bottom=False)
+        for f in range(1, floors):
+            run.box(p0, p1, f * FLOOR - 0.08, f * FLOOR + 0.08, 0.0, 0.12, "Concrete")
+    # Parapet with coping.
+    run.rect(0, L, top, top + 1.1, 0, "Plaster")
+    run.rect(0, L, top, top + 1.1, -0.25, "Plaster", facing=-1)
+    run.box(-0.05, L + 0.05, top + 1.1, top + 1.28, -0.3, 0.1, "Concrete")
+
+
+def residential_facade(run, floors, top):
+    """Staff and faculty housing: cream walls, a balcony with a railing in every other bay."""
+    L = run.L
+    run.box(0, L, -0.8, 0.5, 0.0, 0.15, "Concrete", bottom=False)
+    bays = max(1, round(L / 3.4))
+    bw = L / bays
+    for i in range(bays):
+        s0, s1 = i * bw, (i + 1) * bw
+        balcony = (i % 3 == 1) and bw > 2.6
+        for f in range(floors):
+            zf = f * FLOOR
+            zb = 0.5 if f == 0 else zf
+            if balcony and f > 0:
+                run.window(s0, s1, zb, zf + FLOOR, s0 + 0.4, s1 - 0.4, zf + 0.1, zf + FLOOR - 0.5, 0.2, wall="Plaster", reveal="Plaster", frame=False)
+                run.box(s0 - 0.1, s1 + 0.1, zf - 0.15, zf + 0.05, 0.0, 1.3, "Concrete")          # slab
+                run.box(s0 - 0.1, s1 + 0.1, zf + 0.95, zf + 1.02, 1.22, 1.3, "Metal")            # handrail
+                n = max(3, int((s1 - s0) / 0.25))
+                for k in range(n + 1):
+                    sx = s0 + (s1 - s0) * k / n
+                    run.box(sx - 0.02, sx + 0.02, zf + 0.05, zf + 0.95, 1.24, 1.28, "Metal", top=False, bottom=False)
+            else:
+                run.window(s0, s1, zb, zf + FLOOR, s0 + 0.75, s1 - 0.75, zf + 0.9, zf + FLOOR - 0.6, 0.18, wall="Plaster", reveal="Concrete")
+        # Thin sunshade over every window.
+        if not balcony:
+            for f in range(floors):
+                zf = f * FLOOR
+                run.box(s0 + 0.55, s1 - 0.55, zf + FLOOR - 0.55, zf + FLOOR - 0.45, 0.0, 0.6, "Concrete")
+    run.rect(0, L, top, top + 1.0, 0, "Plaster")
+    run.rect(0, L, top, top + 1.0, -0.25, "Plaster", facing=-1)
+    run.box(-0.05, L + 0.05, top + 1.0, top + 1.18, -0.3, 0.1, "Concrete")
+
+
+def utility_facade(run, floors, top):
+    """Sheds and plant rooms: plain plaster, a roller shutter or two, high vents."""
+    L = run.L
+    run.box(0, L, -0.8, 0.3, 0.0, 0.12, "Concrete", bottom=False)
+    run.rect(0, L, 0.3, top, 0, "Plaster")
+    n = max(1, int(L // 9))
+    for k in range(n):
+        c = L * (k + 0.5) / n
+        run.rect(c - 1.6, c + 1.6, 0.31, 3.2, 0.02, "Metal")
+        run.box(c - 1.8, c + 1.8, 3.2, 3.45, 0.0, 0.5, "Concrete")
+        for v in (-3.2, 3.2):
+            if 0 < c + v - 0.6 and c + v + 0.6 < L:
+                run.rect(c + v - 0.6, c + v + 0.6, top - 1.2, top - 0.6, 0.02, "Jali")
+    run.rect(0, L, top, top + 0.6, 0, "Plaster")
+    run.box(-0.05, L + 0.05, top + 0.6, top + 0.75, -0.25, 0.1, "Concrete")
+
+
+def detailed_model(model_name, parts, style):
+    """One model from layout footprints; each part is a wing in the given style."""
     m = Model(model_name, *centre(parts[0]))
-    for p in parts:
-        m.block(p, "hostel")
+    rects = []
+    for name in parts:
+        bd = BUILDINGS[name]
+        m.replaces.append(name)
+        r = (bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] - bd["depth"] / 2, bd["z"] + bd["depth"] / 2)
+        rects.append(r)
+        m.solid.append(r)
+    for k, name in enumerate(parts):
+        bd = BUILDINGS[name]
+        X0, X1, Z0, Z1 = rects[k]
+        floors = bd["floors"]
+        top = floors * FLOOR + 0.06 * k
+        poly = rect_poly(m, X0, X1, Z0, Z1)
+        m.face([(p[0], p[1], top) for p in poly], "Roof", (0, 0, 1))
+        others = rects[:k] + rects[k + 1:]
+        for run in outline_runs(m, poly):
+            for (s0, s1) in hidden_intervals(m, run, others):
+                sub = SubRun(run, s0, s1)
+                if style == "hostel":
+                    hostel_facade(sub, floors, top)
+                elif style == "residential":
+                    residential_facade(sub, floors, top)
+                elif style == "utility":
+                    utility_facade(sub, floors, top)
+                else:
+                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True)
+        # Roof: a stair and lift room, water tanks on hostels and housing.
+        cx, cy = m.b((X0 + X1) / 2, (Z0 + Z1) / 2)
+        w, d = abs(X1 - X0), abs(Z1 - Z0)
+        if style != "utility" and floors >= 2:
+            rooftop_box(m, cx, cy, min(6.0, w * 0.4), min(4.5, d * 0.4), top, 3.0,
+                        "Stone" if style == "civic" else "Plaster")
+        if style in ("hostel", "residential") and w > 10 and d > 10:
+            for sx in (-1, 1):
+                tx = cx + sx * min(w, d) * 0.28
+                m.cylinder_local(tx, cy + d * 0.25, 0.9, top, top + 1.6, "Plaster", "Plaster", segments=10)
+        if style == "hostel" and floors >= 6 and w > 14 and d > 12:
+            x0, x1, y0, y1 = m.rect(X0, X1, Z0, Z1)
+            m.pergola(x0 + 2.0, x0 + min(10.0, w * 0.45), y0 + 2.0, y1 - 2.0, top)
     return m
 
 
 def mess():
-    m = Model("Annapurna_Mess", *centre("Annapurna Mess"))
-    m.block("Annapurna Mess", "mess")
-    m.block("Annapurna Mess - Kitchen", "hostel")
+    """Annapurna Mess (the model's dining block 5): sandstone hall with tall glazed bays."""
+    m = detailed_model("Annapurna_Mess", ["Annapurna Mess", "Annapurna Mess - Kitchen"], "civic")
+    # Double-height glazed bays on the hall's north front (the model's tall windows).
+    bd = BUILDINGS["Annapurna Mess"]
+    X0, X1, Z1 = bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] + bd["depth"] / 2
+    for k in range(3):
+        cx = X0 + (k + 1) * (X1 - X0) / 4
+        a, b_ = m.b(cx + 2.4, Z1 + 0.02), m.b(cx - 2.4, Z1 + 0.02)
+        r = Run(m, a, b_)
+        if r.n[1] > 0:
+            r = Run(m, b_, a)
+        r.rect(0, r.L, 0.6, 2 * FLOOR - 0.3, 0.25, "Glass")
+        r.box(-0.4, 0.0, 0.5, 2 * FLOOR, 0.0, 0.6, "Stone")
+        r.box(r.L, r.L + 0.4, 0.5, 2 * FLOOR, 0.0, 0.6, "Stone")
+        r.box(-0.4, r.L + 0.4, 2 * FLOOR - 0.3, 2 * FLOOR, 0.0, 0.6, "Stone")
     return m
+
+
+def auto_models():
+    """Every layout building not covered by a hand-made model gets a detailed model in a
+    style chosen from its name: hostel, housing, civic (sandstone) or utility."""
+    groups = [
+        ("Walled_Residence", ["Walled Residence", "Walled Residence - Wing"], "residential"),
+    ]
+    named = {n for _, parts, _ in groups for n in parts}
+    out = list(groups)
+    skip = {"Main Gate", "Clock Tower", "Water Tower"}
+    for name, bd in BUILDINGS.items():
+        if name in named or name in skip or name in HAND_COVERED:
+            continue
+        n = name.lower()
+        if "hostel" in n:
+            style = "hostel"
+        elif "staff" in n or "block near atm" in n or "west building" in n:
+            style = "residential"
+        elif "shed" in n or "substation" in n or "pavilion" in n:
+            style = "utility"
+        else:
+            style = "civic"
+        model_name = "".join(ch if ch.isalnum() else "_" for ch in name).strip("_")
+        while "__" in model_name:
+            model_name = model_name.replace("__", "_")
+        out.append((model_name, [name], style))
+    return out
 
 
 def amphitheatre_pond():
@@ -968,6 +1233,17 @@ def water_tower():
     return m
 
 
+HAND_COVERED = {
+    "Academic Block - North Wing", "Academic Block - South Wing", "Academic Block - West Wing",
+    "Academic Block - East Wing", "Academic Block - Entrance", "Mandapam Auditorium (west drum)", "East Drum",
+    "Annapurna Mess", "Annapurna Mess - Kitchen",
+    "Brahmaputra Hostel", "Brahmaputra Hostel - South",
+    "Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West", "Sindhu Hostel - Step 2", "Sindhu Hostel - South",
+    "Hostel U - West", "Hostel U - North", "Hostel U - East",
+    "Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3",
+}
+
+
 MODELS = [
     academic_block,
     clock_tower,
@@ -975,14 +1251,15 @@ MODELS = [
     mess,
     amphitheatre_pond,
     water_tower,
-    lambda: hostel("Brahmaputra_Hostel", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"]),
-    lambda: hostel("Sindhu_Hostel", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
-                                     "Sindhu Hostel - Step 2", "Sindhu Hostel - South"]),
-    lambda: hostel("Hostel_U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"]),
-    lambda: hostel("Hostel_Chain_1", ["Hostel Chain 1"]),
-    lambda: hostel("Hostel_Chain_2", ["Hostel Chain 2"]),
-    lambda: hostel("Hostel_Chain_3", ["Hostel Chain 3"]),
+    lambda: detailed_model("Brahmaputra_Hostel", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"], "hostel"),
+    lambda: detailed_model("Sindhu_Hostel", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
+                                             "Sindhu Hostel - Step 2", "Sindhu Hostel - South"], "hostel"),
+    lambda: detailed_model("Hostel_U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"], "hostel"),
+    lambda: detailed_model("Hostel_Chain_1", ["Hostel Chain 1"], "hostel"),
+    lambda: detailed_model("Hostel_Chain_2", ["Hostel Chain 2"], "hostel"),
+    lambda: detailed_model("Hostel_Chain_3", ["Hostel Chain 3"], "hostel"),
 ]
+MODELS += [(lambda g=g: detailed_model(*g)) for g in auto_models()]
 
 
 # ------------------------------------------------------------------ export and preview

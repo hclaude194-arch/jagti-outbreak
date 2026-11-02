@@ -38,6 +38,7 @@ namespace Jagti.EditorTools
                 ["ClockFace"] = ProceduralAssets.LitMaterial("Bld_ClockFace", Color.white, ClockFace(), 0.3f),
                 ["Stone"] = ProceduralAssets.LitMaterial("Bld_Stone", Color.white, Stone(), 0.1f),
                 ["Water"] = ProceduralAssets.LitMaterial("Bld_Water", Color.white, Water(), 0.92f),
+                ["Planter"] = ProceduralAssets.LitMaterial("Bld_Planter", Color.white, Planter(), 0.05f),
             };
             return mats;
         }
@@ -281,6 +282,27 @@ namespace Jagti.EditorTools
                     c.px[y * Size + x] = col;
                 }
             return c.Save("Tex_Water");
+        }
+
+        // Planted bed: clipped green shrubs with small yellow and red flower speckles.
+        static Texture2D Planter()
+        {
+            var c = new Canvas();
+            var leaf = new Color(0.22f, 0.36f, 0.14f);
+            var rng = new System.Random(71);
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x / (float)Size, v = y / (float)Size;
+                    float n = ProceduralAssets.Fbm(u, v, 8, 4, 71) - 0.5f;
+                    var col = leaf * (1f + n * 0.7f);
+                    double roll = rng.NextDouble();
+                    if (roll < 0.012) col = new Color(0.86f, 0.72f, 0.20f);
+                    else if (roll < 0.020) col = new Color(0.74f, 0.22f, 0.18f);
+                    col.a = 1f;
+                    c.px[y * Size + x] = col;
+                }
+            return c.Save("Tex_Planter");
         }
 
         static Texture2D PlainWall(string name, Color color, float grain, int seed)

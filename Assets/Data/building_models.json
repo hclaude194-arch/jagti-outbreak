@@ -30,12 +30,12 @@
    "pivotX": 63.0,
    "pivotZ": 451.0,
    "boundsMin": [
-    61.5,
-    449.5
+    59.4,
+    445.0
    ],
    "boundsMax": [
-    64.5,
-    452.5
+    66.6,
+    457.0
    ],
    "replaces": [
     "Clock Tower"
@@ -47,12 +47,12 @@
    "pivotX": -117.0,
    "pivotZ": 534.5,
    "boundsMin": [
-    -128.0,
-    530.0
+    -144.04,
+    528.5
    ],
    "boundsMax": [
-    -106.0,
-    539.0
+    -91.96,
+    555.0
    ],
    "replaces": [
     "Main Gate"
@@ -215,6 +215,415 @@
    ],
    "replaces": [
     "Hostel Chain 3"
+   ]
+  },
+  {
+   "name": "Walled_Residence",
+   "fbx": "Assets/Models/Buildings/Walled_Residence.fbx",
+   "pivotX": -55.0,
+   "pivotZ": 60.0,
+   "boundsMin": [
+    -66.0,
+    44.0
+   ],
+   "boundsMax": [
+    -38.0,
+    70.0
+   ],
+   "replaces": [
+    "Walled Residence",
+    "Walled Residence - Wing"
+   ]
+  },
+  {
+   "name": "Block_near_ATM",
+   "fbx": "Assets/Models/Buildings/Block_near_ATM.fbx",
+   "pivotX": -29.5,
+   "pivotZ": -32.0,
+   "boundsMin": [
+    -38.0,
+    -43.0
+   ],
+   "boundsMax": [
+    -21.0,
+    -21.0
+   ],
+   "replaces": [
+    "Block near ATM"
+   ]
+  },
+  {
+   "name": "Block_near_ATM_2",
+   "fbx": "Assets/Models/Buildings/Block_near_ATM_2.fbx",
+   "pivotX": -22.0,
+   "pivotZ": -61.0,
+   "boundsMin": [
+    -33.0,
+    -69.0
+   ],
+   "boundsMax": [
+    -11.0,
+    -53.0
+   ],
+   "replaces": [
+    "Block near ATM 2"
+   ]
+  },
+  {
+   "name": "Block_near_ATM_3",
+   "fbx": "Assets/Models/Buildings/Block_near_ATM_3.fbx",
+   "pivotX": -14.0,
+   "pivotZ": -76.0,
+   "boundsMin": [
+    -19.0,
+    -84.0
+   ],
+   "boundsMax": [
+    -9.0,
+    -68.0
+   ],
+   "replaces": [
+    "Block near ATM 3"
+   ]
+  },
+  {
+   "name": "Staff_Quarters_1",
+   "fbx": "Assets/Models/Buildings/Staff_Quarters_1.fbx",
+   "pivotX": -137.0,
+   "pivotZ": -27.0,
+   "boundsMin": [
+    -146.0,
+    -42.0
+   ],
+   "boundsMax": [
+    -128.0,
+    -12.0
+   ],
+   "replaces": [
+    "Staff Quarters 1"
+   ]
+  },
+  {
+   "name": "Staff_Quarters_2",
+   "fbx": "Assets/Models/Buildings/Staff_Quarters_2.fbx",
+   "pivotX": -136.5,
+   "pivotZ": -67.0,
+   "boundsMin": [
+    -145.0,
+    -78.0
+   ],
+   "boundsMax": [
+    -128.0,
+    -56.0
+   ],
+   "replaces": [
+    "Staff Quarters 2"
+   ]
+  },
+  {
+   "name": "Staff_Quarters_3",
+   "fbx": "Assets/Models/Buildings/Staff_Quarters_3.fbx",
+   "pivotX": -136.5,
+   "pivotZ": -92.0,
+   "boundsMin": [
+    -145.0,
+    -104.0
+   ],
+   "boundsMax": [
+    -128.0,
+    -80.0
+   ],
+   "replaces": [
+    "Staff Quarters 3"
+   ]
+  },
+  {
+   "name": "Staff_Quarters_4",
+   "fbx": "Assets/Models/Buildings/Staff_Quarters_4.fbx",
+   "pivotX": -135.5,
+   "pivotZ": -121.0,
+   "boundsMin": [
+    -144.0,
+    -132.0
+   ],
+   "boundsMax": [
+    -127.0,
+    -110.0
+   ],
+   "replaces": [
+    "Staff Quarters 4"
+   ]
+  },
+  {
+   "name": "Staff_Quarters_5",
+   "fbx": "Assets/Models/Buildings/Staff_Quarters_5.fbx",
+   "pivotX": -135.0,
+   "pivotZ": -144.0,
+   "boundsMin": [
+    -143.0,
+    -154.0
+   ],
+   "boundsMax": [
+    -127.0,
+    -134.0
+   ],
+   "replaces": [
+    "Staff Quarters 5"
+   ]
+  },
+  {
+   "name": "Shopping_Medical_1_ATM",
+   "fbx": "Assets/Models/Buildings/Shopping_Medical_1_ATM.fbx",
+   "pivotX": -71.0,
+   "pivotZ": -27.0,
+   "boundsMin": [
+    -79.0,
+    -42.0
+   ],
+   "boundsMax": [
+    -63.0,
+    -12.0
+   ],
+   "replaces": [
+    "Shopping & Medical 1 (ATM)"
+   ]
+  },
+  {
+   "name": "Shopping_Medical_2",
+   "fbx": "Assets/Models/Buildings/Shopping_Medical_2.fbx",
+   "pivotX": -70.5,
+   "pivotZ": -58.0,
+   "boundsMin": [
+    -78.0,
+    -69.0
+   ],
+   "boundsMax": [
+    -63.0,
+    -47.0
+   ],
+   "replaces": [
+    "Shopping & Medical 2"
+   ]
+  },
+  {
+   "name": "Shopping_Medical_3",
+   "fbx": "Assets/Models/Buildings/Shopping_Medical_3.fbx",
+   "pivotX": -70.5,
+   "pivotZ": -84.0,
+   "boundsMin": [
+    -78.0,
+    -95.0
+   ],
+   "boundsMax": [
+    -63.0,
+    -73.0
+   ],
+   "replaces": [
+    "Shopping & Medical 3"
+   ]
+  },
+  {
+   "name": "Track_Pavilion",
+   "fbx": "Assets/Models/Buildings/Track_Pavilion.fbx",
+   "pivotX": 95.0,
+   "pivotZ": -169.0,
+   "boundsMin": [
+    70.0,
+    -173.0
+   ],
+   "boundsMax": [
+    120.0,
+    -165.0
+   ],
+   "replaces": [
+    "Track Pavilion"
+   ]
+  },
+  {
+   "name": "Sports_Complex",
+   "fbx": "Assets/Models/Buildings/Sports_Complex.fbx",
+   "pivotX": 36.5,
+   "pivotZ": -328.0,
+   "boundsMin": [
+    24.0,
+    -355.0
+   ],
+   "boundsMax": [
+    49.0,
+    -301.0
+   ],
+   "replaces": [
+    "Sports Complex"
+   ]
+  },
+  {
+   "name": "East_Block",
+   "fbx": "Assets/Models/Buildings/East_Block.fbx",
+   "pivotX": 159.0,
+   "pivotZ": -116.0,
+   "boundsMin": [
+    150.0,
+    -130.0
+   ],
+   "boundsMax": [
+    168.0,
+    -102.0
+   ],
+   "replaces": [
+    "East Block"
+   ]
+  },
+  {
+   "name": "East_Block_2",
+   "fbx": "Assets/Models/Buildings/East_Block_2.fbx",
+   "pivotX": 183.0,
+   "pivotZ": -290.0,
+   "boundsMin": [
+    166.0,
+    -302.0
+   ],
+   "boundsMax": [
+    200.0,
+    -278.0
+   ],
+   "replaces": [
+    "East Block 2"
+   ]
+  },
+  {
+   "name": "Service_Shed_1",
+   "fbx": "Assets/Models/Buildings/Service_Shed_1.fbx",
+   "pivotX": -13.0,
+   "pivotZ": -500.5,
+   "boundsMin": [
+    -26.0,
+    -507.0
+   ],
+   "boundsMax": [
+    0.0,
+    -494.0
+   ],
+   "replaces": [
+    "Service Shed 1"
+   ]
+  },
+  {
+   "name": "Service_Shed_2",
+   "fbx": "Assets/Models/Buildings/Service_Shed_2.fbx",
+   "pivotX": -10.0,
+   "pivotZ": -522.0,
+   "boundsMin": [
+    -22.0,
+    -528.0
+   ],
+   "boundsMax": [
+    2.0,
+    -516.0
+   ],
+   "replaces": [
+    "Service Shed 2"
+   ]
+  },
+  {
+   "name": "Service_Shed_3",
+   "fbx": "Assets/Models/Buildings/Service_Shed_3.fbx",
+   "pivotX": -8.0,
+   "pivotZ": -541.0,
+   "boundsMin": [
+    -19.0,
+    -547.0
+   ],
+   "boundsMax": [
+    3.0,
+    -535.0
+   ],
+   "replaces": [
+    "Service Shed 3"
+   ]
+  },
+  {
+   "name": "West_Building_1",
+   "fbx": "Assets/Models/Buildings/West_Building_1.fbx",
+   "pivotX": -110.0,
+   "pivotZ": -344.0,
+   "boundsMin": [
+    -125.0,
+    -352.0
+   ],
+   "boundsMax": [
+    -95.0,
+    -336.0
+   ],
+   "replaces": [
+    "West Building 1"
+   ]
+  },
+  {
+   "name": "West_Building_2",
+   "fbx": "Assets/Models/Buildings/West_Building_2.fbx",
+   "pivotX": -106.0,
+   "pivotZ": -425.0,
+   "boundsMin": [
+    -120.0,
+    -432.0
+   ],
+   "boundsMax": [
+    -92.0,
+    -418.0
+   ],
+   "replaces": [
+    "West Building 2"
+   ]
+  },
+  {
+   "name": "West_Building_3",
+   "fbx": "Assets/Models/Buildings/West_Building_3.fbx",
+   "pivotX": -78.0,
+   "pivotZ": -428.5,
+   "boundsMin": [
+    -89.0,
+    -435.0
+   ],
+   "boundsMax": [
+    -67.0,
+    -422.0
+   ],
+   "replaces": [
+    "West Building 3"
+   ]
+  },
+  {
+   "name": "West_Building_4",
+   "fbx": "Assets/Models/Buildings/West_Building_4.fbx",
+   "pivotX": -101.0,
+   "pivotZ": -244.0,
+   "boundsMin": [
+    -114.0,
+    -252.0
+   ],
+   "boundsMax": [
+    -88.0,
+    -236.0
+   ],
+   "replaces": [
+    "West Building 4"
+   ]
+  },
+  {
+   "name": "Substation_Control_Room",
+   "fbx": "Assets/Models/Buildings/Substation_Control_Room.fbx",
+   "pivotX": -152.0,
+   "pivotZ": 308.0,
+   "boundsMin": [
+    -164.0,
+    288.0
+   ],
+   "boundsMax": [
+    -140.0,
+    328.0
+   ],
+   "replaces": [
+    "Substation Control Room"
    ]
   }
  ]
