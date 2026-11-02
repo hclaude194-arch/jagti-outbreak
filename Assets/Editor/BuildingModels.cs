@@ -53,34 +53,46 @@ namespace Jagti.EditorTools
         public static void Place(List<BuildingModelInfo> models, Transform parent, Func<float, float, float> ground)
         {
             if (models.Count == 0) return;
-            var materials = BuildingMaterials.Create();
-            foreach (var info in models)
-            {
-                var asset = AssetDatabase.LoadAssetAtPath<GameObject>(info.fbx);
-                var go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
-                go.name = info.name.Replace('_', ' ');
-                go.transform.SetParent(parent);
-                go.transform.position = new Vector3(info.pivotX, ground(info.pivotX, info.pivotZ), info.pivotZ);
-                go.transform.rotation = Quaternion.identity;
-                FixScaleAndTurn(go, info);
+            var materials = BuildingMaterials.Get();
+            foreach (var info in models) PlaceOne(info, parent, ground, materials);
+        }
 
-                foreach (var renderer in go.GetComponentsInChildren<MeshRenderer>())
+        /// <summary>Places one model at its pivot on the ground, fixes scale/turn, swaps materials, adds colliders.</summary>
+        public static GameObject PlaceOne(BuildingModelInfo info, Transform parent, Func<float, float, float> ground,
+                                          Dictionary<string, Material> materials)
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(info.fbx);
+            if (asset == null) return null;
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
+            go.name = info.name.Replace('_', ' ');
+            go.transform.SetParent(parent);
+            go.transform.position = new Vector3(info.pivotX, ground(info.pivotX, info.pivotZ), info.pivotZ);
+            go.transform.rotation = Quaternion.identity;
+            FixScaleAndTurn(go, info);
+            ApplyMaterials(go, materials, true);
+            return go;
+        }
+
+        /// <summary>Swaps the FBX's material slots for the procedural ones by name; optionally adds mesh colliders.</summary>
+        public static void ApplyMaterials(GameObject go, Dictionary<string, Material> materials, bool meshColliders)
+        {
+            foreach (var renderer in go.GetComponentsInChildren<MeshRenderer>())
+            {
+                var slots = renderer.sharedMaterials;
+                for (int i = 0; i < slots.Length; i++)
                 {
-                    var slots = renderer.sharedMaterials;
-                    for (int i = 0; i < slots.Length; i++)
-                    {
-                        if (slots[i] == null) continue;
-                        string key = slots[i].name.Replace(" (Instance)", "");
-                        if (materials.TryGetValue(key, out var mat)) slots[i] = mat;
-                    }
-                    renderer.sharedMaterials = slots;
-                    var filter = renderer.GetComponent<MeshFilter>();
-                    if (filter != null && filter.sharedMesh != null && renderer.GetComponent<Collider>() == null)
-                        renderer.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
-                    GameObjectUtility.SetStaticEditorFlags(renderer.gameObject,
-                        StaticEditorFlags.BatchingStatic | StaticEditorFlags.ContributeGI |
-                        StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
+                    if (slots[i] == null) continue;
+                    string key = slots[i].name.Replace(" (Instance)", "");
+                    Material mat;
+                    if (materials.TryGetValue(key, out mat)) slots[i] = mat;
                 }
+                renderer.sharedMaterials = slots;
+                var filter = renderer.GetComponent<MeshFilter>();
+                if (meshColliders && filter != null && filter.sharedMesh != null && renderer.GetComponent<Collider>() == null)
+                    renderer.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
+                GameObjectUtility.SetStaticEditorFlags(renderer.gameObject,
+                    StaticEditorFlags.BatchingStatic | StaticEditorFlags.ContributeGI |
+                    StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
             }
         }
 
@@ -143,12 +155,12 @@ namespace Jagti.EditorTools
         }
     }
 
-    /// <summary>Import settings for the building FBX files: metres, no animation, no cameras or lights.</summary>
+    /// <summary>Import settings for the building and furniture FBX files: metres, no animation, no cameras or lights.</summary>
     public class BuildingModelImporter : AssetPostprocessor
     {
         void OnPreprocessModel()
         {
-            if (!assetPath.StartsWith("Assets/Models/Buildings/")) return;
+            if (!assetPath.StartsWith("Assets/Models/Buildings/") && !assetPath.StartsWith("Assets/Models/Props/")) return;
             var importer = (ModelImporter)assetImporter;
             importer.globalScale = 1f;
             importer.useFileScale = true;

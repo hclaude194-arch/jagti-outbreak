@@ -53,6 +53,30 @@ MATERIALS = {
     "Water": (4.0, 4.0, (0.20, 0.58, 0.60)),
     "Stone": (3.0, 3.0, (0.87, 0.80, 0.71)),
     "Planter": (2.0, 2.0, (0.28, 0.46, 0.18)),
+    # Interiors (tools/blender/build_interiors.py).
+    "Floor_Tile": (1.2, 1.2, (0.84, 0.82, 0.78)),
+    "Floor_Wood": (2.4, 2.4, (0.58, 0.40, 0.25)),
+    "Carpet": (2.0, 2.0, (0.28, 0.31, 0.40)),
+    "Wall_Paint": (3.0, FLOOR, (0.93, 0.91, 0.86)),
+    "Ceiling": (1.2, 1.2, (0.94, 0.94, 0.92)),
+    "Wood": (1.0, 1.0, (0.55, 0.37, 0.22)),
+    "Laminate": (1.2, 1.2, (0.82, 0.73, 0.60)),
+    "Fabric": (0.5, 0.5, (0.16, 0.24, 0.42)),
+    "Leather": (0.6, 0.6, (0.36, 0.21, 0.13)),
+    "Plastic": (1.0, 1.0, (0.13, 0.13, 0.14)),
+    "Steel": (1.0, 1.0, (0.70, 0.71, 0.72)),
+    "Whiteboard": (1.0, 1.0, (0.96, 0.96, 0.96)),
+    "Screen": (1.0, 1.0, (0.04, 0.05, 0.07)),
+    "Ceramic": (1.0, 1.0, (0.95, 0.95, 0.94)),
+    "LightPanel": (0.6, 0.6, (1.0, 1.0, 0.96)),
+    "Books": (0.6, 0.3, (0.50, 0.30, 0.25)),
+    "Notice": (1.2, 0.9, (0.70, 0.55, 0.38)),
+    "Foliage": (0.5, 0.5, (0.22, 0.42, 0.16)),
+    "Mirror": (1.0, 1.0, (0.78, 0.82, 0.84)),
+    "Door": (1.0, 2.1, (0.52, 0.34, 0.20)),
+    "Glass_Clear": (1.0, 1.0, (0.70, 0.82, 0.86)),
+    "Red_Paint": (1.0, 1.0, (0.72, 0.08, 0.06)),
+    "Cardboard": (0.6, 0.6, (0.62, 0.48, 0.32)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 
@@ -441,12 +465,60 @@ class Run:
             self.hband(s0, s1, z0, d0, d1, mat, up=False)
 
 
-def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True):
-    """Sandstone facade from the campus model: tall recessed windows between pilasters,
-    a blue glass ribbon on the top floor, string courses and a parapet with coping."""
-    L = run.L
+# Interior wall thickness behind each facade kind (the interior shell's walls stand this far in).
+WALL = {"outer": 0.45, "court": 0.3}
+DOOR_TOP = 3.0   # ground-floor doorways: plinth top (0.6 m) to 3.0 m
+
+
+def facade_bays(L):
     bays = max(1, round(L / BAY))
-    bw = L / bays
+    return bays, L / bays
+
+
+def facade_openings(L, kind, doors=()):
+    """Ground-floor openings of academic_facade as (s0, s1, z0, z1, is_door), for the interior shell."""
+    bays, bw = facade_bays(L)
+    out = []
+    for i in range(bays):
+        s0, s1 = i * bw, (i + 1) * bw
+        if i in doors:
+            out.append((s0 + 0.5, s1 - 0.5, 0.6, DOOR_TOP, True))
+        elif kind == "outer":
+            mid = (s0 + s1) / 2
+            out.append((s0 + 0.42, mid - 0.14, 0.95, FLOOR - 0.4, False))
+            out.append((mid + 0.14, s1 - 0.42, 0.95, FLOOR - 0.4, False))
+        else:
+            out.append((s0 + 0.8, s1 - 0.8, 1.1, FLOOR - 0.4, False))
+    return out
+
+
+def facade_door(run, s0, s1, kind, steps=True):
+    """A ground-floor doorway filling bay s0..s1: stone around the opening, reveals through the
+    whole wall to the interior shell, a threshold, and steps down to the ground outside."""
+    os0, os1 = s0 + 0.5, s1 - 0.5
+    t = WALL[kind]
+    run.rect(s0, os0, 0.6, FLOOR, 0, "Stone")
+    run.rect(os1, s1, 0.6, FLOOR, 0, "Stone")
+    run.rect(os0, os1, DOOR_TOP, FLOOR, 0, "Stone")
+    run.side(os0, 0.6, DOOR_TOP, 0, -t, "Stone", 1)
+    run.side(os1, 0.6, DOOR_TOP, 0, -t, "Stone", -1)
+    run.hband(os0, os1, DOOR_TOP, 0, -t, "Stone", up=False)
+    run.hband(os0, os1, 0.6, 0.18, -t, "Concrete", up=True)
+    # Dark metal door frame inside the opening.
+    run.box(os0, os0 + 0.08, 0.6, DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os1 - 0.08, os1, 0.6, DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os0, os1, DOOR_TOP - 0.08, DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal", top=False)
+    if steps:
+        for k in range(3):
+            run.box(os0 - 0.6, os1 + 0.6, -0.8, 0.45 - 0.15 * k, 0.18, 0.18 + 0.35 * (k + 1), "Concrete", bottom=False)
+
+
+def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True):
+    """Sandstone facade from the campus model: tall recessed windows between pilasters,
+    a blue glass ribbon on the top floor, string courses and a parapet with coping.
+    Bays listed in doors get a ground-floor doorway instead of windows."""
+    L = run.L
+    bays, bw = facade_bays(L)
     top = z0 + floors * FLOOR
     lower = floors - 1 if ribbon else floors
     depth = 0.35 if kind == "outer" else 0.22
@@ -457,6 +529,9 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
         for f in range(lower):
             zf = z0 + f * FLOOR
             zb = z0 + 0.6 if f == 0 else zf
+            if f == 0 and i in doors:
+                facade_door(run, s0, s1, kind, steps)
+                continue
             wz0 = zf + (0.75 if f else 0.95)
             wz1 = zf + FLOOR - 0.4
             if kind == "outer":
@@ -581,6 +656,45 @@ def arc_points(cx, cy, r, a0, a1, segs):
     return [(cx + r * math.cos(a0 + (a1 - a0) * k / segs), cy + r * math.sin(a0 + (a1 - a0) * k / segs)) for k in range(segs + 1)]
 
 
+# Doorways in the outer facade (world X, Z on the facade line): into the entrance lobby from the
+# glass bay under the porch, and from the east wing into "block 1" on the east front.
+OUTER_DOORS = [(73.5, 350.0), (129.0, 283.0)]
+BAY_DOOR_SEGMENTS = (6, 7)   # of the 14 panes of the curved glass bay, the two facing the porch
+EAST_DOOR_Z = 283.0          # the doors in block 1's curved front straddle this line
+
+
+def east_door_side(blk, k, m):
+    """For block 1's curved front: 1 if edge k is the pane just before the door axis, 2 if just after, else 0.
+    The two door panes share the arc vertex nearest the axis (EAST_DOOR_Z)."""
+    n = len(blk)
+
+    def on_arc(i):  # both edges at vertex i are short arc panes
+        return math.dist(blk[i], blk[(i + 1) % n]) < 6.0 and math.dist(blk[i - 1], blk[i]) < 6.0
+
+    best = min((i for i in range(n) if on_arc(i)), key=lambda i: abs(m.pz - blk[i][1] - EAST_DOOR_Z))
+    if (k + 1) % n == best:
+        return 1
+    if k == best:
+        return 2
+    return 0
+
+
+def run_has(run, X, Z):
+    """True if world point (X, Z) lies on this run's line, within its length."""
+    p = run.m.b(X, Z)
+    dx, dy = p[0] - run.a[0], p[1] - run.a[1]
+    s = dx * run.t[0] + dy * run.t[1]
+    off = abs(dx * run.n[0] + dy * run.n[1])
+    return off < 0.6 and 0 <= s <= run.L
+
+
+def bay_at(run, X, Z):
+    p = run.m.b(X, Z)
+    s = (p[0] - run.a[0]) * run.t[0] + (p[1] - run.a[1]) * run.t[1]
+    bays, bw = facade_bays(run.L)
+    return min(bays - 1, max(0, int(s / bw)))
+
+
 def academic_block():
     """The academic block as on the institute's campus model: four sandstone wings round a
     formal courtyard garden, fluted corner pavilions, a porte-cochere and curved glass bay on
@@ -624,7 +738,8 @@ def academic_block():
         c = m.b((OX0 + OX1) / 2, (OZ0 + OZ1) / 2)
         if r.n[0] * (mid[0] - c[0]) + r.n[1] * (mid[1] - c[1]) < 0:
             r.n = (-r.n[0], -r.n[1])
-        academic_facade(r, 0.0, floors, "outer")
+        doors = [bay_at(r, *d) for d in OUTER_DOORS if run_has(r, *d)]
+        academic_facade(r, 0.0, floors, "outer", doors=doors, steps=False)
     court = [((IX0, IZ0), (IX1, IZ0)), ((IX1, IZ0), (IX1, IZ1)), ((IX1, IZ1), (IX0, IZ1)), ((IX0, IZ1), (IX0, IZ0))]
     cc = m.b((IX0 + IX1) / 2, (IZ0 + IZ1) / 2)
     for (A, Bp) in court:
@@ -632,7 +747,8 @@ def academic_block():
         mid = m.b((A[0] + Bp[0]) / 2, (A[1] + Bp[1]) / 2)
         if r.n[0] * (cc[0] - mid[0]) + r.n[1] * (cc[1] - mid[1]) < 0:
             r.n = (-r.n[0], -r.n[1])   # courtyard walls face into the courtyard
-        academic_facade(r, 0.0, floors, "court", ribbon=False, pilasters=False)
+        # A doorway out to the garden in the middle of each courtyard side, on the path axes.
+        academic_facade(r, 0.0, floors, "court", ribbon=False, pilasters=False, doors=[facade_bays(r.L)[0] // 2])
     # Stair and lift heads on the roof.
     for (X, Z) in (((OX0 + OX1) / 2 - 22, (IZ1 + OZ1) / 2), ((OX0 + OX1) / 2 + 22, (IZ1 + OZ1) / 2),
                    ((OX0 + OX1) / 2, (OZ0 + IZ0) / 2), ((OX0 + IX0) / 2, (IZ0 + IZ1) / 2), ((IX1 + OX1) / 2, (IZ0 + IZ1) / 2)):
@@ -664,10 +780,18 @@ def academic_block():
         mid = ((a[0] + b_[0]) / 2 - bc[0], (a[1] + b_[1]) / 2 - bc[1])
         L = math.hypot(*mid)
         r.n = (mid[0] / L, mid[1] / L)
-        r.rect(0, r.L, 0.45, 0.9, 0.0, "Stone")
-        r.rect(0, r.L, 0.9, 2 * FLOOR - 0.3, -0.05, "Glass")
+        door = k in BAY_DOOR_SEGMENTS
+        if door:
+            # Glass entrance doors in the two middle panes; glass continues above them.
+            r.rect(0, r.L, DOOR_TOP, 2 * FLOOR - 0.3, -0.05, "Glass")
+            r.box(0, r.L, DOOR_TOP - 0.1, DOOR_TOP, -0.1, 0.15, "Metal")
+            r.hband(0, r.L, 0.6, 0.3, -0.3, "Concrete", up=True)
+        else:
+            r.rect(0, r.L, 0.45, 0.9, 0.0, "Stone")
+            r.rect(0, r.L, 0.9, 2 * FLOOR - 0.3, -0.05, "Glass")
         r.rect(0, r.L, 2 * FLOOR - 0.3, 3 * FLOOR + 0.6, 0.0, "Stone")
-        r.box(0, 0.25, 0.9, 2 * FLOOR - 0.3, -0.05, 0.25, "Metal")
+        if k != BAY_DOOR_SEGMENTS[1]:
+            r.box(0, 0.25, 0.9 if not door else 0.6, 2 * FLOOR - 0.3, -0.05, 0.25, "Metal")
         r.box(0, r.L, FLOOR - 0.12, FLOOR + 0.12, -0.05, 0.3, "Concrete")
         r.box(0, r.L, 2 * FLOOR + 0.6, 2 * FLOOR + 2.3, 0.0, 0.05, "Glass", top=False, bottom=False)
     m.face([(bc[0], bc[1], 3 * FLOOR + 0.6)] + [(p[0], p[1], 3 * FLOOR + 0.6) for p in pts], "Roof", (0, 0, 1))
@@ -801,8 +925,24 @@ def academic_block():
         if r.L < 6.0:
             # Curved front: stone piers framing two storeys of tall windows and a glass ribbon.
             r.rect(0, r.L, -0.8, 0.6, 0.15, "Concrete")
-            r.window(0, r.L, 0.6, 2 * FLOOR, 0.35, r.L - 0.35, 1.0, 2 * FLOOR - 0.4, 0.35, frame=False)
-            r.box(0, 0.35, 0.6, 2 * FLOOR, 0.0, 0.4, "Stone", bottom=False)
+            dk = east_door_side(blk, k, m)
+            if dk:
+                # Entrance doors in the two panes either side of the axis, glass above them.
+                os0, os1 = (0.35, r.L) if dk == 1 else (0.0, r.L - 0.35)
+                r.rect(0, os0, 0.6, DOOR_TOP, 0, "Stone")
+                r.rect(os1, r.L, 0.6, DOOR_TOP, 0, "Stone")
+                r.side(os0, 0.6, DOOR_TOP, 0, -WALL["outer"], "Stone", 1)
+                r.side(os1, 0.6, DOOR_TOP, 0, -WALL["outer"], "Stone", -1)
+                r.hband(os0, os1, DOOR_TOP, 0, -WALL["outer"], "Stone", up=False)
+                r.hband(os0, os1, 0.6, 0.15, -WALL["outer"], "Concrete", up=True)
+                r.window(0, r.L, DOOR_TOP, 2 * FLOOR, 0.35, r.L - 0.35, DOOR_TOP + 0.1, 2 * FLOOR - 0.4, 0.35, frame=False)
+                for st in range(3):
+                    r.box(os0 - (0.3 if dk == 1 else 0), os1 + (0.3 if dk == 2 else 0), -0.8, 0.45 - 0.15 * st,
+                          0.15, 0.15 + 0.35 * (st + 1), "Concrete", bottom=False)
+            else:
+                r.window(0, r.L, 0.6, 2 * FLOOR, 0.35, r.L - 0.35, 1.0, 2 * FLOOR - 0.4, 0.35, frame=False)
+            if dk != 2:
+                r.box(0, 0.35, 0.6, 2 * FLOOR, 0.0, 0.4, "Stone", bottom=False)
             r.rect(0, r.L, 2 * FLOOR, 2 * FLOOR + 0.5, 0, "Stone")
             r.rect(0, r.L, 2 * FLOOR + 0.5, eh - 0.3, -0.35, "Glass")
             r.hband(0, r.L, 2 * FLOOR + 0.5, 0, -0.35, "Stone", up=True)
