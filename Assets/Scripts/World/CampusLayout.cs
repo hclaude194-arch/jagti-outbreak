@@ -19,6 +19,8 @@ namespace Jagti.World
         public AreaData[] areas;
         public PlaceData[] places;
         public float[] boundary; // flat list: x0, z0, x1, z1, ...
+        public RoadData[] water; // channels: same shape as roads
+        public PoolData[] pools;
         public Point2 spawn;
 
         public static CampusLayout FromJson(string json)
@@ -58,6 +60,15 @@ namespace Jagti.World
         public float z;
         public float width;
         public float depth;
+    }
+
+    [Serializable]
+    public class PoolData
+    {
+        public string name;
+        public float x;
+        public float z;
+        public float radius;
     }
 
     [Serializable]

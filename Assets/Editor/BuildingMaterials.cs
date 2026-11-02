@@ -36,6 +36,10 @@ namespace Jagti.EditorTools
                 ["Roof"] = ProceduralAssets.LitMaterial("Bld_Roof", Color.white, PlainWall("Tex_Roof", new Color(0.40f, 0.39f, 0.37f), 0.12f, 23), 0.05f),
                 ["Metal"] = ProceduralAssets.LitMaterial("Bld_Metal", Color.white, Metal(), 0.4f),
                 ["ClockFace"] = ProceduralAssets.LitMaterial("Bld_ClockFace", Color.white, ClockFace(), 0.3f),
+                ["Emblem"] = ProceduralAssets.LitMaterial("Bld_Emblem", Color.white, Emblem(), 0.35f),
+                ["Stone"] = ProceduralAssets.LitMaterial("Bld_Stone", Color.white, Stone(), 0.1f),
+                ["Water"] = ProceduralAssets.LitMaterial("Bld_Water", Color.white, Water(), 0.92f),
+                ["Planter"] = ProceduralAssets.LitMaterial("Bld_Planter", Color.white, Planter(), 0.05f),
             };
             return mats;
         }
@@ -226,6 +230,82 @@ namespace Jagti.EditorTools
             return c.Save("Tex_Brick");
         }
 
+        // Sandstone cladding as on the campus model: warm beige ashlar, five courses per 3 m tile,
+        // staggered joints and gentle colour variation between the slabs.
+        static Texture2D Stone()
+        {
+            var c = new Canvas();
+            var sand = new Color(0.80f, 0.72f, 0.58f);
+            c.Fill(sand, 0.05f, 61);
+            const int courses = 5, across = 3;
+            float bh = 1f / courses, bw = 1f / across, gap = 0.006f;
+            for (int row = 0; row < courses; row++)
+            {
+                float offset = (row % 2) * bw * 0.5f;
+                for (int col = -1; col < across; col++)
+                {
+                    float shade = 0.94f + 0.12f * ProceduralAssets.Noise(col * 5.7f + 0.5f, row * 2.3f + 0.5f, 64, 62);
+                    float x0 = col * bw + offset, x1 = x0 + bw;
+                    float y0 = row * bh, y1 = y0 + bh;
+                    for (int y = Mathf.Max(0, (int)(y0 * Size)); y < Mathf.Min(Size, (int)(y1 * Size)); y++)
+                        for (int xx = (int)(x0 * Size); xx < (int)(x1 * Size); xx++)
+                        {
+                            int x = ((xx % Size) + Size) % Size;
+                            c.px[y * Size + x] *= shade;
+                        }
+                    // Vertical joint at the slab's left edge (wrapped so the tile repeats).
+                    float jx = Mathf.Repeat(x0, 1f);
+                    c.Shade(jx, y0, jx + gap, y1, 0.28f);
+                }
+                c.Shade(0f, y0Of(row, bh), 1f, y0Of(row, bh) + gap, 0.28f); // bed joint
+            }
+            return c.Save("Tex_Stone");
+        }
+
+        static float y0Of(int row, float bh)
+        {
+            return row * bh;
+        }
+
+        // Pool water: deep teal with soft ripples; high smoothness makes it reflect the sky.
+        static Texture2D Water()
+        {
+            var c = new Canvas();
+            var deep = new Color(0.10f, 0.30f, 0.34f);
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x / (float)Size, v = y / (float)Size;
+                    float r = ProceduralAssets.Fbm(u, v, 6, 3, 63) - 0.5f;
+                    float ripple = Mathf.Sin((u * 3f + v * 2f + r * 0.6f) * Mathf.PI * 8f) * 0.04f;
+                    var col = deep * (1f + r * 0.35f + ripple);
+                    col.a = 1f;
+                    c.px[y * Size + x] = col;
+                }
+            return c.Save("Tex_Water");
+        }
+
+        // Planted bed: clipped green shrubs with small yellow and red flower speckles.
+        static Texture2D Planter()
+        {
+            var c = new Canvas();
+            var leaf = new Color(0.22f, 0.36f, 0.14f);
+            var rng = new System.Random(71);
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x / (float)Size, v = y / (float)Size;
+                    float n = ProceduralAssets.Fbm(u, v, 8, 4, 71) - 0.5f;
+                    var col = leaf * (1f + n * 0.7f);
+                    double roll = rng.NextDouble();
+                    if (roll < 0.012) col = new Color(0.86f, 0.72f, 0.20f);
+                    else if (roll < 0.020) col = new Color(0.74f, 0.22f, 0.18f);
+                    col.a = 1f;
+                    c.px[y * Size + x] = col;
+                }
+            return c.Save("Tex_Planter");
+        }
+
         static Texture2D PlainWall(string name, Color color, float grain, int seed)
         {
             var c = new Canvas();
@@ -269,6 +349,28 @@ namespace Jagti.EditorTools
             Hand(c, 0.5f, 0.5f, 60f, 0.26f, 0.018f, ink);   // hour hand at ten
             Hand(c, 0.5f, 0.5f, -60f, 0.38f, 0.012f, ink);  // minute hand at two
             return c.Save("Tex_ClockFace");
+        }
+
+        // Generic institute emblem for the clock tower: a blue panel, white border, white ring
+        // and a white sun in the middle. Not a copy of any real logo.
+        static Texture2D Emblem()
+        {
+            var c = new Canvas();
+            var blue = new Color(0.10f, 0.26f, 0.56f);
+            var white = new Color(0.95f, 0.95f, 0.93f);
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x / (float)Size, v = y / (float)Size;
+                    float dx = u - 0.5f, dy = v - 0.5f;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy);
+                    bool border = u < 0.05f || u > 0.95f || v < 0.05f || v > 0.95f;
+                    bool ring = r > 0.30f && r < 0.35f;
+                    float ang = Mathf.Atan2(dy, dx) / (Mathf.PI * 2f) * 16f;
+                    bool rays = r > 0.15f && r < 0.25f && Mathf.Abs(ang - Mathf.Round(ang)) < 0.18f;
+                    c.px[y * Size + x] = (border || ring || rays || r < 0.11f) ? white : blue;
+                }
+            return c.Save("Tex_Emblem");
         }
 
         static void Hand(Canvas c, float cx, float cy, float degreesFromUp, float length, float width, Color color)

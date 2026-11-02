@@ -340,6 +340,31 @@ pad_heights = flatten_pads(height, 3.0, 12.0)
 road_dist = flatten_roads(height)
 flatten_pads(height, 1.0, 3.0, pad_heights)
 
+# Terraced lawns from the campus model: level steps cut into the ground, each riser a
+# 3.5 m ramp so the player can still walk up it. Kept clear of the wall's inner edge.
+for x0, y0, x1, y1, drop, lines in L.TERRACES:
+    wx0, wz1 = L.to_world(x0, y0)
+    wx1, wz0 = L.to_world(x1, y1)
+    rows, cols = window((wx0 + wx1) / 2, (wz0 + wz1) / 2, max(wx1 - wx0, wz1 - wz0) / 2 + 10)
+    px, pz = X[rows, cols], Z[rows, cols]
+    top = float(sample(height, np.array([wx1 + 4.0]), np.array([(wz0 + wz1) / 2]))[0])
+    steps = np.zeros(px.shape)
+    for pts in lines:
+        w = np.array([L.to_world(x, y) for x, y in pts])      # world X, Z; Z falls along the line
+        lx = np.interp(-pz, -w[:, 1], w[:, 0])               # the line's X on each grid row
+        fade = 1 - smoothstep(0.0, 8.0, np.maximum(w[:, 1].min() - pz, pz - w[:, 1].max()))
+        steps += smoothstep(0.0, 3.5, lx - px + 3.5) * fade  # one step down west of the line, after a 3.5 m ramp
+    level = top - drop * steps
+    inside = (1 - smoothstep(0.0, 6.0, np.maximum.reduce([wx0 - px, px - wx1, wz0 - pz, pz - wz1])))
+    inside *= smoothstep(4.0, 10.0, -sd[rows, cols])
+    # Keep building plots and hard areas at their own level.
+    for g, cx, cz, hw, hd, ell in pads:
+        if abs(cx - (wx0 + wx1) / 2) > (wx1 - wx0) / 2 + hw + 12 or abs(cz - (wz0 + wz1) / 2) > (wz1 - wz0) / 2 + hd + 12:
+            continue
+        d = pad_distance(px, pz, cx, cz, hw, hd, ell)
+        inside *= smoothstep(2.0, 8.0, d)
+    height[rows, cols] = height[rows, cols] * (1 - inside) + level * inside
+
 height = np.clip(height, H_MIN + 0.5, H_MIN + H_RANGE - 0.5)
 
 # ------------------------------------------------------------------ write heightmap
@@ -434,6 +459,14 @@ BROAD, EUCA, PINE, SHRUB = 0, 1, 2, 3
 trees = []
 
 
+def road_dist_at(x, z):
+    i = int(round((z - MIN_Z) / CELL))
+    j = int(round((x - MIN_X) / CELL))
+    if not (0 <= i < RES and 0 <= j < RES):
+        return 0.0
+    return float(road_dist[i, j])
+
+
 def clear_at(x, z, gap):
     """True when the point is clear of roads (plus gap), plots and hard areas."""
     i = int(round((z - MIN_Z) / CELL))
@@ -499,6 +532,33 @@ for x, z, i, j in zip(JX[keep], JZ[keep], fi[keep], fj[keep]):
     else:
         kind = BROAD if r < 0.4 else (SHRUB if r < 0.75 else (PINE if r < 0.88 else EUCA))
     trees.append((float(x), float(z), kind, float(rng.uniform(0.75, 1.3))))
+
+# Planted rows on the water terraces and trees in the courtyard garden beds.
+water_lines = [np.array(world_poly(pts)) for name, width, pts in L.WATER]
+
+
+def near_water(x, z, gap):
+    for wl in water_lines:
+        for k in range(len(wl) - 1):
+            a_, b_ = wl[k], wl[k + 1]
+            ab = b_ - a_
+            t = np.clip(np.dot([x - a_[0], z - a_[1]], ab) / max(np.dot(ab, ab), 1e-9), 0, 1)
+            if np.hypot(x - a_[0] - ab[0] * t, z - a_[1] - ab[1] * t) < gap:
+                return True
+    return False
+
+
+for kind, spacing, offset, pts in L.TREE_ROWS:
+    p = np.array(densify(world_poly(pts), 1.0))
+    along = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))])
+    for s_ in np.arange(spacing / 2, along[-1], spacing):
+        tx = np.interp(s_, along, p[:, 0]) + offset
+        tz = np.interp(s_, along, p[:, 1])
+        if road_dist_at(tx, tz) > 2.0 and not near_water(tx, tz, 2.2):
+            trees.append((tx + rng.normal(0, 0.3), tz + rng.normal(0, 0.3), kind, rng.uniform(0.8, 1.1)))
+for kind, x, y in L.TREE_SPOTS:
+    tx, tz = L.to_world(x, y)
+    trees.append((tx, tz, kind, rng.uniform(0.7, 0.9)))
 
 # ------------------------------------------------------------------ json
 terrain = {

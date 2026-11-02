@@ -36,8 +36,9 @@ namespace Jagti.World
 
             if (places != null && places.Length > 0 && player != null)
             {
-                if (Input.GetKeyDown(KeyCode.RightBracket)) Travel(travelIndex + 1);
-                if (Input.GetKeyDown(KeyCode.LeftBracket)) Travel(travelIndex - 1);
+                // No fast travel while riding the bus (the walking controller is off then).
+                if (player.enabled && Input.GetKeyDown(KeyCode.RightBracket)) Travel(travelIndex + 1);
+                if (player.enabled && Input.GetKeyDown(KeyCode.LeftBracket)) Travel(travelIndex - 1);
 
                 nearestTimer -= Time.unscaledDeltaTime;
                 if (nearestTimer <= 0f)
@@ -105,7 +106,7 @@ namespace Jagti.World
             if (showHelp)
             {
                 text += "\nWASD move · Shift sprint · F torch · Click attack · R reload · E search · Q heal"
-                      + "\n[ and ] fast travel (testing) · Esc pause · H hides this";
+                      + "\n[ and ] fast travel (testing) · E at the bus door: ride or drive · Esc pause · H hides this";
                 if (travelIndex >= 0 && places != null) text += "\nLast travel: " + places[travelIndex].name;
             }
 
