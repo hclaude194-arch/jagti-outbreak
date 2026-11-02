@@ -11,7 +11,7 @@ namespace Jagti.EditorTools
     /// <summary>
     /// Runs once each time the project opens in the Unity editor:
     /// 1. Sets up the Universal Render Pipeline with settings tuned for an Intel Iris Xe laptop.
-    /// 2. Builds the grey-box campus scene if it does not exist yet, then opens it.
+    /// 2. Builds the campus scene if it does not exist yet or the layout data is newer, then opens it.
     /// Both steps can also be run from the Jagti menu.
     /// </summary>
     [InitializeOnLoad]
@@ -35,8 +35,12 @@ namespace Jagti.EditorTools
 
             EnsurePipeline(false);
 
-            if (!File.Exists(CampusGreyboxBuilder.ScenePath))
+            // Build the scene the first time, and again whenever the layout data is newer
+            // than the scene this computer last built (for example after pulling a new phase).
+            bool stale = EditorPrefs.GetInt(CampusGreyboxBuilder.BuiltVersionKey, 0) < CampusGreyboxBuilder.LayoutVersion();
+            if (!File.Exists(CampusGreyboxBuilder.ScenePath) || stale)
             {
+                Debug.Log("[Jagti] Campus data changed; rebuilding the scene.");
                 CampusGreyboxBuilder.Build();
             }
             else if (string.IsNullOrEmpty(SceneManager.GetActiveScene().path))

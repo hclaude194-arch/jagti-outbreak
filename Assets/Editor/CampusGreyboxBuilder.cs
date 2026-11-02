@@ -2,38 +2,69 @@ using System.Collections.Generic;
 using System.IO;
 using Jagti.Player;
 using Jagti.World;
+using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Rendering;
 
 namespace Jagti.EditorTools
 {
     /// <summary>
-    /// Builds Assets/Scenes/Campus_Greybox.unity from Assets/Data/campus_layout.json:
-    /// ground, roads, lawns and sports areas, every building as a grey block at its
+    /// Builds Assets/Scenes/Campus_Greybox.unity from the generated layout data:
+    /// hilltop terrain with painted ground, grass and trees (CampusTerrainBuilder),
+    /// roads following the ground, sports areas, every building as a grey block at its
     /// real footprint and storey count, the boundary wall, floating name labels,
-    /// a sun, fog, and a first-person player standing outside Brahmaputra Hostel.
-    /// Menu: Jagti > Build Grey-box Campus.
+    /// sky, sun, fog, a zombie navigation mesh, and a first-person player.
+    /// Menu: Jagti > Build Campus.
     /// </summary>
     public static class CampusGreyboxBuilder
     {
         public const string LayoutPath = "Assets/Data/campus_layout.json";
         public const string ScenePath = "Assets/Scenes/Campus_Greybox.unity";
         const string MaterialFolder = "Assets/Materials/Greybox";
+        public const string BuiltVersionKey = "Jagti.BuiltLayoutVersion";
+
+        static Terrain terrain;
 
         // Layer heights so flat things don't flicker against each other.
-        const float AreaTop = 0.04f;
-        const float RoadTop = 0.06f;
-        const float FieldTop = 0.08f;
+        // Kept clear of the terrain, which simplifies its mesh slightly at a distance.
+        const float AreaTop = 0.10f;
+        const float RoadTop = 0.15f;
+        const float FieldTop = 0.20f;
 
-        [MenuItem("Jagti/Build Grey-box Campus", priority = 1)]
+        [MenuItem("Jagti/Build Campus", priority = 1)]
         public static void BuildFromMenu()
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) Build();
         }
 
+        /// <summary>The layout version in the JSON; the setup script rebuilds when it changes.</summary>
+        public static int LayoutVersion()
+        {
+            var json = AssetDatabase.LoadAssetAtPath<TextAsset>(LayoutPath);
+            return json == null ? 0 : CampusLayout.FromJson(json.text).version;
+        }
+
         public static void Build()
+        {
+            try
+            {
+                BuildScene();
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+        }
+
+        static void Progress(string step, float amount)
+        {
+            EditorUtility.DisplayProgressBar("Building Jagti campus", step, amount);
+        }
+
+        static void BuildScene()
         {
             var json = AssetDatabase.LoadAssetAtPath<TextAsset>(LayoutPath);
             if (json == null)
@@ -47,18 +78,15 @@ namespace Jagti.EditorTools
             Directory.CreateDirectory(MaterialFolder);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            ProceduralAssets.ResetFolder();
             var materials = new MaterialLibrary(MaterialFolder);
             var root = new GameObject("Campus");
 
-            // Ground: a 1.7 km square under the whole campus.
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.name = "Ground";
-            ground.transform.SetParent(root.transform);
-            ground.transform.position = new Vector3(80f, 0f, -40f);
-            ground.transform.localScale = new Vector3(170f, 1f, 170f);
-            SetMaterial(ground, materials.Get("Ground", new Color(0.45f, 0.42f, 0.31f)));
-            MarkStatic(ground);
+            // Terrain: hilltop plateau, ravines, painted ground, grass and trees.
+            Progress("Terrain, ground paint, grass and trees", 0.1f);
+            terrain = CampusTerrainBuilder.Build(root.transform);
 
+            Progress("Roads, areas and buildings", 0.5f);
             var areaRoot = Child(root.transform, "Areas");
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
@@ -85,13 +113,19 @@ namespace Jagti.EditorTools
             MakeLighting();
             var player = MakePlayer(layout);
 
+            Progress("Zombie navigation mesh (this can take a minute)", 0.7f);
+            MakeNavMesh(layout);
+
             var hud = new GameObject("Debug HUD").AddComponent<DebugHud>();
             hud.player = player;
             hud.places = layout.places;
 
+            Progress("Saving", 0.95f);
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddToBuildSettings(ScenePath);
-            Debug.Log("[Jagti] Built grey-box campus: " + layout.buildings.Length + " buildings, " + layout.roads.Length + " roads. Press Play to walk it.");
+            EditorPrefs.SetInt(BuiltVersionKey, layout.version);
+            int trees = terrain != null ? terrain.terrainData.treeInstanceCount : 0;
+            Debug.Log("[Jagti] Built campus: terrain, " + trees + " trees, " + layout.buildings.Length + " buildings, " + layout.roads.Length + " roads. Press Play to walk it.");
         }
 
         // ------------------------------------------------------------------ pieces
@@ -102,10 +136,14 @@ namespace Jagti.EditorTools
             var go = GameObject.CreatePrimitive(cylinder ? PrimitiveType.Cylinder : PrimitiveType.Cube);
             go.name = b.name + " (" + b.floors + " floors)";
             go.transform.SetParent(parent);
-            go.transform.position = new Vector3(b.x, b.height / 2f, b.z);
+            // Sink the base a little so the block meets the ground on a slight slope.
+            const float sink = 0.6f;
+            float ground = Ground(b.x, b.z);
+            float h = b.height + sink;
+            go.transform.position = new Vector3(b.x, ground - sink + h / 2f, b.z);
             go.transform.localScale = cylinder
-                ? new Vector3(b.width, b.height / 2f, b.depth) // Unity's cylinder is 2 m tall
-                : new Vector3(b.width, b.height, b.depth);
+                ? new Vector3(b.width, h / 2f, b.depth) // Unity's cylinder is 2 m tall
+                : new Vector3(b.width, h, b.depth);
             SetMaterial(go, materials.Get(BuildingMaterialName(b), BuildingColor(b)));
             MarkStatic(go);
         }
@@ -128,18 +166,19 @@ namespace Jagti.EditorTools
 
         static void MakeArea(AreaData a, Transform parent, MaterialLibrary materials)
         {
+            // Lawns and the courtyard are painted on the terrain with grass.
+            if (a.type == "lawn" || a.type == "courtyard") return;
+
             Color color;
             float top = AreaTop;
             switch (a.type)
             {
-                case "lawn": color = new Color(0.40f, 0.50f, 0.27f); break;
-                case "courtyard": color = new Color(0.36f, 0.50f, 0.25f); break;
                 case "parking": color = new Color(0.30f, 0.30f, 0.30f); top = RoadTop; break;
                 case "court": color = new Color(0.30f, 0.42f, 0.48f); top = RoadTop; break;
                 case "track": color = new Color(0.62f, 0.30f, 0.22f); top = RoadTop; break;
                 case "field": color = new Color(0.38f, 0.48f, 0.26f); top = FieldTop; break;
                 case "amphitheatre": color = new Color(0.62f, 0.58f, 0.50f); break;
-                case "roundabout": color = new Color(0.35f, 0.47f, 0.25f); top = FieldTop; break;
+                case "roundabout": color = new Color(0.35f, 0.47f, 0.25f); top = 0.35f; break;
                 case "substation": color = new Color(0.52f, 0.50f, 0.44f); break;
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
@@ -148,18 +187,22 @@ namespace Jagti.EditorTools
             var go = GameObject.CreatePrimitive(ellipse ? PrimitiveType.Cylinder : PrimitiveType.Cube);
             go.name = "Area - " + a.type;
             go.transform.SetParent(parent);
-            go.transform.position = new Vector3(a.x, top / 2f, a.z);
+            // The generator flattened the ground under these areas; the slab reaches 0.5 m down.
+            const float below = 0.5f;
+            float h = top + below;
+            go.transform.position = new Vector3(a.x, Ground(a.x, a.z) - below + h / 2f, a.z);
             go.transform.localScale = ellipse
-                ? new Vector3(a.width, top / 2f, a.depth)
-                : new Vector3(a.width, top, a.depth);
-            Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the ground plane carries the player
+                ? new Vector3(a.width, h / 2f, a.depth)
+                : new Vector3(a.width, h, a.depth);
+            if (a.type != "roundabout") Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
             SetMaterial(go, materials.Get("Area_" + a.type, color));
             MarkStatic(go);
         }
 
         static void MakeRoad(RoadData road, Transform parent, MaterialLibrary materials)
         {
-            int count = road.points.Length / 2;
+            float[] points = Densify(road.points, 2f);
+            int count = points.Length / 2;
             if (count < 2) return;
 
             var vertices = new List<Vector3>();
@@ -170,17 +213,19 @@ namespace Jagti.EditorTools
 
             for (int i = 0; i < count; i++)
             {
-                Vector2 p = Point(road.points, i);
-                Vector2 dir = i == 0 ? Point(road.points, 1) - p
-                            : i == count - 1 ? p - Point(road.points, i - 1)
-                            : Point(road.points, i + 1) - Point(road.points, i - 1);
+                Vector2 p = Point(points, i);
+                Vector2 dir = i == 0 ? Point(points, 1) - p
+                            : i == count - 1 ? p - Point(points, i - 1)
+                            : Point(points, i + 1) - Point(points, i - 1);
                 if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
                 dir.Normalize();
                 var normal = new Vector2(-dir.y, dir.x);
-                if (i > 0) distance += Vector2.Distance(p, Point(road.points, i - 1));
+                if (i > 0) distance += Vector2.Distance(p, Point(points, i - 1));
 
-                vertices.Add(new Vector3(p.x + normal.x * half, RoadTop, p.y + normal.y * half));
-                vertices.Add(new Vector3(p.x - normal.x * half, RoadTop, p.y - normal.y * half));
+                // Each edge follows the ground; the generator flattened the terrain across the road.
+                Vector2 left = p + normal * half, right = p - normal * half;
+                vertices.Add(new Vector3(left.x, Ground(left.x, left.y) + RoadTop, left.y));
+                vertices.Add(new Vector3(right.x, Ground(right.x, right.y) + RoadTop, right.y));
                 uvs.Add(new Vector2(0f, distance / road.width));
                 uvs.Add(new Vector2(1f, distance / road.width));
 
@@ -205,12 +250,43 @@ namespace Jagti.EditorTools
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = materials.Get(road.name == "Clock Tower Walkway" ? "Walkway" : "Road",
                 road.name == "Clock Tower Walkway" ? new Color(0.72f, 0.68f, 0.60f) : new Color(0.24f, 0.24f, 0.25f));
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
         }
 
         static Vector2 Point(float[] points, int i)
         {
             return new Vector2(points[i * 2], points[i * 2 + 1]);
+        }
+
+        /// <summary>Adds points so no gap is longer than maxStep, so roads can follow the ground.</summary>
+        static float[] Densify(float[] points, float maxStep)
+        {
+            var output = new List<float>();
+            int count = points.Length / 2;
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 p = Point(points, i);
+                if (i > 0)
+                {
+                    Vector2 prev = Point(points, i - 1);
+                    int steps = Mathf.CeilToInt(Vector2.Distance(prev, p) / maxStep);
+                    for (int s = 1; s < steps; s++)
+                    {
+                        Vector2 q = Vector2.Lerp(prev, p, s / (float)steps);
+                        output.Add(q.x);
+                        output.Add(q.y);
+                    }
+                }
+                output.Add(p.x);
+                output.Add(p.y);
+            }
+            return output.ToArray();
+        }
+
+        static float Ground(float x, float z)
+        {
+            return CampusTerrainBuilder.GroundY(terrain, x, z);
         }
 
         static void MakeBoundaryWall(float[] points, Transform parent, MaterialLibrary materials)
@@ -221,16 +297,24 @@ namespace Jagti.EditorTools
             {
                 Vector2 a = Point(points, i);
                 Vector2 b = Point(points, (i + 1) % count);
-                Vector2 mid = (a + b) / 2f;
+                // Short pieces so the wall steps with the slope; each reaches 1.5 m into the ground.
                 float length = Vector2.Distance(a, b);
-                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                go.name = "Wall " + i;
-                go.transform.SetParent(parent);
-                go.transform.position = new Vector3(mid.x, 1.25f, mid.y);
-                go.transform.rotation = Quaternion.LookRotation(new Vector3(b.x - a.x, 0f, b.y - a.y));
-                go.transform.localScale = new Vector3(0.4f, 2.5f, length);
-                SetMaterial(go, mat);
-                MarkStatic(go);
+                int pieces = Mathf.Max(1, Mathf.CeilToInt(length / 6f));
+                for (int k = 0; k < pieces; k++)
+                {
+                    Vector2 p0 = Vector2.Lerp(a, b, k / (float)pieces);
+                    Vector2 p1 = Vector2.Lerp(a, b, (k + 1) / (float)pieces);
+                    Vector2 mid = (p0 + p1) / 2f;
+                    float ground = Mathf.Min(Ground(p0.x, p0.y), Ground(p1.x, p1.y));
+                    var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    go.name = "Wall " + i + "." + k;
+                    go.transform.SetParent(parent);
+                    go.transform.position = new Vector3(mid.x, ground - 1.5f + 4f / 2f, mid.y);
+                    go.transform.rotation = Quaternion.LookRotation(new Vector3(b.x - a.x, 0f, b.y - a.y));
+                    go.transform.localScale = new Vector3(0.4f, 4f, Vector2.Distance(p0, p1) + 0.05f);
+                    SetMaterial(go, mat);
+                    MarkStatic(go);
+                }
             }
         }
 
@@ -238,7 +322,7 @@ namespace Jagti.EditorTools
         {
             var go = new GameObject("Label - " + place.name);
             go.transform.SetParent(parent);
-            go.transform.position = new Vector3(place.x, 32f, place.z);
+            go.transform.position = new Vector3(place.x, Ground(place.x, place.z) + 30f, place.z);
             var text = go.AddComponent<TextMesh>();
             var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.font = font;
@@ -269,9 +353,56 @@ namespace Jagti.EditorTools
             RenderSettings.ambientGroundColor = new Color(0.25f, 0.23f, 0.20f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 60f;
-            RenderSettings.fogEndDistance = 320f;
-            RenderSettings.fogColor = new Color(0.70f, 0.72f, 0.72f);
+            RenderSettings.fogStartDistance = 70f;
+            RenderSettings.fogEndDistance = 420f;
+            RenderSettings.fogColor = new Color(0.72f, 0.76f, 0.79f);
+
+            // Hazy Jammu sky; fog fades the far hills into its horizon colour.
+            var skyShader = Shader.Find("Skybox/Procedural");
+            if (skyShader != null)
+            {
+                var sky = new Material(skyShader) { name = "Jagti_Sky" };
+                sky.SetFloat("_SunSize", 0.04f);
+                sky.SetFloat("_AtmosphereThickness", 1.1f);
+                sky.SetColor("_SkyTint", new Color(0.52f, 0.56f, 0.62f));
+                sky.SetColor("_GroundColor", new Color(0.45f, 0.43f, 0.38f));
+                sky.SetFloat("_Exposure", 1.2f);
+                AssetDatabase.CreateAsset(sky, ProceduralAssets.Folder + "/Jagti_Sky.mat");
+                RenderSettings.skybox = sky;
+            }
+        }
+
+        static void MakeNavMesh(CampusLayout layout)
+        {
+            // Covers the campus inside the wall plus a 40 m margin, where zombies will roam.
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            for (int i = 0; i < layout.boundary.Length / 2; i++)
+            {
+                Vector2 p = Point(layout.boundary, i);
+                minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
+                minZ = Mathf.Min(minZ, p.y); maxZ = Mathf.Max(maxZ, p.y);
+            }
+            const float margin = 40f;
+            var go = new GameObject("Zombie NavMesh");
+            var surface = go.AddComponent<NavMeshSurface>();
+            surface.collectObjects = CollectObjects.Volume;
+            surface.center = new Vector3((minX + maxX) / 2f, 20f, (minZ + maxZ) / 2f);
+            surface.size = new Vector3(maxX - minX + margin * 2f, 90f, maxZ - minZ + margin * 2f);
+            surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+            surface.overrideVoxelSize = true;
+            surface.voxelSize = 0.25f;
+            try
+            {
+                surface.BuildNavMesh();
+                if (surface.navMeshData != null)
+                {
+                    AssetDatabase.CreateAsset(surface.navMeshData, ProceduralAssets.Folder + "/Campus_NavMesh.asset");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[Jagti] NavMesh bake failed; the campus still works without it. " + e.Message);
+            }
         }
 
         static FirstPersonController MakePlayer(CampusLayout layout)
@@ -290,8 +421,8 @@ namespace Jagti.EditorTools
             cameraObject.transform.localPosition = new Vector3(0f, 1.65f, 0f);
             var cam = cameraObject.AddComponent<Camera>();
             cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 600f;
-            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.farClipPlane = 700f;
+            cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             cam.backgroundColor = RenderSettings.fogColor;
             cameraObject.AddComponent<AudioListener>();
 
@@ -310,7 +441,7 @@ namespace Jagti.EditorTools
             fpc.cameraPivot = cameraObject.transform;
             fpc.flashlight = flashlight;
 
-            var spawn = new Vector3(layout.spawn.x, 0.1f, layout.spawn.z);
+            var spawn = new Vector3(layout.spawn.x, Ground(layout.spawn.x, layout.spawn.z) + 0.1f, layout.spawn.z);
             player.transform.position = spawn;
             // Face the academic block.
             Vector3 lookAt = new Vector3(75f, 0f, 288f);

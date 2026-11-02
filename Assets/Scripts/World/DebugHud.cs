@@ -82,11 +82,15 @@ namespace Jagti.World
                 {
                     float a = i * Mathf.PI * 2f / steps;
                     Vector3 probe = target + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius;
-                    if (Physics.Raycast(probe + Vector3.up * 200f, Vector3.down, out RaycastHit hit, 400f) && hit.point.y < 0.5f)
+                    // Open ground means the ray lands on the terrain or a road, not a roof or a tree.
+                    if (Physics.Raycast(probe + Vector3.up * 200f, Vector3.down, out RaycastHit hit, 400f) &&
+                        (hit.collider is TerrainCollider || hit.collider.name.StartsWith("Road - ")))
                         return hit.point + Vector3.up * 0.2f;
                 }
             }
-            return target + Vector3.up * 0.2f;
+            var terrain = Terrain.activeTerrain;
+            float ground = terrain != null ? terrain.SampleHeight(target) + terrain.transform.position.y : 0f;
+            return new Vector3(target.x, ground + 0.5f, target.z);
         }
 
         void OnGUI()
