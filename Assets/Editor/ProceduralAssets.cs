@@ -44,12 +44,12 @@ namespace Jagti.EditorTools
         }
 
         // Value noise that repeats every `period` cells, so textures tile without seams.
-        static float Noise(float x, float y, int period, int seed)
+        public static float Noise(float x, float y, int period, int seed)
         {
             return Noise(x, y, period, period, seed);
         }
 
-        static float Noise(float x, float y, int periodX, int periodY, int seed)
+        public static float Noise(float x, float y, int periodX, int periodY, int seed)
         {
             int xi = Mathf.FloorToInt(x), yi = Mathf.FloorToInt(y);
             float xf = x - xi, yf = y - yi;
@@ -62,7 +62,7 @@ namespace Jagti.EditorTools
             return Mathf.Lerp(a, b, yf);
         }
 
-        static float Fbm(float u, float v, int basePeriod, int octaves, int seed)
+        public static float Fbm(float u, float v, int basePeriod, int octaves, int seed)
         {
             float sum = 0f, amp = 1f, norm = 0f;
             int period = basePeriod;
@@ -130,7 +130,7 @@ namespace Jagti.EditorTools
             return SaveTexture("Grass_Blades", size, pixels, true);
         }
 
-        static Texture2D SaveTexture(string name, int size, Color32[] pixels, bool alpha)
+        public static Texture2D SaveTexture(string name, int size, Color32[] pixels, bool alpha)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = name };
             tex.SetPixels32(pixels);

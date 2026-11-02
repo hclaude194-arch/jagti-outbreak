@@ -93,10 +93,18 @@ namespace Jagti.EditorTools
             var roadRoot = Child(root.transform, "Roads");
             foreach (var road in layout.roads) MakeRoad(road, roadRoot, materials);
 
+            // Landmark buildings come from Blender models; the rest stay grey blocks for now.
+            var models = BuildingModels.Available();
+            var replaced = new HashSet<string>();
+            foreach (var m in models)
+                foreach (var name in m.replaces) replaced.Add(name);
+
             var buildingRoot = Child(root.transform, "Buildings");
+            BuildingModels.Place(models, Child(buildingRoot, "Landmarks"), Ground);
             var zones = new Dictionary<string, Transform>();
             foreach (var b in layout.buildings)
             {
+                if (replaced.Contains(b.name)) continue;
                 if (!zones.TryGetValue(b.zone, out var zone))
                 {
                     zone = Child(buildingRoot, "Zone - " + b.zone);
@@ -105,7 +113,7 @@ namespace Jagti.EditorTools
                 MakeBuilding(b, zone, materials);
             }
 
-            MakeBoundaryWall(layout.boundary, Child(root.transform, "Boundary Wall"), materials);
+            MakeBoundaryWall(layout.boundary, layout.roads, Child(root.transform, "Boundary Wall"), materials);
 
             var labelRoot = Child(root.transform, "Labels");
             foreach (var place in layout.places) MakeLabel(place, labelRoot);
@@ -289,7 +297,7 @@ namespace Jagti.EditorTools
             return CampusTerrainBuilder.GroundY(terrain, x, z);
         }
 
-        static void MakeBoundaryWall(float[] points, Transform parent, MaterialLibrary materials)
+        static void MakeBoundaryWall(float[] points, RoadData[] roads, Transform parent, MaterialLibrary materials)
         {
             int count = points.Length / 2;
             var mat = materials.Get("Boundary_Wall", new Color(0.62f, 0.58f, 0.52f));
@@ -305,6 +313,7 @@ namespace Jagti.EditorTools
                     Vector2 p0 = Vector2.Lerp(a, b, k / (float)pieces);
                     Vector2 p1 = Vector2.Lerp(a, b, (k + 1) / (float)pieces);
                     Vector2 mid = (p0 + p1) / 2f;
+                    if (CrossesRoad(mid, roads)) continue; // leave a gap where a road passes through
                     float ground = Mathf.Min(Ground(p0.x, p0.y), Ground(p1.x, p1.y));
                     var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     go.name = "Wall " + i + "." + k;
@@ -316,6 +325,23 @@ namespace Jagti.EditorTools
                     MarkStatic(go);
                 }
             }
+        }
+
+        static bool CrossesRoad(Vector2 p, RoadData[] roads)
+        {
+            foreach (var road in roads)
+            {
+                if (road.name == "Highway") continue;
+                float reach = road.width / 2f + 1.5f;
+                for (int i = 0; i + 1 < road.points.Length / 2; i++)
+                {
+                    Vector2 a = Point(road.points, i), b = Point(road.points, i + 1);
+                    Vector2 ab = b - a;
+                    float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
+                    if (Vector2.Distance(p, a + ab * t) < reach) return true;
+                }
+            }
+            return false;
         }
 
         static void MakeLabel(PlaceData place, Transform parent)
