@@ -218,6 +218,74 @@
    ]
   },
   {
+   "name": "Shopping_Medical_1_ATM",
+   "fbx": "Assets/Models/Buildings/Shopping_Medical_1_ATM.fbx",
+   "pivotX": -71.0,
+   "pivotZ": -27.0,
+   "boundsMin": [
+    -79.0,
+    -42.0
+   ],
+   "boundsMax": [
+    -63.0,
+    -12.0
+   ],
+   "replaces": [
+    "Shopping & Medical 1 (ATM)"
+   ]
+  },
+  {
+   "name": "Shopping_Medical_2",
+   "fbx": "Assets/Models/Buildings/Shopping_Medical_2.fbx",
+   "pivotX": -70.5,
+   "pivotZ": -58.0,
+   "boundsMin": [
+    -78.0,
+    -69.0
+   ],
+   "boundsMax": [
+    -63.0,
+    -47.0
+   ],
+   "replaces": [
+    "Shopping & Medical 2"
+   ]
+  },
+  {
+   "name": "Shopping_Medical_3",
+   "fbx": "Assets/Models/Buildings/Shopping_Medical_3.fbx",
+   "pivotX": -70.5,
+   "pivotZ": -84.0,
+   "boundsMin": [
+    -78.0,
+    -95.0
+   ],
+   "boundsMax": [
+    -63.0,
+    -73.0
+   ],
+   "replaces": [
+    "Shopping & Medical 3"
+   ]
+  },
+  {
+   "name": "Sports_Complex",
+   "fbx": "Assets/Models/Buildings/Sports_Complex.fbx",
+   "pivotX": 36.5,
+   "pivotZ": -328.0,
+   "boundsMin": [
+    24.0,
+    -355.0
+   ],
+   "boundsMax": [
+    49.0,
+    -301.0
+   ],
+   "replaces": [
+    "Sports Complex"
+   ]
+  },
+  {
    "name": "Walled_Residence",
    "fbx": "Assets/Models/Buildings/Walled_Residence.fbx",
    "pivotX": -55.0,
@@ -372,57 +440,6 @@
    ]
   },
   {
-   "name": "Shopping_Medical_1_ATM",
-   "fbx": "Assets/Models/Buildings/Shopping_Medical_1_ATM.fbx",
-   "pivotX": -71.0,
-   "pivotZ": -27.0,
-   "boundsMin": [
-    -79.0,
-    -42.0
-   ],
-   "boundsMax": [
-    -63.0,
-    -12.0
-   ],
-   "replaces": [
-    "Shopping & Medical 1 (ATM)"
-   ]
-  },
-  {
-   "name": "Shopping_Medical_2",
-   "fbx": "Assets/Models/Buildings/Shopping_Medical_2.fbx",
-   "pivotX": -70.5,
-   "pivotZ": -58.0,
-   "boundsMin": [
-    -78.0,
-    -69.0
-   ],
-   "boundsMax": [
-    -63.0,
-    -47.0
-   ],
-   "replaces": [
-    "Shopping & Medical 2"
-   ]
-  },
-  {
-   "name": "Shopping_Medical_3",
-   "fbx": "Assets/Models/Buildings/Shopping_Medical_3.fbx",
-   "pivotX": -70.5,
-   "pivotZ": -84.0,
-   "boundsMin": [
-    -78.0,
-    -95.0
-   ],
-   "boundsMax": [
-    -63.0,
-    -73.0
-   ],
-   "replaces": [
-    "Shopping & Medical 3"
-   ]
-  },
-  {
    "name": "Track_Pavilion",
    "fbx": "Assets/Models/Buildings/Track_Pavilion.fbx",
    "pivotX": 95.0,
@@ -437,23 +454,6 @@
    ],
    "replaces": [
     "Track Pavilion"
-   ]
-  },
-  {
-   "name": "Sports_Complex",
-   "fbx": "Assets/Models/Buildings/Sports_Complex.fbx",
-   "pivotX": 36.5,
-   "pivotZ": -328.0,
-   "boundsMin": [
-    24.0,
-    -355.0
-   ],
-   "boundsMax": [
-    49.0,
-    -301.0
-   ],
-   "replaces": [
-    "Sports Complex"
    ]
   },
   {

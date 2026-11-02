@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 13
+VERSION = 14
 
 
 def to_world(x, y):
@@ -166,6 +166,10 @@ ROADS = [
     ("Courtyard Path East-West", 2.5, [[467, 715], [511, 715]], False),
     ("Courtyard Path Loop", 2.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
     ("Courtyard Centre Square", 8.0, [[485, 715], [493, 715]], False),
+    # Paved walks (Phase 4D): along the shop fronts of the shopping and medical blocks and on to
+    # Annapurna Mess's west door, and from the spine road to the sports complex lobby.
+    ("Plaza Shops Walk", 5, [[356, 992], [356, 1100], [367, 1100]], False),
+    ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 
