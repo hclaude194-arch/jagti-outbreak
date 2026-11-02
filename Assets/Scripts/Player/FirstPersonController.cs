@@ -81,7 +81,7 @@ namespace Jagti.Player
             if (flashlight != null && Input.GetKeyDown(KeyCode.F)) flashlight.enabled = !flashlight.enabled;
 
             // Safety net: if we ever fall through the world, go back to the start.
-            if (transform.position.y < -50f) Teleport(spawnPoint);
+            if (transform.position.y < -150f) Teleport(spawnPoint); // below the lowest ravine
         }
 
         public void Teleport(Vector3 position)

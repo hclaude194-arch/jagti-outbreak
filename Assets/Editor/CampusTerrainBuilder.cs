@@ -81,9 +81,9 @@ namespace Jagti.EditorTools
             terrain.materialTemplate = TerrainMaterial();
             terrain.drawInstanced = true;
             terrain.heightmapPixelError = 4f;
-            terrain.basemapDistance = 220f;
-            terrain.treeDistance = 250f;
-            terrain.treeBillboardDistance = 250f;
+            terrain.basemapDistance = 300f;
+            terrain.treeDistance = 400f;
+            terrain.treeBillboardDistance = 400f;
             terrain.treeMaximumFullLODCount = 2000;
             terrain.detailObjectDistance = 45f;
             terrain.detailObjectDensity = 1f;
@@ -156,7 +156,7 @@ namespace Jagti.EditorTools
                 for (int x = 0; x < res; x++)
                 {
                     float d = bytes[k++] / 255f;
-                    counts[z, x] = d < 0.2f ? 0 : Mathf.RoundToInt(d * 5f);
+                    counts[z, x] = d < 0.2f ? 0 : Mathf.RoundToInt(d * 7f);
                 }
             }
             return counts;

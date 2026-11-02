@@ -91,12 +91,22 @@ namespace Jagti.EditorTools
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
             var roadRoot = Child(root.transform, "Roads");
-            foreach (var road in layout.roads) MakeRoad(road, roadRoot, materials);
+            concreteRoad = null;
+            kerbMaterial = null;
+            foreach (var road in layout.roads) MakeRoad(road, layout.roads, roadRoot, materials);
+
+            // Landmark buildings come from Blender models; the rest stay grey blocks for now.
+            var models = BuildingModels.Available();
+            var replaced = new HashSet<string>();
+            foreach (var m in models)
+                foreach (var name in m.replaces) replaced.Add(name);
 
             var buildingRoot = Child(root.transform, "Buildings");
+            BuildingModels.Place(models, Child(buildingRoot, "Landmarks"), Ground);
             var zones = new Dictionary<string, Transform>();
             foreach (var b in layout.buildings)
             {
+                if (replaced.Contains(b.name)) continue;
                 if (!zones.TryGetValue(b.zone, out var zone))
                 {
                     zone = Child(buildingRoot, "Zone - " + b.zone);
@@ -105,7 +115,7 @@ namespace Jagti.EditorTools
                 MakeBuilding(b, zone, materials);
             }
 
-            MakeBoundaryWall(layout.boundary, Child(root.transform, "Boundary Wall"), materials);
+            MakeBoundaryWall(layout.boundary, layout.roads, Child(root.transform, "Boundary Wall"), materials);
 
             var labelRoot = Child(root.transform, "Labels");
             foreach (var place in layout.places) MakeLabel(place, labelRoot);
@@ -199,7 +209,9 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        static void MakeRoad(RoadData road, Transform parent, MaterialLibrary materials)
+        static Material concreteRoad, kerbMaterial;
+
+        static void MakeRoad(RoadData road, RoadData[] allRoads, Transform parent, MaterialLibrary materials)
         {
             float[] points = Densify(road.points, 2f);
             int count = points.Length / 2;
@@ -248,10 +260,123 @@ namespace Jagti.EditorTools
             go.transform.SetParent(parent);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = materials.Get(road.name == "Clock Tower Walkway" ? "Walkway" : "Road",
-                road.name == "Clock Tower Walkway" ? new Color(0.72f, 0.68f, 0.60f) : new Color(0.24f, 0.24f, 0.25f));
+            // Campus roads are light concrete slabs (from the owner's photos); the highway is asphalt.
+            if (road.name == "Highway")
+                renderer.sharedMaterial = materials.Get("Road", new Color(0.24f, 0.24f, 0.25f));
+            else if (road.name == "Clock Tower Walkway")
+                renderer.sharedMaterial = materials.Get("Walkway", new Color(0.72f, 0.68f, 0.60f));
+            else
+            {
+                if (concreteRoad == null)
+                    concreteRoad = ProceduralAssets.LitMaterial("Road_Concrete", Color.white, ProceduralAssets.ConcreteRoadTexture(), 0.1f);
+                renderer.sharedMaterial = concreteRoad;
+            }
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
+
+            if (road.name != "Highway" && road.name != "Clock Tower Walkway" && road.width >= 4f)
+                MakeKerbs(road, points, allRoads, go.transform);
+        }
+
+        // Black-and-white painted kerbs along both edges, left open where another road joins.
+        static void MakeKerbs(RoadData road, float[] points, RoadData[] allRoads, Transform parent)
+        {
+            if (kerbMaterial == null)
+                kerbMaterial = ProceduralAssets.LitMaterial("Road_Kerb", Color.white, ProceduralAssets.KerbTexture(), 0.1f);
+            const float kerbWidth = 0.3f, kerbHeight = 0.18f;
+            int count = points.Length / 2;
+            float half = road.width / 2f;
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+
+            foreach (float side in new[] { 1f, -1f })
+            {
+                Vector3 prevInnerLow = Vector3.zero, prevInnerTop = Vector3.zero, prevOuterTop = Vector3.zero;
+                bool prevOk = false;
+                float distance = 0f, prevDistance = 0f;
+                for (int i = 0; i < count; i++)
+                {
+                    Vector2 p = Point(points, i);
+                    Vector2 dir = i == 0 ? Point(points, 1) - p
+                                : i == count - 1 ? p - Point(points, i - 1)
+                                : Point(points, i + 1) - Point(points, i - 1);
+                    if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
+                    dir.Normalize();
+                    var normal = new Vector2(-dir.y, dir.x) * side;
+                    if (i > 0) distance += Vector2.Distance(p, Point(points, i - 1));
+
+                    Vector2 inner = p + normal * half, outer = p + normal * (half + kerbWidth);
+                    float gy = Ground(inner.x, inner.y) + RoadTop;
+                    var innerLow = new Vector3(inner.x, gy, inner.y);
+                    var innerTop = new Vector3(inner.x, gy + kerbHeight, inner.y);
+                    var outerTop = new Vector3(outer.x, Mathf.Max(gy, Ground(outer.x, outer.y) + RoadTop) + kerbHeight, outer.y);
+                    bool ok = !InsideOtherRoad(inner, road, allRoads);
+
+                    if (i > 0 && ok && prevOk)
+                    {
+                        float u0 = prevDistance / 1.2f, u1 = distance / 1.2f;
+                        // Top of the kerb, facing up.
+                        AddQuad(vertices, uvs, triangles, prevInnerTop, innerTop, outerTop, prevOuterTop, u0, u1, Vector3.up);
+                        // Face towards the road.
+                        var towardRoad = new Vector3(-normal.x, 0f, -normal.y);
+                        AddQuad(vertices, uvs, triangles, prevInnerLow, innerLow, innerTop, prevInnerTop, u0, u1, towardRoad);
+                    }
+                    prevInnerLow = innerLow; prevInnerTop = innerTop; prevOuterTop = outerTop;
+                    prevOk = ok;
+                    prevDistance = distance;
+                }
+            }
+            if (triangles.Count == 0) return;
+
+            var mesh = new Mesh { name = "Kerbs - " + road.name };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject("Kerbs");
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = kerbMaterial;
+            MarkStatic(go);
+        }
+
+        // Adds a quad a-b-c-d with its winding chosen so it faces `facing`.
+        static void AddQuad(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+                            Vector3 a, Vector3 b, Vector3 c, Vector3 d, float u0, float u1, Vector3 facing)
+        {
+            int start = vertices.Count;
+            vertices.Add(a); vertices.Add(b); vertices.Add(c); vertices.Add(d);
+            uvs.Add(new Vector2(u0, 0f)); uvs.Add(new Vector2(u1, 0f)); uvs.Add(new Vector2(u1, 1f)); uvs.Add(new Vector2(u0, 1f));
+            bool flip = Vector3.Dot(Vector3.Cross(b - a, c - a), facing) < 0f;
+            if (!flip)
+            {
+                triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+                triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+            }
+            else
+            {
+                triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 1);
+                triangles.Add(start); triangles.Add(start + 3); triangles.Add(start + 2);
+            }
+        }
+
+        static bool InsideOtherRoad(Vector2 p, RoadData self, RoadData[] roads)
+        {
+            foreach (var road in roads)
+            {
+                if (road == self) continue;
+                float reach = road.width / 2f + 0.8f;
+                for (int i = 0; i + 1 < road.points.Length / 2; i++)
+                {
+                    Vector2 a = Point(road.points, i), b = Point(road.points, i + 1);
+                    Vector2 ab = b - a;
+                    float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
+                    if (Vector2.Distance(p, a + ab * t) < reach) return true;
+                }
+            }
+            return false;
         }
 
         static Vector2 Point(float[] points, int i)
@@ -289,7 +414,7 @@ namespace Jagti.EditorTools
             return CampusTerrainBuilder.GroundY(terrain, x, z);
         }
 
-        static void MakeBoundaryWall(float[] points, Transform parent, MaterialLibrary materials)
+        static void MakeBoundaryWall(float[] points, RoadData[] roads, Transform parent, MaterialLibrary materials)
         {
             int count = points.Length / 2;
             var mat = materials.Get("Boundary_Wall", new Color(0.62f, 0.58f, 0.52f));
@@ -305,6 +430,7 @@ namespace Jagti.EditorTools
                     Vector2 p0 = Vector2.Lerp(a, b, k / (float)pieces);
                     Vector2 p1 = Vector2.Lerp(a, b, (k + 1) / (float)pieces);
                     Vector2 mid = (p0 + p1) / 2f;
+                    if (CrossesRoad(mid, roads)) continue; // leave a gap where a road passes through
                     float ground = Mathf.Min(Ground(p0.x, p0.y), Ground(p1.x, p1.y));
                     var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     go.name = "Wall " + i + "." + k;
@@ -316,6 +442,23 @@ namespace Jagti.EditorTools
                     MarkStatic(go);
                 }
             }
+        }
+
+        static bool CrossesRoad(Vector2 p, RoadData[] roads)
+        {
+            foreach (var road in roads)
+            {
+                if (road.name == "Highway") continue;
+                float reach = road.width / 2f + 1.5f;
+                for (int i = 0; i + 1 < road.points.Length / 2; i++)
+                {
+                    Vector2 a = Point(road.points, i), b = Point(road.points, i + 1);
+                    Vector2 ab = b - a;
+                    float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
+                    if (Vector2.Distance(p, a + ab * t) < reach) return true;
+                }
+            }
+            return false;
         }
 
         static void MakeLabel(PlaceData place, Transform parent)
@@ -353,8 +496,8 @@ namespace Jagti.EditorTools
             RenderSettings.ambientGroundColor = new Color(0.25f, 0.23f, 0.20f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 70f;
-            RenderSettings.fogEndDistance = 420f;
+            RenderSettings.fogStartDistance = 150f;
+            RenderSettings.fogEndDistance = 1100f; // far enough to see the ridges on the horizon
             RenderSettings.fogColor = new Color(0.72f, 0.76f, 0.79f);
 
             // Hazy Jammu sky; fog fades the far hills into its horizon colour.
@@ -386,8 +529,8 @@ namespace Jagti.EditorTools
             var go = new GameObject("Zombie NavMesh");
             var surface = go.AddComponent<NavMeshSurface>();
             surface.collectObjects = CollectObjects.Volume;
-            surface.center = new Vector3((minX + maxX) / 2f, 20f, (minZ + maxZ) / 2f);
-            surface.size = new Vector3(maxX - minX + margin * 2f, 90f, maxZ - minZ + margin * 2f);
+            surface.center = new Vector3((minX + maxX) / 2f, 30f, (minZ + maxZ) / 2f);
+            surface.size = new Vector3(maxX - minX + margin * 2f, 140f, maxZ - minZ + margin * 2f);
             surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             surface.overrideVoxelSize = true;
             surface.voxelSize = 0.25f;
@@ -421,7 +564,7 @@ namespace Jagti.EditorTools
             cameraObject.transform.localPosition = new Vector3(0f, 1.65f, 0f);
             var cam = cameraObject.AddComponent<Camera>();
             cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 700f;
+            cam.farClipPlane = 1800f;
             cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             cam.backgroundColor = RenderSettings.fogColor;
             cameraObject.AddComponent<AudioListener>();
