@@ -151,6 +151,53 @@ namespace Jagti.EditorTools
             return tex;
         }
 
+        /// <summary>One concrete road slab: light grey, brushed across, with a centre joint and a cross joint.</summary>
+        public static Texture2D ConcreteRoadTexture()
+        {
+            const int size = 512;
+            var pixels = new Color32[size * size];
+            var baseColor = new Color(0.66f, 0.64f, 0.60f);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size, v = y / (float)size;
+                    float n = Fbm(u, v, 4, 4, 51) - 0.5f;
+                    float brush = Noise(u * 4f, v * 160f, 4, 160, 52) - 0.5f; // fine lines across the road
+                    Color c = baseColor * (1f + n * 0.18f + brush * 0.06f);
+                    bool joint = Mathf.Abs(u - 0.5f) < 0.004f || v < 0.006f || v > 0.994f;
+                    if (joint) c *= 0.55f;
+                    if (u < 0.02f || u > 0.98f) c *= 0.85f; // dirt along the kerb
+                    c.a = 1f;
+                    pixels[y * size + x] = c;
+                }
+            }
+            return SaveTexture("Tex_Road_Concrete", size, pixels, false);
+        }
+
+        /// <summary>Kerb stones painted alternately black and white (one pair per tile), worn at the edges.</summary>
+        public static Texture2D KerbTexture()
+        {
+            const int size = 256;
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size, v = y / (float)size;
+                    bool white = u >= 0.5f;
+                    float wear = Fbm(u, v, 8, 3, 53);
+                    Color paint = white ? new Color(0.88f, 0.87f, 0.83f) : new Color(0.12f, 0.12f, 0.12f);
+                    Color stone = new Color(0.62f, 0.60f, 0.56f);
+                    Color c = wear > 0.68f ? stone : paint;          // paint chipped off in patches
+                    if (Mathf.Abs(u - 0.5f) < 0.01f || u < 0.01f || u > 0.99f) c = stone * 0.6f; // joints
+                    c.a = 1f;
+                    pixels[y * size + x] = c;
+                }
+            }
+            return SaveTexture("Tex_Kerb", size, pixels, false);
+        }
+
         // ------------------------------------------------------------------ materials
 
         public static Material LitMaterial(string name, Color color, Texture2D texture, float smoothness = 0.05f)

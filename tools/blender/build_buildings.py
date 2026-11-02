@@ -39,7 +39,8 @@ BUILDINGS = {b["name"]: b for b in layout["buildings"]}
 # name: (tile width m, tile height m, preview colour). Tile sizes must match BuildingMaterials.cs.
 MATERIALS = {
     "Facade_Academic": (3.6, FLOOR, (0.80, 0.74, 0.62)),
-    "Facade_Hostel": (3.0, FLOOR, (0.84, 0.79, 0.68)),
+    "Facade_Hostel": (3.0, FLOOR, (0.90, 0.87, 0.80)),
+    "Jali": (1.2, 1.2, (0.86, 0.83, 0.76)),
     "Facade_Ground": (4.0, FLOOR, (0.35, 0.42, 0.48)),
     "Brick": (2.0, 2.0, (0.60, 0.32, 0.23)),
     "Plaster": (4.0, 4.0, (0.86, 0.81, 0.70)),
@@ -201,20 +202,38 @@ class Model:
                     else:
                         self.box_local(min(e, e + sign * 0.7), max(e, e + sign * 0.7), s - 0.15, s + 0.15, FLOOR, body, "Concrete", "Concrete")
         if style == "hostel":
-            # Brick stair towers at both ends of the long side, rising above the roof.
+            # Stair towers at both ends of the long side, faced with jali (lattice) panels
+            # as in the owner's photos, rising above the roof.
             cw = min(4.0, (x1 - x0 if long_x else y1 - y0) / 4)
             if long_x:
                 for xa in (x0 - 0.4, x1 - cw + 0.4):
-                    self.box_local(xa, xa + cw, y0 - 0.4, y0 + 3.5, 0.45, H + 2.8, "Brick", "Roof")
+                    self.box_local(xa, xa + cw, y0 - 0.4, y0 + 3.5, 0.45, H + 2.8, "Jali", "Roof")
             else:
                 for ya in (y0 - 0.4, y1 - cw + 0.4):
-                    self.box_local(x0 - 0.4, x0 + 3.5, ya, ya + cw, 0.45, H + 2.8, "Brick", "Roof")
+                    self.box_local(x0 - 0.4, x0 + 3.5, ya, ya + cw, 0.45, H + 2.8, "Jali", "Roof")
         # Roof clutter: a stair cabin and a water tank.
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         if floors > 1:
             self.box_local(cx - 2.2, cx + 2.2, cy - 2.0, cy + 2.0, H, H + 3.0, "Plaster", "Roof")
             self.box_local(cx + 3.0, cx + 6.0, cy - 1.2, cy + 1.2, H + 0.6, H + 2.4, "Metal", "Metal")
+        if style == "hostel" and floors >= 6:
+            self.pergola(x0 + 1.5, x0 + min(13.0, (x1 - x0) * 0.45), y0 + 1.5, y1 - 1.5, H)
         return x0, x1, y0, y1, H
+
+    def pergola(self, x0, x1, y0, y1, z):
+        """White roof pergola: four posts, edge beams and cross slats."""
+        if x1 - x0 < 3 or y1 - y0 < 3:
+            return
+        top = z + 3.2
+        for px in (x0, x1 - 0.3):
+            for py in (y0, y1 - 0.3):
+                self.box_local(px, px + 0.3, py, py + 0.3, z, top, "Concrete", None)
+        self.box_local(x0, x1, y0, y0 + 0.3, top - 0.35, top, "Concrete", "Concrete", bottom=True)
+        self.box_local(x0, x1, y1 - 0.3, y1, top - 0.35, top, "Concrete", "Concrete", bottom=True)
+        n = max(2, int((x1 - x0) / 1.2))
+        for k in range(n + 1):
+            sx = x0 + (x1 - x0 - 0.15) * k / n
+            self.box_local(sx, sx + 0.15, y0, y1, top - 0.2, top + 0.05, "Concrete", "Concrete", bottom=True)
 
     def drum(self, name, glass_band=(6.6, 8.8)):
         bd = BUILDINGS[name]

@@ -170,6 +170,9 @@ spawn = layout["spawn"]
 VIEWS = {
     # name: (eye x, z, height above ground, look-at x, z, height above ground there)
     "spine": (-9, 60, 1.7, 7, -350, 2),
+    "courts_hill": (45, -235, 1.7, -39, -254, 18),
+    "mess_to_hostels": (-20, -60, 1.7, 80, -150, -4),
+    "sports_to_mess": (90, -300, 1.7, -20, -90, 6),
     "campus_low": (300, -150, 70, 0, 20, 0),
     "track_north": (150, -110, 1.7, -40, 180, 5),
     "gate": (-118, 575, 1.7, 63, 440, 10),

@@ -13,7 +13,7 @@ namespace Jagti.EditorTools
     public static class BuildingMaterials
     {
         static readonly Color Plaster = new Color(0.86f, 0.80f, 0.68f);
-        static readonly Color PlasterHostel = new Color(0.88f, 0.83f, 0.72f);
+        static readonly Color PlasterHostel = new Color(0.91f, 0.88f, 0.81f); // off-white, from the owner's photos
         static readonly Color Terracotta = new Color(0.62f, 0.33f, 0.23f);
         static readonly Color Trim = new Color(0.90f, 0.89f, 0.86f);
         static readonly Color GlassLow = new Color(0.16f, 0.21f, 0.26f);
@@ -28,6 +28,7 @@ namespace Jagti.EditorTools
                 ["Facade_Academic"] = ProceduralAssets.LitMaterial("Bld_Facade_Academic", Color.white, AcademicBay(), 0.15f),
                 ["Facade_Hostel"] = ProceduralAssets.LitMaterial("Bld_Facade_Hostel", Color.white, HostelBay(), 0.12f),
                 ["Facade_Ground"] = ProceduralAssets.LitMaterial("Bld_Facade_Ground", Color.white, GroundBay(), 0.35f),
+                ["Jali"] = ProceduralAssets.LitMaterial("Bld_Jali", Color.white, Jali(), 0.08f),
                 ["Brick"] = ProceduralAssets.LitMaterial("Bld_Brick", Color.white, Brick(), 0.08f),
                 ["Plaster"] = ProceduralAssets.LitMaterial("Bld_Plaster", Color.white, PlainWall("Tex_Plaster", Plaster, 0.06f, 21), 0.08f),
                 ["Concrete"] = ProceduralAssets.LitMaterial("Bld_Concrete", Color.white, PlainWall("Tex_Concrete", Trim, 0.05f, 22), 0.12f),
@@ -128,16 +129,47 @@ namespace Jagti.EditorTools
             return c.Save("Tex_Facade_Academic");
         }
 
-        // One hostel room: smaller window, sill, a little grime below it.
+        // One hostel bay, as in the owner's photos: a pair of white-framed windows set
+        // inside a deep projecting box frame on an off-white wall.
         static Texture2D HostelBay()
         {
             var c = new Canvas();
-            c.Fill(PlasterHostel, 0.06f, 32);
-            c.Window(0.26f, 0.32f, 0.74f, 0.82f, 2, 0f);
-            c.Rect(0.22f, 0.28f, 0.78f, 0.31f, Trim);
-            c.Shade(0.24f, 0.12f, 0.76f, 0.28f, 0.06f);
-            c.Rect(0f, 0f, 1f, 0.04f, Trim * 0.95f);
+            c.Fill(PlasterHostel, 0.05f, 32);
+            const float bx0 = 0.10f, bx1 = 0.90f, by0 = 0.16f, by1 = 0.94f, rim = 0.07f;
+            // Box frame: lit top and left faces, shadowed right and bottom faces.
+            c.Rect(bx0, by0, bx1, by1, PlasterHostel * 1.02f);
+            c.Rect(bx0, by1 - rim, bx1, by1, PlasterHostel * 1.06f);
+            c.Rect(bx0, by0, bx0 + rim, by1, PlasterHostel * 1.03f);
+            c.Rect(bx1 - rim, by0, bx1, by1 - rim, PlasterHostel * 0.82f);
+            c.Rect(bx0, by0, bx1, by0 + rim * 0.7f, PlasterHostel * 0.86f);
+            // Recessed back wall inside the box, in shade.
+            c.Rect(bx0 + rim, by0 + rim * 0.7f, bx1 - rim, by1 - rim, PlasterHostel * 0.78f);
+            c.Shade(bx0 + rim, by1 - rim - 0.05f, bx1 - rim, by1 - rim, 0.25f);
+            // Two windows side by side.
+            c.Window(0.22f, 0.32f, 0.47f, 0.82f, 2, 0f);
+            c.Window(0.53f, 0.32f, 0.78f, 0.82f, 2, 0f);
+            c.Rect(0.20f, 0.28f, 0.80f, 0.31f, Trim);
+            // A little rain staining below the box.
+            c.Shade(0.14f, 0.02f, 0.86f, 0.16f, 0.05f);
             return c.Save("Tex_Facade_Hostel");
+        }
+
+        // Jali: a pierced lattice screen of small square openings, 1.2 m tile.
+        static Texture2D Jali()
+        {
+            var c = new Canvas();
+            c.Fill(PlasterHostel * 0.97f, 0.04f, 39);
+            const int cells = 8;
+            float cell = 1f / cells;
+            for (int i = 0; i < cells; i++)
+                for (int j = 0; j < cells; j++)
+                {
+                    float x0 = i * cell + cell * 0.22f, y0 = j * cell + cell * 0.22f;
+                    float x1 = (i + 1) * cell - cell * 0.22f, y1 = (j + 1) * cell - cell * 0.22f;
+                    c.Rect(x0, y0, x1, y1, new Color(0.12f, 0.12f, 0.13f));     // opening, dark inside
+                    c.Rect(x0, y1 - cell * 0.08f, x1, y1, PlasterHostel * 0.6f); // shadowed top edge
+                }
+            return c.Save("Tex_Jali");
         }
 
         // Ground floor: glazed front between plaster piers.

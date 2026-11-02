@@ -210,11 +210,40 @@ n_ridge = fbm(RES, 7, 5, SEED + 9)
 
 # Ridge top: 34 m at the academic block, climbing to about 48 m at Sindhu Hostel,
 # with knolls and dips of up to about 8 m either way.
-# The ridge climbs in terraces: academic zone, central zone, hostels, Sindhu Hostel,
-# joined by visible banks where the roads ramp up.
-terraces = (34.0 + 5.0 * smoothstep(20.0, -40.0, Z) + 5.0 * smoothstep(-200.0, -250.0, Z)
-            + 5.0 * smoothstep(-370.0, -410.0, Z))
-plateau = terraces + 6.0 * n_low + 2.0 * n_mid
+# Campus levels from the owner's description of the real site: the sports complex,
+# courts and track are the low part; the ground climbs to the mess and shopping area;
+# the academic block sits a little higher again. The boys' (Sindhu) and girls' hostels
+# share the low level, and uphill ground rings the girls' hostel up to mess level.
+# Anchors are (map x, map y, height m); heights blend smoothly between them.
+LEVEL_ANCHORS = [
+    # academic zone (highest)
+    (490, 700, 46), (430, 640, 45), (560, 760, 46), (390, 800, 44),
+    # central zone: car park, walled residence, central roundabout
+    (405, 880, 43), (330, 930, 43), (414, 996, 42), (520, 950, 42), (300, 990, 42),
+    # mess, shopping & medical, staff quarters (mess level)
+    (385, 1090, 40), (345, 1050, 40), (280, 1060, 40), (280, 1130, 39),
+    # girls' hostel blocks east of the mess (low, in a bowl)
+    (495, 1100, 29), (455, 1150, 29), (450, 1180, 29),
+    # uphill east of the girls' hostel, back up to mess level
+    (600, 1080, 40), (620, 1020, 41), (590, 1150, 38),
+    # sports courts, track, sports complex (low)
+    (517, 1261, 29), (453, 1240, 29), (450, 1320, 29), (590, 1290, 30), (560, 1200, 30),
+    # Sindhu Hostel (boys) and the service yard: same low level
+    (460, 1450, 29), (400, 1515, 29), (330, 1420, 30), (300, 1340, 31), (470, 1540, 29),
+]
+level_num = np.zeros(X.shape)
+level_den = np.zeros(X.shape)
+for mx, my, lh in LEVEL_ANCHORS:
+    ax, az = L.to_world(mx, my)
+    w = np.exp(-((X - ax) ** 2 + (Z - az) ** 2) / (2 * 55.0 ** 2)) + 1e-9
+    level_num += w * lh
+    level_den += w
+terraces = level_num / level_den
+plateau = terraces + 3.0 * n_low + 1.5 * n_mid
+# The steep wooded hill right behind the basketball courts, across the spine road.
+hx, hz = L.to_world(375, 1250)
+plateau += 26.0 * np.exp(-((X - hx) ** 2 + (Z - hz) ** 2) / (2 * 30.0 ** 2))
+hill_mask = np.exp(-((X - hx) ** 2 + (Z - hz) ** 2) / (2 * 34.0 ** 2))
 # Hillocks in the open ground between roads and buildings, up to about 9 m high.
 dev_dist = campus_road_dist.copy()
 for g, cx, cz, hw, hd, ell in pads:
@@ -222,7 +251,7 @@ for g, cx, cz, hw, hd, ell in pads:
     dd = pad_distance(X[rows, cols], Z[rows, cols], cx, cz, hw, hd, ell)
     dev_dist[rows, cols] = np.minimum(dev_dist[rows, cols], dd)
 n_knoll = fbm(RES, 20, 3, SEED + 10)
-plateau += 9.0 * np.clip(n_knoll + 0.25, 0, None) * smoothstep(12.0, 45.0, dev_dist)
+plateau += 6.0 * np.clip(n_knoll + 0.2, 0, None) * smoothstep(12.0, 45.0, dev_dist) * (1 - hill_mask)
 # Gate slope: the serpentine drive climbs from the gate (about 3 m) up to the ridge.
 gate_ramp = smoothstep(380.0, 528.0, Z)
 plateau = plateau * (1 - gate_ramp) + 3.0 * gate_ramp
@@ -450,7 +479,7 @@ JZ = GZ + rng.uniform(-step / 2, step / 2, GZ.shape)
 fi = np.clip(((JZ - MIN_Z) / CELL).round().astype(int), 0, RES - 1)
 fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
 o = outside[fi, fj]
-density = np.where(sd[fi, fj] < 0, 0.035,
+density = np.where(sd[fi, fj] < 0, 0.035 + 0.32 * hill_mask[fi, fj],
                    (0.30 - 0.22 * smoothstep(200, 650, o)) * (1 - smoothstep(650, 900, o)) * smoothstep(3, 15, o))
 density *= 0.5 + 0.8 * np.clip(0.5 - n_patch[fi, fj], 0, 1)   # clumps
 density *= 1 - farm_mask[fi, fj] * 0.92                        # few trees in fields
@@ -461,7 +490,9 @@ keep &= pad_mask[fi, fj] < 0.05
 keep &= slope[fi, fj] < 38
 for x, z, i, j in zip(JX[keep], JZ[keep], fi[keep], fj[keep]):
     r = rng.random()
-    if sd[i, j] < 0:
+    if sd[i, j] < 0 and hill_mask[i, j] > 0.3:
+        kind = PINE if r < 0.6 else (BROAD if r < 0.8 else SHRUB)  # pine wood on the hill by the courts
+    elif sd[i, j] < 0:
         kind = BROAD if r < 0.55 else (SHRUB if r < 0.8 else EUCA)
     elif slope[i, j] > 18:
         kind = PINE if r < 0.45 else (SHRUB if r < 0.8 else BROAD)

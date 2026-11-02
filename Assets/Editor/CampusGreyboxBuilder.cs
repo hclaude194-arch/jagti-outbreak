@@ -91,7 +91,9 @@ namespace Jagti.EditorTools
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
             var roadRoot = Child(root.transform, "Roads");
-            foreach (var road in layout.roads) MakeRoad(road, roadRoot, materials);
+            concreteRoad = null;
+            kerbMaterial = null;
+            foreach (var road in layout.roads) MakeRoad(road, layout.roads, roadRoot, materials);
 
             // Landmark buildings come from Blender models; the rest stay grey blocks for now.
             var models = BuildingModels.Available();
@@ -207,7 +209,9 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        static void MakeRoad(RoadData road, Transform parent, MaterialLibrary materials)
+        static Material concreteRoad, kerbMaterial;
+
+        static void MakeRoad(RoadData road, RoadData[] allRoads, Transform parent, MaterialLibrary materials)
         {
             float[] points = Densify(road.points, 2f);
             int count = points.Length / 2;
@@ -256,10 +260,123 @@ namespace Jagti.EditorTools
             go.transform.SetParent(parent);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = materials.Get(road.name == "Clock Tower Walkway" ? "Walkway" : "Road",
-                road.name == "Clock Tower Walkway" ? new Color(0.72f, 0.68f, 0.60f) : new Color(0.24f, 0.24f, 0.25f));
+            // Campus roads are light concrete slabs (from the owner's photos); the highway is asphalt.
+            if (road.name == "Highway")
+                renderer.sharedMaterial = materials.Get("Road", new Color(0.24f, 0.24f, 0.25f));
+            else if (road.name == "Clock Tower Walkway")
+                renderer.sharedMaterial = materials.Get("Walkway", new Color(0.72f, 0.68f, 0.60f));
+            else
+            {
+                if (concreteRoad == null)
+                    concreteRoad = ProceduralAssets.LitMaterial("Road_Concrete", Color.white, ProceduralAssets.ConcreteRoadTexture(), 0.1f);
+                renderer.sharedMaterial = concreteRoad;
+            }
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
+
+            if (road.name != "Highway" && road.name != "Clock Tower Walkway" && road.width >= 4f)
+                MakeKerbs(road, points, allRoads, go.transform);
+        }
+
+        // Black-and-white painted kerbs along both edges, left open where another road joins.
+        static void MakeKerbs(RoadData road, float[] points, RoadData[] allRoads, Transform parent)
+        {
+            if (kerbMaterial == null)
+                kerbMaterial = ProceduralAssets.LitMaterial("Road_Kerb", Color.white, ProceduralAssets.KerbTexture(), 0.1f);
+            const float kerbWidth = 0.3f, kerbHeight = 0.18f;
+            int count = points.Length / 2;
+            float half = road.width / 2f;
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+
+            foreach (float side in new[] { 1f, -1f })
+            {
+                Vector3 prevInnerLow = Vector3.zero, prevInnerTop = Vector3.zero, prevOuterTop = Vector3.zero;
+                bool prevOk = false;
+                float distance = 0f, prevDistance = 0f;
+                for (int i = 0; i < count; i++)
+                {
+                    Vector2 p = Point(points, i);
+                    Vector2 dir = i == 0 ? Point(points, 1) - p
+                                : i == count - 1 ? p - Point(points, i - 1)
+                                : Point(points, i + 1) - Point(points, i - 1);
+                    if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
+                    dir.Normalize();
+                    var normal = new Vector2(-dir.y, dir.x) * side;
+                    if (i > 0) distance += Vector2.Distance(p, Point(points, i - 1));
+
+                    Vector2 inner = p + normal * half, outer = p + normal * (half + kerbWidth);
+                    float gy = Ground(inner.x, inner.y) + RoadTop;
+                    var innerLow = new Vector3(inner.x, gy, inner.y);
+                    var innerTop = new Vector3(inner.x, gy + kerbHeight, inner.y);
+                    var outerTop = new Vector3(outer.x, Mathf.Max(gy, Ground(outer.x, outer.y) + RoadTop) + kerbHeight, outer.y);
+                    bool ok = !InsideOtherRoad(inner, road, allRoads);
+
+                    if (i > 0 && ok && prevOk)
+                    {
+                        float u0 = prevDistance / 1.2f, u1 = distance / 1.2f;
+                        // Top of the kerb, facing up.
+                        AddQuad(vertices, uvs, triangles, prevInnerTop, innerTop, outerTop, prevOuterTop, u0, u1, Vector3.up);
+                        // Face towards the road.
+                        var towardRoad = new Vector3(-normal.x, 0f, -normal.y);
+                        AddQuad(vertices, uvs, triangles, prevInnerLow, innerLow, innerTop, prevInnerTop, u0, u1, towardRoad);
+                    }
+                    prevInnerLow = innerLow; prevInnerTop = innerTop; prevOuterTop = outerTop;
+                    prevOk = ok;
+                    prevDistance = distance;
+                }
+            }
+            if (triangles.Count == 0) return;
+
+            var mesh = new Mesh { name = "Kerbs - " + road.name };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject("Kerbs");
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = kerbMaterial;
+            MarkStatic(go);
+        }
+
+        // Adds a quad a-b-c-d with its winding chosen so it faces `facing`.
+        static void AddQuad(List<Vector3> vertices, List<Vector2> uvs, List<int> triangles,
+                            Vector3 a, Vector3 b, Vector3 c, Vector3 d, float u0, float u1, Vector3 facing)
+        {
+            int start = vertices.Count;
+            vertices.Add(a); vertices.Add(b); vertices.Add(c); vertices.Add(d);
+            uvs.Add(new Vector2(u0, 0f)); uvs.Add(new Vector2(u1, 0f)); uvs.Add(new Vector2(u1, 1f)); uvs.Add(new Vector2(u0, 1f));
+            bool flip = Vector3.Dot(Vector3.Cross(b - a, c - a), facing) < 0f;
+            if (!flip)
+            {
+                triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+                triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+            }
+            else
+            {
+                triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 1);
+                triangles.Add(start); triangles.Add(start + 3); triangles.Add(start + 2);
+            }
+        }
+
+        static bool InsideOtherRoad(Vector2 p, RoadData self, RoadData[] roads)
+        {
+            foreach (var road in roads)
+            {
+                if (road == self) continue;
+                float reach = road.width / 2f + 0.8f;
+                for (int i = 0; i + 1 < road.points.Length / 2; i++)
+                {
+                    Vector2 a = Point(road.points, i), b = Point(road.points, i + 1);
+                    Vector2 ab = b - a;
+                    float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
+                    if (Vector2.Distance(p, a + ab * t) < reach) return true;
+                }
+            }
+            return false;
         }
 
         static Vector2 Point(float[] points, int i)
