@@ -16,6 +16,8 @@ namespace Jagti.EditorTools
         public float[] max;
         public float baseX;     // the building's base sits on the ground here
         public float baseZ;
+        public float floorOffset;   // ground floor level above the base (0.6 m)
+        public int maxLevel;        // top storey (0 = single storey)
     }
 
     [Serializable]
@@ -147,6 +149,8 @@ namespace Jagti.EditorTools
                 zoneBase.Add(ground(z.baseX, z.baseZ));
                 zone.baseY = zoneBase[zoneBase.Count - 1];
                 if (list.levelHeight > 0f) zone.levelHeight = list.levelHeight;
+                if (z.floorOffset > 0f) zone.floorOffset = z.floorOffset;
+                zone.maxLevel = Mathf.Max(0, z.maxLevel);
                 zoneTurn.Add(turn);
                 zoneScale.Add(scale);
                 zoneFurniture.Add(Child(root.transform, "Furniture"));
