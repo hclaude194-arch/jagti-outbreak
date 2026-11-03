@@ -38,21 +38,21 @@ BUILDINGS = {b["name"]: b for b in layout["buildings"]}
 
 # name: (tile width m, tile height m, preview colour). Tile sizes must match BuildingMaterials.cs.
 MATERIALS = {
-    "Facade_Academic": (3.6, FLOOR, (0.80, 0.74, 0.62)),
+    "Facade_Academic": (3.6, FLOOR, (0.90, 0.84, 0.76)),
     "Facade_Hostel": (3.0, FLOOR, (0.90, 0.87, 0.80)),
     "Jali": (1.2, 1.2, (0.86, 0.83, 0.76)),
     "Facade_Ground": (4.0, FLOOR, (0.35, 0.42, 0.48)),
     "Brick": (2.0, 2.0, (0.60, 0.32, 0.23)),
-    "Plaster": (4.0, 4.0, (0.86, 0.81, 0.70)),
+    "Plaster": (4.0, 4.0, (0.90, 0.84, 0.76)),
     "Concrete": (3.0, 3.0, (0.86, 0.85, 0.82)),
     "Glass": (1.5, FLOOR, (0.25, 0.34, 0.42)),
-    "Roof": (6.0, 6.0, (0.38, 0.37, 0.35)),
+    "Roof": (6.0, 6.0, (0.80, 0.76, 0.70)),
     "Metal": (2.0, 2.0, (0.22, 0.23, 0.24)),
     "ClockFace": (1.0, 1.0, (0.95, 0.94, 0.90)),
     "Emblem": (1.0, 1.0, (0.12, 0.30, 0.62)),
-    "Water": (4.0, 4.0, (0.20, 0.45, 0.50)),
-    "Stone": (3.0, 3.0, (0.84, 0.77, 0.64)),
-    "Planter": (2.0, 2.0, (0.30, 0.42, 0.20)),
+    "Water": (4.0, 4.0, (0.20, 0.58, 0.60)),
+    "Stone": (3.0, 3.0, (0.87, 0.80, 0.71)),
+    "Planter": (2.0, 2.0, (0.28, 0.46, 0.18)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 

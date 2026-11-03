@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 9
+VERSION = 10
 
 
 def to_world(x, y):
@@ -102,11 +102,54 @@ BUILDINGS = [
 ]
 
 # ---------------------------------------------------------------- roads
+def rounded(points, radii, steps=6):
+    """Replace corner i of a polyline with a circular arc of radius radii[i] (other corners stay sharp)."""
+    out = []
+    for i, p in enumerate(points):
+        r = radii.get(i)
+        if not r or i == 0 or i == len(points) - 1:
+            out.append(list(p))
+            continue
+        ax, ay = points[i - 1]
+        bx, by = points[i + 1]
+        px, py = p
+        d1 = math.hypot(ax - px, ay - py)
+        d2 = math.hypot(bx - px, by - py)
+        u1 = ((ax - px) / d1, (ay - py) / d1)
+        u2 = ((bx - px) / d2, (by - py) / d2)
+        cos_t = max(-1.0, min(1.0, u1[0] * u2[0] + u1[1] * u2[1]))
+        half = math.acos(cos_t) / 2
+        if half < 1e-3 or half > math.pi / 2 - 1e-3:
+            out.append(list(p))
+            continue
+        t = min(r / math.tan(half), d1 * 0.45, d2 * 0.45)   # tangent distance from the corner
+        rr = t * math.tan(half)
+        s1 = (px + u1[0] * t, py + u1[1] * t)
+        s2 = (px + u2[0] * t, py + u2[1] * t)
+        bis = (u1[0] + u2[0], u1[1] + u2[1])
+        bl = math.hypot(*bis)
+        cdist = rr / math.sin(half)
+        cx, cy = px + bis[0] / bl * cdist, py + bis[1] / bl * cdist
+        a1 = math.atan2(s1[1] - cy, s1[0] - cx)
+        a2 = math.atan2(s2[1] - cy, s2[0] - cx)
+        da = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+        for k in range(steps + 1):
+            a = a1 + da * k / steps
+            out.append([round(cx + rr * math.cos(a), 2), round(cy + rr * math.sin(a), 2)])
+    return out
+
+
 # (name, width m, points, smooth)
 ROADS = [
     ("Serpentine Drive", 7, [[296, 487], [380, 487], [480, 487], [505, 490], [513, 505], [503, 522], [400, 523], [318, 523], [302, 532], [304, 548], [322, 555], [420, 555], [440, 562], [446, 578], [438, 592], [418, 600], [408, 612], [405, 627]], True),
     ("Gate Approach", 8, [[296, 440], [296, 487]], False),
-    ("Academic Ring", 6, [[405, 627], [405, 812], [555, 812], [555, 740], [563, 732], [563, 694], [555, 686], [555, 627], [405, 627]], False),
+    # Round the academic block, as on the campus model: the west side and the north side up to the
+    # porte-cochere are asphalt (the through route from the serpentine to the spine road); from the
+    # porch round the east and south sides is a cream paved drive with rounded corners.
+    ("Academic West Drive", 6, [[405, 627], [405, 812]], False),
+    ("Porch Drive", 6, [[405, 627], [497, 627]], False),
+    ("Academic Ring", 6, rounded([[497, 627], [555, 627], [555, 686], [563, 694], [563, 732], [555, 740], [555, 812], [405, 812]],
+                                 {1: 14, 2: 5, 3: 5, 4: 5, 5: 5, 6: 14}), False),
     ("Spine Road North", 8, [[405, 812], [405, 988]], False),
     ("Spine Road South", 8, [[421, 1004], [421, 1545]], False),
     ("Central East-West Road", 6, [[294, 990], [350, 990], [406, 995], [500, 985], [600, 972], [690, 962]], True),

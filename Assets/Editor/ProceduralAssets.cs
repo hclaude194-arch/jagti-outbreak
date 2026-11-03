@@ -151,46 +151,85 @@ namespace Jagti.EditorTools
             return tex;
         }
 
-        /// <summary>One concrete road slab: light grey, brushed across, with a centre joint and a cross joint.</summary>
-        public static Texture2D ConcreteRoadTexture()
+        /// <summary>
+        /// Asphalt as on the campus model: mid grey with fine aggregate, slightly darker wheel
+        /// tracks and kerb edges. One tile spans the road's width and the same length along it,
+        /// so with a centre line the white dash is 45% of the road width long.
+        /// </summary>
+        public static Texture2D AsphaltTexture(bool centreLine)
         {
             const int size = 512;
             var pixels = new Color32[size * size];
-            var baseColor = new Color(0.66f, 0.64f, 0.60f);
+            var baseColor = new Color(0.43f, 0.43f, 0.42f);
+            var paint = new Color(0.90f, 0.90f, 0.86f);
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
                     float u = x / (float)size, v = y / (float)size;
-                    float n = Fbm(u, v, 4, 4, 51) - 0.5f;
-                    float brush = Noise(u * 4f, v * 160f, 4, 160, 52) - 0.5f; // fine lines across the road
-                    Color c = baseColor * (1f + n * 0.18f + brush * 0.06f);
-                    bool joint = Mathf.Abs(u - 0.5f) < 0.004f || v < 0.006f || v > 0.994f;
-                    if (joint) c *= 0.55f;
-                    if (u < 0.02f || u > 0.98f) c *= 0.85f; // dirt along the kerb
+                    float n = Fbm(u, v, 4, 4, 54) - 0.5f;
+                    float grit = Noise(u * 256f, v * 256f, 256, 55) - 0.5f;   // aggregate speckle
+                    Color c = baseColor * (1f + n * 0.16f + grit * 0.14f);
+                    // Wheel tracks a little darker and smoother, a quarter of the way in from each side.
+                    float track = Mathf.Min(Mathf.Abs(u - 0.25f), Mathf.Abs(u - 0.75f));
+                    c *= 1f - 0.06f * Mathf.Clamp01(1f - track / 0.08f);
+                    if (u < 0.025f || u > 0.975f) c *= 0.82f;              // grime along the kerb
+                    if (centreLine && Mathf.Abs(u - 0.5f) < 0.012f && v < 0.45f)
+                    {
+                        float worn = Fbm(u * 3f, v, 8, 3, 56);
+                        c = Color.Lerp(paint, c, Mathf.Clamp01((worn - 0.62f) * 4f)); // paint worn through in spots
+                    }
                     c.a = 1f;
                     pixels[y * size + x] = c;
                 }
             }
-            return SaveTexture("Tex_Road_Concrete", size, pixels, false);
+            return SaveTexture(centreLine ? "Tex_Road_Asphalt_Lined" : "Tex_Road_Asphalt", size, pixels, false);
         }
 
-        /// <summary>Kerb stones painted alternately black and white (one pair per tile), worn at the edges.</summary>
-        public static Texture2D KerbTexture()
+        /// <summary>
+        /// Cream stone paving for the academic ring drive, plazas and garden paths (campus model).
+        /// One tile is 3 m square: 5 x 5 slabs of 0.6 m with thin dark joints and slight colour
+        /// variation from slab to slab. Roads using it get UVs in metres / 3.
+        /// </summary>
+        public static Texture2D PavingTexture()
         {
-            const int size = 256;
+            const int size = 512, slabs = 5;
             var pixels = new Color32[size * size];
+            var cream = new Color(0.84f, 0.78f, 0.69f);
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
                     float u = x / (float)size, v = y / (float)size;
-                    bool white = u >= 0.5f;
-                    float wear = Fbm(u, v, 8, 3, 53);
-                    Color paint = white ? new Color(0.88f, 0.87f, 0.83f) : new Color(0.12f, 0.12f, 0.12f);
-                    Color stone = new Color(0.62f, 0.60f, 0.56f);
-                    Color c = wear > 0.68f ? stone : paint;          // paint chipped off in patches
-                    if (Mathf.Abs(u - 0.5f) < 0.01f || u < 0.01f || u > 0.99f) c = stone * 0.6f; // joints
+                    int sx = (int)(u * slabs), sy = (int)(v * slabs);
+                    float slab = 0.94f + 0.10f * Noise(sx * 3.1f + 0.5f, sy * 5.3f + 0.5f, 64, 57);
+                    float n = Fbm(u, v, 6, 3, 58) - 0.5f;
+                    float grit = Noise(u * 256f, v * 256f, 256, 59) - 0.5f;
+                    Color c = cream * slab * (1f + n * 0.10f + grit * 0.06f);
+                    float fu = u * slabs - sx, fv = v * slabs - sy;
+                    if (fu < 0.02f || fu > 0.98f || fv < 0.02f || fv > 0.98f) c *= 0.62f; // joints
+                    c.a = 1f;
+                    pixels[y * size + x] = c;
+                }
+            }
+            return SaveTexture("Tex_Paving_Cream", size, pixels, false);
+        }
+
+        /// <summary>Light precast kerb stones as on the campus model: pale grey-cream, a joint every 1.2 m, worn at the edges.</summary>
+        public static Texture2D KerbTexture()
+        {
+            const int size = 256;
+            var pixels = new Color32[size * size];
+            var stone = new Color(0.82f, 0.80f, 0.75f);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size, v = y / (float)size;
+                    float wear = Fbm(u, v, 8, 3, 53) - 0.5f;
+                    float grit = Noise(u * 128f, v * 128f, 128, 60) - 0.5f;
+                    Color c = stone * (1f + wear * 0.18f + grit * 0.08f);
+                    if (u < 0.012f || u > 0.988f) c *= 0.55f; // joint between stones
                     c.a = 1f;
                     pixels[y * size + x] = c;
                 }

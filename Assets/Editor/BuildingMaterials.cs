@@ -12,7 +12,7 @@ namespace Jagti.EditorTools
     /// </summary>
     public static class BuildingMaterials
     {
-        static readonly Color Plaster = new Color(0.86f, 0.80f, 0.68f);
+        static readonly Color Plaster = new Color(0.90f, 0.84f, 0.76f); // pinkish cream, as on the campus model
         static readonly Color PlasterHostel = new Color(0.91f, 0.88f, 0.81f); // off-white, from the owner's photos
         static readonly Color Terracotta = new Color(0.62f, 0.33f, 0.23f);
         static readonly Color Trim = new Color(0.90f, 0.89f, 0.86f);
@@ -33,7 +33,7 @@ namespace Jagti.EditorTools
                 ["Plaster"] = ProceduralAssets.LitMaterial("Bld_Plaster", Color.white, PlainWall("Tex_Plaster", Plaster, 0.06f, 21), 0.08f),
                 ["Concrete"] = ProceduralAssets.LitMaterial("Bld_Concrete", Color.white, PlainWall("Tex_Concrete", Trim, 0.05f, 22), 0.12f),
                 ["Glass"] = ProceduralAssets.LitMaterial("Bld_Glass", Color.white, CurtainGlass(), 0.8f),
-                ["Roof"] = ProceduralAssets.LitMaterial("Bld_Roof", Color.white, PlainWall("Tex_Roof", new Color(0.40f, 0.39f, 0.37f), 0.12f, 23), 0.05f),
+                ["Roof"] = ProceduralAssets.LitMaterial("Bld_Roof", Color.white, PlainWall("Tex_Roof", new Color(0.80f, 0.76f, 0.70f), 0.10f, 23), 0.05f),
                 ["Metal"] = ProceduralAssets.LitMaterial("Bld_Metal", Color.white, Metal(), 0.4f),
                 ["ClockFace"] = ProceduralAssets.LitMaterial("Bld_ClockFace", Color.white, ClockFace(), 0.3f),
                 ["Emblem"] = ProceduralAssets.LitMaterial("Bld_Emblem", Color.white, Emblem(), 0.35f),
@@ -235,7 +235,7 @@ namespace Jagti.EditorTools
         static Texture2D Stone()
         {
             var c = new Canvas();
-            var sand = new Color(0.80f, 0.72f, 0.58f);
+            var sand = new Color(0.87f, 0.80f, 0.71f);
             c.Fill(sand, 0.05f, 61);
             const int courses = 5, across = 3;
             float bh = 1f / courses, bw = 1f / across, gap = 0.006f;
@@ -267,11 +267,12 @@ namespace Jagti.EditorTools
             return row * bh;
         }
 
-        // Pool water: deep teal with soft ripples; high smoothness makes it reflect the sky.
+        // Pool water: clear turquoise as on the campus model, with soft ripples and paler shallows;
+        // high smoothness makes it reflect the sky.
         static Texture2D Water()
         {
             var c = new Canvas();
-            var deep = new Color(0.10f, 0.30f, 0.34f);
+            var deep = new Color(0.16f, 0.52f, 0.56f);
             for (int y = 0; y < Size; y++)
                 for (int x = 0; x < Size; x++)
                 {
