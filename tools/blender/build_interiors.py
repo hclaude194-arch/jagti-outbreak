@@ -437,7 +437,154 @@ def plan():
          BUILDINGS["East Drum"]["z"] + BUILDINGS["East Drum"]["depth"] / 2 - WO, front="E", floor="Floor_Tile")
 
 
-plan()
+
+# ------------------------------------------------------------------ floors above the ground
+WING_LEVELS = 4          # levels 0-3 in the wings
+PAV_LEVEL = 4            # the corner pavilions have a glazed fifth storey, level 4
+
+
+def level_floor(k):
+    return FL + k * FLOOR
+
+
+def level_ceil(k):
+    return CEIL + k * FLOOR
+
+
+# A dog-leg stair in the outer corner of each corner pavilion, from the ground to level 4,
+# with a lift beside it. Pavilion walls are solid stone below level 3, which suits a stair core.
+# Stair frame: u runs from the floor landing towards the pavilion's outer north/south wall,
+# v from its outer east/west wall into the building. Two 1.4 m flights with a 0.2 m spine
+# wall between them; 20 risers of 0.17 m per storey.
+ST_W, ST_L = 3.0, 5.8
+ST_LAND = 1.5
+TREAD, RISERS = 0.28, 10
+ST_MID = ST_LAND + (RISERS - 1) * TREAD     # where the mid landing starts (4.02)
+
+
+def pavilion_square(sx, sz):
+    X0 = sx - PO if sx == OX0 else sx - P + PO
+    Z0 = sz - PO if sz == OZ0 else sz - P + PO
+    return X0, X0 + P, Z0, Z0 + P
+
+
+class Stair:
+    def __init__(self, sx, sz, tag):
+        self.tag = tag
+        xw = sx - PO + WO if sx == OX0 else sx + PO - WO
+        zw = sz + PO - WO if sz == OZ1 else sz - PO + WO
+        self.uz = 1.0 if sz == OZ1 else -1.0
+        self.vx = 1.0 if sx == OX0 else -1.0
+        self.o = (xw, zw - self.uz * ST_L)
+
+    def P(self, u, v):
+        return (self.o[0] + self.vx * v, self.o[1] + self.uz * u)
+
+    def rect(self, u0, u1, v0, v1):
+        (xa, za), (xb, zb) = self.P(u0, v0), self.P(u1, v1)
+        return (min(xa, xb), max(xa, xb), min(za, zb), max(za, zb))
+
+    def hole(self):
+        return self.rect(ST_LAND, ST_L, 0.0, ST_W)
+
+    def keep_out(self):
+        """Where furniture may not stand: the stair, its landing and the lift lobby."""
+        return [self.rect(-1.4, ST_L + 0.1, -0.1, ST_W + 0.5), self.rect(ST_L - 2.2, ST_L + 0.1, ST_W, ST_W + 3.0)]
+
+
+STAIRS = [Stair(OX0, OZ1, "NW"), Stair(OX1, OZ1, "NE"), Stair(OX0, OZ0, "SW"), Stair(OX1, OZ0, "SE")]
+
+
+def upper_room(r, k):
+    """What a ground-floor room becomes on level k (1-3): (name, kind, floor material)."""
+    n, kind = r["name"], r["kind"]
+
+    def pick(*opts):
+        return opts[k - 1]
+
+    if n.startswith("Student Lounge"):
+        return ("Stair Hall " + n.split()[-1], "lounge", "Floor_Wood")
+    if n in ("Case Room N1", "Case Room N2"):
+        tag = n[-2:]
+        return pick((n, "case", "Carpet"), ("Classroom " + tag, "classroom", "Floor_Tile"),
+                    ("Seminar Room " + tag, "seminar", "Carpet"))
+    table = {
+        "Entrance Lobby": (("Faculty Lounge", "lounge", "Carpet"), ("Board Room", "meeting", "Carpet"),
+                           ("Director's Office", "admin", "Carpet")),
+        "Computer Lab N": (("Computer Lab N", "complab", "Floor_Tile"), ("Research Room N", "research", "Floor_Tile"),
+                           ("Placement Office", "admin", "Floor_Tile")),
+        "Reading Room": (("Library Reading Hall", "reading", "Floor_Wood"), ("Study Room", "reading", "Floor_Wood"),
+                         ("Classroom M1", "classroom", "Floor_Tile")),
+        "Cafeteria": (("Library Stacks", "stacks", "Floor_Wood"), ("Seminar Hall", "seminar", "Carpet"),
+                      ("Classroom M2", "classroom", "Floor_Tile")),
+        "Computer Lab S": (("Finance Lab", "complab", "Floor_Tile"), ("Computer Lab S", "complab", "Floor_Tile"),
+                           ("Classroom M3", "classroom", "Floor_Tile")),
+        "Student Activity Room": (("Club Room", "activity", "Floor_Wood"), ("Alumni Office", "admin", "Floor_Tile"),
+                                  ("Music Room", "activity", "Floor_Wood")),
+        "Gallery": (("Auditorium Foyer", "gallery", "Floor_Tile"), ("Exhibition Hall", "gallery", "Floor_Tile"),
+                    ("Archive", "stacks", "Floor_Tile")),
+        "Admin Office": (("Programme Office", "admin", "Floor_Tile"), ("Accounts Office", "admin", "Floor_Tile"),
+                         ("Dean's Office", "admin", "Carpet")),
+        "Server Room": (("Store Room", "store", "Floor_Tile"), ("Server Room 2", "server", "Floor_Tile"),
+                        ("Store Room", "store", "Floor_Tile")),
+    }
+    if n in table:
+        return pick(*table[n])
+    return (n, kind, r["floor"])
+
+
+ORDINAL = {1: "First Floor", 2: "Second Floor", 3: "Third Floor", 4: "Top Floor"}
+LOBBY_ABOVE = {   # (room off the corridor, room by the north windows) over the entrance lobby
+    1: (("Faculty Lounge", "lounge", "Carpet"), ("Faculty Dining", "cafe", "Floor_Tile")),
+    2: (("Executive Lounge", "lounge", "Carpet"), ("Board Room", "board", "Carpet")),
+    3: (("Director's Secretariat", "admin", "Floor_Tile"), ("Director's Office", "director", "Carpet")),
+}
+
+
+def make_level(k):
+    """Room plan of level k. The wings stack the same partitions on every floor, so each level
+    starts from the ground plan and renames the rooms."""
+    global ROOMS, WALLS, CORRIDORS
+    ROOMS, WALLS, CORRIDORS = [], [], []
+    if k == PAV_LEVEL:
+        for st, (sx, sz) in zip(STAIRS, ((OX0, OZ1), (OX1, OZ1), (OX0, OZ0), (OX1, OZ0))):
+            X0, X1, Z0, Z1 = pavilion_square(sx, sz)
+            room("Pavilion Lounge " + st.tag, "lounge", X0 + WO, X1 - WO, Z0 + WO, Z1 - WO,
+                 front="N" if sz == OZ0 else "S", floor="Floor_Wood")
+        for r in ROOMS:
+            r["name"] += " (%s)" % ORDINAL[k]
+        return dict(rooms=ROOMS, walls=WALLS, corridors=CORRIDORS)
+    plan()
+    if k > 0:
+        ROOMS[:] = [r for r in ROOMS if r["kind"] != "foyer"]
+        for r in list(ROOMS):
+            if r["kind"] == "lobby":
+                # Over the lobby: a room off the corridor, and a larger one through it by the windows.
+                X0, X1, Z0, Z1 = r["rect"]
+                zm = (Z0 + Z1) / 2
+                WALLS.append(((X0, Z0), (X1, Z0), [((X1 - X0) / 2, 1.6)]))
+                WALLS.append(((X0, zm), (X1, zm), [((X1 - X0) / 2 - 3.0, 1.0), ((X1 - X0) / 2 + 3.0, 1.0)]))
+                (n0, k0, f0_), (n1, k1, f1_) = LOBBY_ABOVE[k]
+                r["rect"], r["name"], r["kind"], r["floor"] = (X0, X1, Z0, zm), n0, k0, f0_
+                room(n1, k1, X0, X1, zm, Z1, front="S", floor=f1_)
+                ROOMS[-1]["name"] = "%s (%s)" % (n1, ORDINAL[k])
+                r["name"] = "%s (%s)" % (n0, ORDINAL[k])
+                continue
+            name, kind, floor = upper_room(r, k)
+            r["name"], r["kind"], r["floor"] = "%s (%s)" % (name, ORDINAL[k]), kind, floor
+    return dict(rooms=ROOMS, walls=WALLS, corridors=CORRIDORS)
+
+
+LEVEL_PLANS = [make_level(k) for k in range(PAV_LEVEL + 1)]
+
+
+def use_level(k):
+    """Points the module's ROOMS / WALLS / CORRIDORS at level k's plan."""
+    global ROOMS, WALLS, CORRIDORS
+    ROOMS, WALLS, CORRIDORS = LEVEL_PLANS[k]["rooms"], LEVEL_PLANS[k]["walls"], LEVEL_PLANS[k]["corridors"]
+
+
+use_level(0)
 
 
 # ------------------------------------------------------------------ the shell
@@ -468,25 +615,32 @@ def block1_outline():
 
 def wall_with_windows(m, A, B_, normal, openings, depth, thick, z0, z1, s_lo=None, s_hi=None):
     """Inside face of an outer wall: holes where the facade has windows or doors, reveals back to
-    the glass, a sill board, and a clear pane so the glass reads from inside."""
+    the glass, a sill board, and a clear pane so the glass reads from inside. Openings are
+    clipped to the storey (z0..z1), so a ribbon window that starts below the floor still works."""
     ln = Line(m, A, B_, normal)
     s_lo = 0.0 if s_lo is None else s_lo
     s_hi = ln.L if s_hi is None else s_hi
-    holes = [(max(s_lo, o[0]), min(s_hi, o[1]), o[2], min(z1, o[3])) for o in openings if o[1] > s_lo and o[0] < s_hi]
-    ln.wall(s_lo, s_hi, z0, z1, 0.0, "Wall_Paint", holes)
+    used = []
+    for o in openings:
+        h = (max(s_lo, o[0]), min(s_hi, o[1]), max(z0, o[2]), min(z1, o[3]))
+        if h[1] - h[0] > 1e-3 and h[3] - h[2] > 1e-3:
+            used.append((o, h))
+    ln.wall(s_lo, s_hi, z0, z1, 0.0, "Wall_Paint", [h for _, h in used])
     back = -(thick - depth)      # the glass sits this far behind the inside face
-    for o, (s0, s1, h0, h1) in zip([o for o in openings if o[1] > s_lo and o[0] < s_hi], holes):
+    for o, (s0, s1, h0, h1) in used:
         if len(o) > 4 and o[4]:
             continue  # doorways: the facade's own reveals reach the inside face
         ln.side(s0, h0, h1, back, 0.0, "Wall_Paint", 1)
         ln.side(s1, h0, h1, back, 0.0, "Wall_Paint", -1)
-        ln.hband(s0, s1, h1, back, 0.0, "Wall_Paint", up=False)
-        # Sill board, standing a little proud of the wall.
-        ln.hband(s0 - 0.05, s1 + 0.05, h0, back, 0.06, "Laminate", up=True)
-        ln.rect(s0 - 0.05, s1 + 0.05, h0 - 0.04, h0, 0.06, "Laminate")
-        ln.hband(s0 - 0.05, s1 + 0.05, h0 - 0.04, 0.0, 0.06, "Laminate", up=False)
-        ln.side(s0 - 0.05, h0 - 0.04, h0, 0.0, 0.06, "Laminate", -1)
-        ln.side(s1 + 0.05, h0 - 0.04, h0, 0.0, 0.06, "Laminate", 1)
+        if h1 < z1 - 1e-3:
+            ln.hband(s0, s1, h1, back, 0.0, "Wall_Paint", up=False)
+        if h0 > z0 + 0.05:
+            # Sill board, standing a little proud of the wall.
+            ln.hband(s0 - 0.05, s1 + 0.05, h0, back, 0.06, "Laminate", up=True)
+            ln.rect(s0 - 0.05, s1 + 0.05, h0 - 0.04, h0, 0.06, "Laminate")
+            ln.hband(s0 - 0.05, s1 + 0.05, h0 - 0.04, 0.0, 0.06, "Laminate", up=False)
+            ln.side(s0 - 0.05, h0 - 0.04, h0, 0.0, 0.06, "Laminate", -1)
+            ln.side(s1 + 0.05, h0 - 0.04, h0, 0.0, 0.06, "Laminate", 1)
         ln.rect(s0, s1, h0, h1, back + 0.01, "Glass_Clear")
     return ln
 
@@ -495,41 +649,121 @@ def opening_shift(A, B_, A2, t):
     return (A2[0] - A[0]) * t[0] + (A2[1] - A[1]) * t[1]
 
 
-def academic_interior():
-    m = Model("Academic_Block_Interior", NW["x"], NW["z"])
+def hrect_cut(m, X0, X1, Z0, Z1, z, mat, holes, up=True):
+    """hrect with rectangular holes (world X0, X1, Z0, Z1) cut out of it."""
+    hs = [h for h in holes if h[0] < X1 and h[1] > X0 and h[2] < Z1 and h[3] > Z0]
+    if not hs:
+        hrect(m, X0, X1, Z0, Z1, z, mat, up)
+        return
+    xs, zs = {X0, X1}, {Z0, Z1}
+    for h in hs:
+        xs.update(v for v in (h[0], h[1]) if X0 < v < X1)
+        zs.update(v for v in (h[2], h[3]) if Z0 < v < Z1)
+    xs, zs = sorted(xs), sorted(zs)
+    for a, b_ in zip(xs, xs[1:]):
+        for c, d in zip(zs, zs[1:]):
+            mx, mz = (a + b_) / 2, (c + d) / 2
+            if not any(h[0] <= mx <= h[1] and h[2] <= mz <= h[3] for h in hs):
+                hrect(m, a, b_, c, d, z, mat, up)
 
-    # Base floor and ceiling over the whole ground floor: the four wings, the pavilions' proud
-    # strips, then the porch's glass bay and block 1 (double height).
-    strips = [(OX0, OX1, IZ1, OZ1), (OX0, OX1, OZ0, IZ0), (OX0, IX0, IZ0, IZ1), (IX1, OX1, IZ0, IZ1)]
-    for sx0, sx1, sz0, sz1 in ((OX0 - PO, OX0, F1, OZ1 + PO), (OX0, E0, OZ1, OZ1 + PO), (E1, OX1, OZ1, OZ1 + PO),
-                               (OX1, OX1 + PO, F1, OZ1 + PO), (OX0 - PO, OX0, OZ0 - PO, F0), (OX0, E0, OZ0 - PO, OZ0),
-                               (E1, OX1, OZ0 - PO, OZ0), (OX1, OX1 + PO, OZ0 - PO, F0)):
-        strips.append((sx0, sx1, sz0, sz1))
-    for X0, X1, Z0, Z1 in strips:
-        hrect(m, X0, X1, Z0, Z1, FL, "Floor_Tile")
-        hrect(m, X0, X1, Z0, Z1, CEIL, "Ceiling", up=False)
 
-    # Outer walls: the outline inset by the wall thickness, with the facade's openings.
+# Doorways from the west wing into the auditorium hall: at ground level into the side
+# aisles, on the first floor onto the balcony at the top of the raked seating.
+HALL_DOORS = {0: (260.0, 303.0), 1: (275.5, 287.5)}
+HALL_DOOR_W, HALL_DOOR_H = 1.8, 2.4
+
+
+def hall_doors(A, B_, k):
+    sgn = 1 if B_[1] > A[1] else -1
+    out = []
+    for Z in HALL_DOORS.get(k, ()):
+        s = (Z - A[1]) * sgn
+        out.append((s - HALL_DOOR_W / 2, s + HALL_DOOR_W / 2, level_floor(k), level_floor(k) + HALL_DOOR_H, True))
+    return out
+
+
+def level_openings(A, B_, kind, k):
+    """Openings (s0, s1, z0, z1, is_door) of a perimeter run on level k, as academic_facade draws
+    them: two slender windows per bay on the outer walls, one wider one on the courtyard, the
+    blue glass ribbon on the top floor outside; nothing where the hall covers the west wall."""
+    L = math.dist(A, B_)
+    bays, bw = B.facade_bays(L)
+    skip = B.hall_bays(A, B_) if kind == "outer" else []
+    zf = k * FLOOR
+    out = []
+    if k == 0:
+        for o in run_openings(A, B_, kind):
+            if not any(i * bw <= (o[0] + o[1]) / 2 <= (i + 1) * bw for i in skip):
+                out.append(o)
+    elif kind == "outer" and k == WING_LEVELS - 1:
+        for c0, c1 in B.open_spans(bays, bw, skip):
+            out.append((c0, c1, zf + 0.5, zf + FLOOR - 0.35, False))
+    else:
+        for i in range(bays):
+            if i in skip:
+                continue
+            s0, s1 = i * bw, (i + 1) * bw
+            if kind == "outer":
+                mid = (s0 + s1) / 2
+                out.append((s0 + 0.42, mid - 0.14, zf + 0.75, zf + FLOOR - 0.4, False))
+                out.append((mid + 0.14, s1 - 0.42, zf + 0.75, zf + FLOOR - 0.4, False))
+            else:
+                out.append((s0 + 0.8, s1 - 0.8, zf + 0.9, zf + FLOOR - 0.4, False))
+    if skip:
+        out += hall_doors(A, B_, k)
+    return out
+
+
+def pavilion_openings(L, k):
+    """The pavilions' row of square windows on level 3 (fluted_facade)."""
+    if k != 3:
+        return []
+    bays = max(1, round(L / 3.0))
+    bw = L / bays
+    zt = 3 * FLOOR
+    return [(i * bw + 0.7, (i + 1) * bw - 0.7, zt + 0.9, zt + FLOOR - 0.6, False) for i in range(bays)]
+
+
+# The ground floor's plan strips: the four wings, plus the pavilions' proud strips.
+WING_STRIPS = [(OX0, OX1, IZ1, OZ1), (OX0, OX1, OZ0, IZ0), (OX0, IX0, IZ0, IZ1), (IX1, OX1, IZ0, IZ1),
+               (OX0 - PO, OX0, F1, OZ1 + PO), (OX0, E0, OZ1, OZ1 + PO), (E1, OX1, OZ1, OZ1 + PO),
+               (OX1, OX1 + PO, F1, OZ1 + PO), (OX0 - PO, OX0, OZ0 - PO, F0), (OX0, E0, OZ0 - PO, OZ0),
+               (E1, OX1, OZ0 - PO, OZ0), (OX1, OX1 + PO, OZ0 - PO, F0)]
+
+
+def outer_walls(m, k):
+    f0, c0 = level_floor(k), level_ceil(k)
     poly = outer_outline()
     inner = inset_polygon(poly, WO)
     n = len(poly)
-    area = sum(poly[k][0] * poly[(k + 1) % n][1] - poly[(k + 1) % n][0] * poly[k][1] for k in range(n))
-    for k in range(n):
-        A, B_ = poly[k], poly[(k + 1) % n]
-        A2, B2 = inner[k], inner[(k + 1) % n]
+    area = sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n))
+    for i in range(n):
+        A, B_ = poly[i], poly[(i + 1) % n]
+        A2, B2 = inner[i], inner[(i + 1) % n]
         L2 = math.dist(A2, B2)
         if L2 < 1e-3:
             continue
         t = ((B2[0] - A2[0]) / L2, (B2[1] - A2[1]) / L2)
         inward = (-t[1], t[0]) if area > 0 else (t[1], -t[0])
-        openings = []
+        shift = opening_shift(A, B_, A2, t)
+        depth = 0.35
+        ops = None
         for (RA, RB) in OUTER_RUNS:
             if math.dist(RA, A) < 1e-6 and math.dist(RB, B_) < 1e-6:
                 shift = opening_shift(RA, RB, A2, t)
-                openings = [(o[0] - shift, o[1] - shift, o[2], o[3], o[4]) for o in run_openings(RA, RB, "outer")]
-        wall_with_windows(m, A2, B2, inward, openings, 0.35, WO, FL, CEIL)
+                ops = level_openings(RA, RB, "outer", k)
+                if k == WING_LEVELS - 1:
+                    depth = 0.44   # the ribbon glass is set back the full wall depth
+        if ops is None:
+            ops = pavilion_openings(math.dist(A, B_), k) if abs(math.dist(A, B_) - P) < 0.01 else []
+            if ops:
+                depth = 0.3
+        ops = [(o[0] - shift, o[1] - shift, o[2], o[3], o[4]) for o in ops]
+        wall_with_windows(m, A2, B2, inward, ops, depth, WO, f0, c0)
 
-    # Courtyard walls: the courtyard outline pushed outwards by the wall thickness.
+
+def court_walls(m, k):
+    f0, c0 = level_floor(k), level_ceil(k)
     for (A, B_) in COURT_RUNS:
         L = math.dist(A, B_)
         t = ((B_[0] - A[0]) / L, (B_[1] - A[1]) / L)
@@ -540,10 +774,70 @@ def academic_interior():
             nrm = (-nrm[0], -nrm[1])     # away from the courtyard: into the building
         A2 = (A[0] + nrm[0] * WC - t[0] * WC, A[1] + nrm[1] * WC - t[1] * WC)
         B2 = (B_[0] + nrm[0] * WC + t[0] * WC, B_[1] + nrm[1] * WC + t[1] * WC)
-        openings = [(o[0] + WC, o[1] + WC, o[2], o[3], o[4]) for o in run_openings(A, B_, "court")]
-        wall_with_windows(m, A2, B2, nrm, openings, 0.22, WC, FL, CEIL)
+        openings = [(o[0] + WC, o[1] + WC, o[2], o[3], o[4]) for o in level_openings(A, B_, "court", k)]
+        wall_with_windows(m, A2, B2, nrm, openings, 0.22, WC, f0, c0)
 
-    # The glass bay under the porch: a double-height vestibule.
+
+def wing_level(m, k):
+    """One storey of the four wings: floor and ceiling (open over the stairs), the outer and
+    courtyard walls with that storey's windows, partitions, tiered case rooms, floor finishes."""
+    use_level(k)
+    f0, c0 = level_floor(k), level_ceil(k)
+    holes = [st.hole() for st in STAIRS]
+    for X0, X1, Z0, Z1 in WING_STRIPS:
+        hrect_cut(m, X0, X1, Z0, Z1, f0, "Floor_Tile", holes if k > 0 else [])
+        hrect_cut(m, X0, X1, Z0, Z1, c0, "Ceiling", holes, up=False)
+    outer_walls(m, k)
+    court_walls(m, k)
+    for A, B_, doors in WALLS:
+        partition(m, A, B_, f0, c0, doors)
+    for r in ROOMS:
+        if r["kind"] == "case":
+            r["tiers"] = case_tiers(m, r, f0)
+    # Floor finishes inside rooms, a centimetre above the base floor.
+    for r in ROOMS:
+        if r["floor"] and r["floor"] != "Floor_Tile":
+            X0, X1, Z0, Z1 = r["rect"]
+            hrect_cut(m, X0 + PART / 2, X1 - PART / 2, Z0 + PART / 2, Z1 - PART / 2, f0 + 0.01, r["floor"],
+                      holes if k > 0 else [])
+    if k == 0:
+        # The lobby: four stone-clad columns and a round planter in the middle.
+        for r in ROOMS:
+            if r["kind"] == "lobby":
+                X0, X1, Z0, Z1 = r["rect"]
+                for fx in (1 / 3, 2 / 3):
+                    for fz in (1 / 3, 2 / 3):
+                        cx, cz = X0 + (X1 - X0) * fx, Z0 + (Z1 - Z0) * fz
+                        m.box(cx - 0.35, cx + 0.35, cz - 0.35, cz + 0.35, FL, CEIL, "Stone", None)
+                        m.box(cx - 0.45, cx + 0.45, cz - 0.45, cz + 0.45, FL, FL + 0.12, "Wood", "Wood")
+                cx, cz = (X0 + X1) / 2, (Z0 + Z1) / 2 - 1.0
+                m.cylinder_local(*m.b(cx, cz), 1.9, FL, FL + 0.45, "Stone", "Stone", segments=24)
+                m.cylinder_local(*m.b(cx, cz), 1.7, FL + 0.45, FL + 0.5, "Planter", "Planter", segments=24)
+                r["planter"] = (cx, cz)
+
+
+def pavilion_tops(m):
+    """Level 4: the glazed top storey of each corner pavilion, above the wing roofs."""
+    use_level(PAV_LEVEL)
+    f0, c0 = level_floor(PAV_LEVEL), level_ceil(PAV_LEVEL)
+    zg = 4 * FLOOR
+    for st, (sx, sz) in zip(STAIRS, ((OX0, OZ1), (OX1, OZ1), (OX0, OZ0), (OX1, OZ0))):
+        X0, X1, Z0, Z1 = pavilion_square(sx, sz)
+        hrect_cut(m, X0, X1, Z0, Z1, f0, "Floor_Wood", [st.hole()])
+        hrect(m, X0, X1, Z0, Z1, c0, "Ceiling", up=False)
+        sq = [(X0, Z0), (X1, Z0), (X1, Z1), (X0, Z1)]
+        inner = inset_polygon(sq, WO)
+        area = sum(sq[i][0] * sq[(i + 1) % 4][1] - sq[(i + 1) % 4][0] * sq[i][1] for i in range(4))
+        for i in range(4):
+            A2, B2 = inner[i], inner[(i + 1) % 4]
+            L2 = math.dist(A2, B2)
+            t = ((B2[0] - A2[0]) / L2, (B2[1] - A2[1]) / L2)
+            inward = (-t[1], t[0]) if area > 0 else (t[1], -t[0])
+            wall_with_windows(m, A2, B2, inward, [(0.2, L2 - 0.2, zg + 0.3, 5 * FLOOR - 0.2, False)], 0.3, WO, f0, c0)
+
+
+def ground_extras(m):
+    """The double-height vestibule in the porch's glass bay, and block 1's foyer."""
     bc = m.b(EX, OZ1)
     pts = arc_points(bc[0], bc[1], 9.0, 0.0, -math.pi, 14)
     m.face([(p[0], p[1], FL) for p in pts], "Floor_Tile", (0, 0, 1))
@@ -559,19 +853,15 @@ def academic_interior():
             r.rect(0, r.L, FL, 0.9, -0.3, "Stone", facing=-1)
             r.hband(0, r.L, 0.9, -0.3, 0.0, "Stone", up=True)
         r.rect(0, r.L, B.DOOR_TOP if door else 0.9, HIGH_CEIL, -0.07, "Glass_Clear", facing=-1)
-        # The wing's facade wall behind the bay is open between the bay's ends.
     # Fill the gap between the bay floor and the wing floor (the facade wall's thickness).
     hrect(m, EX - 9.0, EX + 9.0, OZ1 - 0.01, OZ1 + 0.01, FL, "Floor_Tile")
 
-    # Block 1 foyer.
     outline, (bz0, bz1) = block1_outline()
     hpoly(m, outline, FL, "Floor_Tile")
     hpoly(m, outline, HIGH_CEIL, "Ceiling", up=False)
     binner = inset_polygon(outline, WO)
     nb = len(outline)
     barea = sum(outline[k][0] * outline[(k + 1) % nb][1] - outline[(k + 1) % nb][0] * outline[k][1] for k in range(nb))
-    # Matching openings: the curved panes' windows and doors, the side walls' bays (2 floors).
-    ed = BUILDINGS["East Drum"]
     for k in range(nb):
         A, B_ = outline[k], outline[(k + 1) % nb]
         if abs(A[0] - OX1) < 1e-6 and abs(B_[0] - OX1) < 1e-6:
@@ -582,7 +872,6 @@ def academic_interior():
         inward = (-t[1], t[0]) if barea > 0 else (t[1], -t[0])
         L = math.dist(A, B_)
         if L < 6.0:
-            # Curved pane: tall window, or a door with glass above. Same rule as build_buildings.
             dk = curved_door_side(outline, k)
             if dk:
                 os0, os1 = (0.35, L) if dk == 1 else (0.0, L - 0.35)
@@ -593,8 +882,6 @@ def academic_interior():
             ops = [(o[0] - shift, o[1] - shift, o[2], o[3], o[4]) for o in ops]
             wall_with_windows(m, A2, B2, inward, ops, 0.35, WO, FL, HIGH_CEIL)
         else:
-            # Side wall: academic facade bays (ground and first floor windows). The facade run
-            # starts inside the wing, at X = OX1 - 0.5, and its bays are symmetric.
             Lr = abs(A[0] - B_[0]) + 0.5
             base = B.facade_openings(Lr, "outer")
             ops_r = base + [(o[0], o[1], o[2] + FLOOR - 0.2, o[3] + FLOOR, False) for o in base]
@@ -607,33 +894,282 @@ def academic_interior():
             s_lo, s_hi = (s_x, L2) if t[0] > 0 else (0.0, s_x)
             wall_with_windows(m, A2, B2, inward, ops, 0.35, WO, FL, HIGH_CEIL, s_lo=s_lo, s_hi=s_hi)
 
-    # Partitions with doorways.
-    for A, B_, doors in WALLS:
-        partition(m, A, B_, FL, CEIL, doors)
 
-    # Tiered floors in the case rooms.
-    for r in ROOMS:
-        if r["kind"] == "case":
-            r["tiers"] = case_tiers(m, r)
+# ------------------------------------------------------------------ stairs
+def st_box(m, st, u0, u1, v0, v1, z0, z1, side="Stone", top="Floor_Tile", bottom=False):
+    X0, X1, Z0, Z1 = st.rect(u0, u1, v0, v1)
+    m.box(X0, X1, Z0, Z1, z0, z1, side, top, bottom=bottom)
 
-    # Floor finishes inside rooms, a centimetre above the base floor.
-    for r in ROOMS:
-        if r["floor"] and r["floor"] != "Floor_Tile":
-            X0, X1, Z0, Z1 = r["rect"]
-            hrect(m, X0 + PART / 2, X1 - PART / 2, Z0 + PART / 2, Z1 - PART / 2, FL + 0.01, r["floor"])
-    # The lobby: four stone-clad columns and a round planter in the middle.
-    for r in ROOMS:
-        if r["kind"] == "lobby":
-            X0, X1, Z0, Z1 = r["rect"]
-            for fx in (1 / 3, 2 / 3):
-                for fz in (1 / 3, 2 / 3):
-                    cx, cz = X0 + (X1 - X0) * fx, Z0 + (Z1 - Z0) * fz
-                    m.box(cx - 0.35, cx + 0.35, cz - 0.35, cz + 0.35, FL, CEIL, "Stone", None)
-                    m.box(cx - 0.45, cx + 0.45, cz - 0.45, cz + 0.45, FL, FL + 0.12, "Wood", "Wood")
-            cx, cz = (X0 + X1) / 2, (Z0 + Z1) / 2 - 1.0
-            m.cylinder_local(*m.b(cx, cz), 1.9, FL, FL + 0.45, "Stone", "Stone", segments=24)
-            m.cylinder_local(*m.b(cx, cz), 1.7, FL + 0.45, FL + 0.5, "Planter", "Planter", segments=24)
-            r["planter"] = (cx, cz)
+
+def st_face(m, st, corners, mat, hint_uv):
+    """A face given as (u, v, height) corners; hint_uv = (du, dv, dz) in the stair frame."""
+    pts = [(*m.b(*st.P(u, v)), h) for u, v, h in corners]
+    du, dv, dz = hint_uv
+    wx, wz = st.vx * dv, st.uz * du
+    m.face(pts, mat, (-wx, -wz, dz))
+
+
+def rail(m, st, u0, h0, u1, h1, v, w=0.05, mat="Steel"):
+    """A sloping handrail bar from (u0, h0) to (u1, h1) along the wall at v."""
+    a0, a1, hw = v - w / 2, v + w / 2, w / 2
+    st_face(m, st, [(u0, a0, h0 + hw), (u1, a0, h1 + hw), (u1, a1, h1 + hw), (u0, a1, h0 + hw)], mat, (0, 0, 1))
+    st_face(m, st, [(u0, a0, h0 - hw), (u1, a0, h1 - hw), (u1, a1, h1 - hw), (u0, a1, h0 - hw)], mat, (0, 0, -1))
+    st_face(m, st, [(u0, a0, h0 - hw), (u1, a0, h1 - hw), (u1, a0, h1 + hw), (u0, a0, h0 + hw)], mat, (0, -1, 0))
+    st_face(m, st, [(u0, a1, h0 - hw), (u1, a1, h1 - hw), (u1, a1, h1 + hw), (u0, a1, h0 + hw)], mat, (0, 1, 0))
+
+
+def st_wall(m, st, u0, u1, v0, v1, z0, z1):
+    X0, X1, Z0, Z1 = st.rect(u0, u1, v0, v1)
+    m.box(X0, X1, Z0, Z1, z0, z1, "Wall_Paint", "Wall_Paint")
+
+
+def stair_geometry(m):
+    """Flights, landings, walls and handrails of the four pavilion stairs. On the ground floor
+    the flights are solid; above it each tread is a 0.3 m slab, which leaves headroom over the
+    flight below."""
+    rise = FLOOR / (2 * RISERS)
+    top = level_ceil(PAV_LEVEL)
+    for st in STAIRS:
+        for k in range(PAV_LEVEL):
+            h = level_floor(k)
+
+            def base(z):
+                return h if k == 0 else z - 0.3
+
+            for i in range(1, RISERS):                       # flight A, up towards the outer wall
+                u0 = ST_LAND + (i - 1) * TREAD
+                z = h + i * rise
+                st_box(m, st, u0, u0 + TREAD, 0.0, 1.4, base(z), z, bottom=k > 0)
+            zm = h + RISERS * rise                           # mid landing
+            st_box(m, st, ST_MID, ST_L, 0.0, ST_W, h if k == 0 else zm - 0.25, zm, bottom=k > 0)
+            for j in range(1, RISERS):                       # flight B, back towards the landing
+                u1 = ST_MID - (j - 1) * TREAD
+                z = zm + j * rise
+                st_box(m, st, u1 - TREAD, u1, 1.6, ST_W, base(z), z, bottom=k > 0)
+            # Handrails on the spine wall and the outer walls.
+            ra0, ra1 = h + rise + 0.9, zm + 0.9
+            rail(m, st, ST_LAND, ra0, ST_MID, ra1, 1.4 - 0.06)
+            rail(m, st, ST_LAND, ra0, ST_MID, ra1, 0.06)
+            rail(m, st, ST_MID, zm + rise + 0.9, ST_LAND, h + FLOOR + 0.9, 1.6 + 0.06)
+            rail(m, st, ST_MID, zm + rise + 0.9, ST_LAND, h + FLOOR + 0.9, ST_W - 0.06)
+            # The slab edge over the floor landing, seen from the stair.
+            st_face(m, st, [(ST_LAND, 0.0, level_ceil(k)), (ST_LAND, ST_W, level_ceil(k)),
+                            (ST_LAND, ST_W, level_floor(k + 1)), (ST_LAND, 0.0, level_floor(k + 1))], "Wall_Paint", (1, 0, 0))
+        # Spine wall between the flights and the wall closing the stair off from the rooms.
+        st_wall(m, st, ST_LAND, ST_MID, 1.4, 1.6, FL, top)
+        st_wall(m, st, ST_LAND, ST_L, ST_W, ST_W + PART, FL, top)
+        # On the top floor, a balustrade where flight A would have gone on up.
+        zt = level_floor(PAV_LEVEL)
+        st_wall(m, st, ST_LAND, ST_LAND + 0.1, 0.0, 1.4, zt, zt + 1.05)
+
+
+# ------------------------------------------------------------------ the Mandapam auditorium
+# The hall stands against the west wing (build_buildings.academic_block): straight sides from the
+# wing out to AX0 + 12, then a segmental curve bulging 12 m to the west. Inside: a stage in the
+# curve, and seats in a fan of curved rows round it, raked up to a balcony at first-floor level
+# that the west wing's first floor opens onto. Side aisles at ground level lead in from the
+# ground-floor foyer (the gallery).
+AU = BUILDINGS["Mandapam Auditorium (west drum)"]
+AX0 = AU["x"] - AU["width"] / 2
+AZ0, AZ1 = AU["z"] - AU["depth"] / 2, AU["z"] + AU["depth"] / 2
+AZC = AU["z"]
+AR = ((AZ1 - AZ0) / 2) ** 2 / 24.0 + 6.0     # circle through the corners with a 12 m bulge
+HALL_E = OX0 - 0.1                            # the hall face of the wall it shares with the wing
+HALL_S, HALL_N = AZ0 + 0.6, AZ1 - 0.6          # side linings, set in behind the facade's window glass
+HALL_CEIL = 13.0
+HC = (13.0, AZC)                              # centre of the seating fan and of the stage front
+STAGE_R, STAGE_H = 4.5, 0.9
+ROW_R0, ROW_PITCH, ROWS = 6.2, 0.88, 11
+RAKE = FLOOR / ROWS                           # rise per row; the balcony is one storey up
+SEAT_MAX = math.radians(77.0)                 # half-angle of the seating fan
+SIDE_WALK = 1.0                               # walkway at both ends of each row
+AISLES = (0.0, math.radians(-40.0), math.radians(40.0))
+AISLE_W = 1.3
+SEAT_W = 0.55
+
+
+def hall_arc_x(Z, inset=WO):
+    """X of the hall's curved west wall (inside face when inset = WO) at world Z."""
+    return AX0 + AR - math.sqrt((AR - inset) ** 2 - (Z - AZC) ** 2)
+
+
+def hall_outline():
+    """Inside outline of the hall, anticlockwise in world X/Z (east wall first)."""
+    a_end = math.asin((AZC - HALL_S) / (AR - WO))
+    arc = []
+    for i in range(25):
+        t = -a_end + 2 * a_end * i / 24
+        arc.append((AX0 + AR - (AR - WO) * math.cos(t), AZC + (AR - WO) * math.sin(t)))
+    # The arc runs from south to north; the outline goes up the east wall, then back down the curve.
+    return [(HALL_E, HALL_S), (HALL_E, HALL_N)] + arc[::-1]
+
+
+def fan_point(r, a):
+    return (HC[0] + r * math.cos(a), HC[1] + r * math.sin(a))
+
+
+def row_radius(i):
+    return ROW_R0 + i * ROW_PITCH
+
+
+def row_end(i):
+    return SEAT_MAX + SIDE_WALK / row_radius(i)
+
+
+def sector_faces(m, r0, r1, a0, a1, z_lo, z_hi, top="Carpet", side="Wood", segs=None, inner=True, outer=False, ends=True):
+    """A stepped annular sector of the fan: top, inner riser, and end faces down to z_lo."""
+    segs = segs or max(2, int((a1 - a0) * r1 / 1.5))
+    ring0 = [fan_point(r0, a0 + (a1 - a0) * s / segs) for s in range(segs + 1)]
+    ring1 = [fan_point(r1, a0 + (a1 - a0) * s / segs) for s in range(segs + 1)]
+    for s in range(segs):
+        m.face([(*m.b(*ring0[s]), z_hi), (*m.b(*ring0[s + 1]), z_hi), (*m.b(*ring1[s + 1]), z_hi), (*m.b(*ring1[s]), z_hi)],
+               top, (0, 0, 1))
+        am = a0 + (a1 - a0) * (s + 0.5) / segs
+        if inner:
+            m.face([(*m.b(*ring0[s]), z_lo), (*m.b(*ring0[s + 1]), z_lo), (*m.b(*ring0[s + 1]), z_hi), (*m.b(*ring0[s]), z_hi)],
+                   side, (math.cos(am), math.sin(am), 0.0))       # faces the stage (world -radial = local +radial)
+        if outer:
+            m.face([(*m.b(*ring1[s]), z_lo), (*m.b(*ring1[s + 1]), z_lo), (*m.b(*ring1[s + 1]), z_hi), (*m.b(*ring1[s]), z_hi)],
+                   side, (-math.cos(am), -math.sin(am), 0.0))
+    if ends:
+        for j, a, sgn in ((0, a0, -1), (segs, a1, 1)):
+            ang = a + sgn * math.pi / 2
+            m.face([(*m.b(*ring0[j]), z_lo), (*m.b(*ring1[j]), z_lo), (*m.b(*ring1[j]), z_hi), (*m.b(*ring0[j]), z_hi)],
+                   side, (-math.cos(ang), -math.sin(ang), 0.0))
+
+
+def oriented_box(m, cx, cz, length, width, ang, z0, z1, mat, top=None):
+    """Box of a length along angle ang (world, radians from +X towards +Z) and a width."""
+    c, s = math.cos(ang), math.sin(ang)
+    hl, hw = length / 2, width / 2
+    corners = [(cx + c * u - s * v, cz + s * u + c * v) for u, v in ((-hl, -hw), (hl, -hw), (hl, hw), (-hl, hw))]
+    m.prism([m.b(X, Z) for X, Z in corners], z0, z1, mat, top or mat)
+
+
+def hall_walk_spans(i):
+    """Angular stretches of row i that are walkways (aisles and the ends), not seats."""
+    r = row_radius(i)
+    out = [(-row_end(i), -SEAT_MAX), (SEAT_MAX, row_end(i))]
+    for a in AISLES:
+        half = AISLE_W / 2 / r
+        out.append((a - half, a + half))
+    return sorted(out)
+
+
+def hall_seat_spans(i):
+    walks = hall_walk_spans(i)
+    out = []
+    for (a0, a1), (b0, b1) in zip(walks, walks[1:]):
+        if b0 > a1:
+            out.append((a1, b0))
+    return out
+
+
+def auditorium(m):
+    outline = hall_outline()
+    f0 = FL
+    hpoly(m, outline, f0, "Floor_Wood")
+    hpoly(m, outline, HALL_CEIL, "Ceiling", up=False)
+    # Straight side walls (their facades have windows; the hall is lined with panelling inside).
+    for A, B_, nrm in (((HALL_E, HALL_S), (hall_arc_x(HALL_S), HALL_S), (0.0, 1.0)),
+                       ((hall_arc_x(HALL_N), HALL_N), (HALL_E, HALL_N), (0.0, -1.0))):
+        ln = Line(m, A, B_, nrm)
+        ln.wall(0, math.dist(A, B_), f0, HALL_CEIL, 0.0, "Wall_Paint", [])
+        # Dark blinds behind the side facades' windows, seen from outside.
+        ln.rect(0, math.dist(A, B_), f0, 4 * FLOOR, -0.1, "Plastic", -1.0)
+    # The curved west wall, with the clerestory glass band near the top.
+    arc = outline[2:]
+    zt = 4 * FLOOR + 1.0
+    for a, b_ in zip(arc, arc[1:]):
+        L = math.dist(a, b_)
+        mid = ((a[0] + b_[0]) / 2, (a[1] + b_[1]) / 2)
+        c = (AX0 + AR, AZC)
+        nrm = ((c[0] - mid[0]), (c[1] - mid[1]))
+        ln_ = math.hypot(*nrm)
+        wall_with_windows(m, a, b_, (nrm[0] / ln_, nrm[1] / ln_), [(0.0, L, zt - 3.0, zt - 0.4, False)], 0.3, WO, f0, HALL_CEIL)
+    # The wall shared with the wing, seen from the hall, with the doorways' reveals.
+    east = Line(m, (HALL_E, HALL_S), (HALL_E, HALL_N), (-1.0, 0.0))
+    holes = []
+    for k, zs in HALL_DOORS.items():
+        for Z in zs:
+            s = Z - HALL_S
+            holes.append((s - HALL_DOOR_W / 2, s + HALL_DOOR_W / 2, level_floor(k), level_floor(k) + HALL_DOOR_H))
+    east.wall(0, east.L, f0, HALL_CEIL, 0.0, "Wall_Paint", holes)
+    thick = (OX0 + WO) - HALL_E
+    for s0, s1, h0, h1 in holes:
+        east.side(s0, h0, h1, -thick, 0.0, "Wall_Paint", 1)
+        east.side(s1, h0, h1, -thick, 0.0, "Wall_Paint", -1)
+        east.hband(s0, s1, h1, -thick, 0.0, "Wall_Paint", up=False)
+        east.hband(s0, s1, h0, -thick, 0.0, "Floor_Tile", up=True)
+        for d, f in ((0.0, 1.0),):
+            arch_box(east, s0 - 0.08, s0, h0, h1 + 0.08, d, f)
+            arch_box(east, s1, s1 + 0.08, h0, h1 + 0.08, d, f)
+            arch_box(east, s0 - 0.08, s1 + 0.08, h1, h1 + 0.08, d, f)
+
+    # Stage: a curved front round the fan centre, splayed sides back to the curved wall.
+    front = [fan_point(STAGE_R, math.radians(a)) for a in range(-100, 101, 10)]
+    zb0, zb1 = AZC - 12.0, AZC + 12.0
+    back = [(hall_arc_x(z), z) for z in [zb1 - (zb1 - zb0) * i / 12 for i in range(13)]]
+    stage = [(hall_arc_x(zb0), zb0)] + front + back
+    stage_local = B.anticlockwise(B.dedupe([m.b(X, Z) for X, Z in stage]))
+    for k in range(len(stage_local)):
+        a, b_ = stage_local[k], stage_local[(k + 1) % len(stage_local)]
+        e = (b_[0] - a[0], b_[1] - a[1])
+        m.face([(a[0], a[1], f0), (b_[0], b_[1], f0), (b_[0], b_[1], f0 + STAGE_H), (a[0], a[1], f0 + STAGE_H)], "Wood",
+               (e[1], -e[0], 0.0))
+    m.face([(p[0], p[1], f0 + STAGE_H) for p in stage_local], "Floor_Wood", (0, 0, 1))
+    # Steps down the middle of the stage front, to the centre aisle.
+    xf = HC[0] + math.sqrt(STAGE_R ** 2 - 1.5 ** 2)
+    for i in range(3):
+        m.box(xf - 0.3, xf + 0.3 * (3 - i), AZC - 1.5, AZC + 1.5, f0, f0 + STAGE_H * (i + 1) / 4, "Wood", "Floor_Wood")
+
+    # Raked seating: row i stands RAKE * i above the floor; the walkways get a half step.
+    for i in range(1, ROWS):
+        r = row_radius(i)
+        sector_faces(m, r - ROW_PITCH / 2, r + ROW_PITCH / 2, -row_end(i), row_end(i), f0, f0 + RAKE * i)
+    for i in range(ROWS):
+        r = row_radius(i)
+        z = f0 + RAKE * i
+        for a0, a1 in hall_walk_spans(i):
+            sector_faces(m, r, r + ROW_PITCH / 2, a0, a1, z, z + RAKE / 2, segs=2)
+        if i >= 2:
+            # Parapets along the open ends of the rows.
+            for a in (-row_end(i), row_end(i)):
+                inw = -1 if a > 0 else 1
+                aa = a + inw * 0.08 / r
+                cx, cz = fan_point(r, aa)
+                oriented_box(m, cx, cz, ROW_PITCH, 0.15, aa, z, z + RAKE / 2 + 1.0, "Wall_Paint")
+    # The balcony: from the back row to the shared wall, at first-floor level.
+    rb = row_radius(ROWS - 1) + ROW_PITCH / 2
+    ab = row_end(ROWS - 1)
+    zb = f0 + FLOOR
+    segs = 24
+    pts = [fan_point(rb, -ab + 2 * ab * s / segs) for s in range(segs + 1)]
+    for s in range(segs):
+        (xa, za), (xb, zb_) = pts[s], pts[s + 1]
+        q = [(xa, za), (xb, zb_), (HALL_E, zb_), (HALL_E, za)]
+        m.face([(*m.b(X, Z), zb) for X, Z in q], "Carpet", (0, 0, 1))
+        am = -ab + 2 * ab * (s + 0.5) / segs
+        m.face([(*m.b(xa, za), f0), (*m.b(xb, zb_), f0), (*m.b(xb, zb_), zb), (*m.b(xa, za), zb)], "Wood",
+               (math.cos(am), math.sin(am), 0.0))
+    for (X, Z), sgn in ((pts[0], -1), (pts[-1], 1)):
+        m.face([(*m.b(X, Z), f0), (*m.b(HALL_E, Z), f0), (*m.b(HALL_E, Z), zb), (*m.b(X, Z), zb)], "Wall_Paint",
+               (0.0, -sgn, 0.0))
+        # Parapet along the balcony's open side.
+        z_in = Z - sgn * 0.075
+        m.box(X, HALL_E, z_in - 0.075, z_in + 0.075, zb, zb + 1.05, "Wall_Paint", "Wood")
+    return outline
+
+
+def academic_interior():
+    m = Model("Academic_Block_Interior", NW["x"], NW["z"])
+    for k in range(WING_LEVELS):
+        wing_level(m, k)
+    pavilion_tops(m)
+    ground_extras(m)
+    stair_geometry(m)
+    auditorium(m)
+    use_level(0)
     m.local_bounds_to_solid()
     return m
 
@@ -683,7 +1219,7 @@ def tier_angle(radius, half, depth_room):
     return math.asin(max(0.05, min(1.0, lim / radius)))
 
 
-def case_tiers(m, r):
+def case_tiers(m, r, fl=FL):
     """Stepped platforms for the horseshoe: each row a curved step TIER_H higher than the last."""
     c, d, half, rows = case_geometry(r)
     base = math.atan2(d[1], d[0])
@@ -694,7 +1230,7 @@ def case_tiers(m, r):
             r1 += 1.2   # back walkway behind the last row
         a = min(tier_angle(r1, half, 0), math.radians(80))
         segs = 16
-        h = FL + TIER_H * k
+        h = fl + TIER_H * k
         ring0 = [(c[0] + r0 * math.cos(base - a + 2 * a * i / segs), c[1] + r0 * math.sin(base - a + 2 * a * i / segs)) for i in range(segs + 1)]
         ring1 = [(c[0] + r1 * math.cos(base - a + 2 * a * i / segs), c[1] + r1 * math.sin(base - a + 2 * a * i / segs)) for i in range(segs + 1)]
         for i in range(segs):
@@ -702,19 +1238,19 @@ def case_tiers(m, r):
             pts = [(*m.b(*ring0[i]), h), (*m.b(*ring0[i + 1]), h), (*m.b(*ring1[i + 1]), h), (*m.b(*ring1[i]), h)]
             m.face(pts, "Carpet", (0, 0, 1))
             # Riser facing the lecturer (world -mid, which is local +mid), from the floor up.
-            pts = [(*m.b(*ring0[i]), FL), (*m.b(*ring0[i + 1]), FL), (*m.b(*ring0[i + 1]), h), (*m.b(*ring0[i]), h)]
+            pts = [(*m.b(*ring0[i]), fl), (*m.b(*ring0[i + 1]), fl), (*m.b(*ring0[i + 1]), h), (*m.b(*ring0[i]), h)]
             mid = ((ring0[i][0] + ring0[i + 1][0]) / 2 - c[0], (ring0[i][1] + ring0[i + 1][1]) / 2 - c[1])
             m.face(pts, "Wood", (mid[0], mid[1], 0.0))
             # Back face at the outer edge, down to the floor (only the last row is seen from behind).
             if k == rows - 1:
-                pts = [(*m.b(*ring1[i]), FL), (*m.b(*ring1[i + 1]), FL), (*m.b(*ring1[i + 1]), h), (*m.b(*ring1[i]), h)]
+                pts = [(*m.b(*ring1[i]), fl), (*m.b(*ring1[i + 1]), fl), (*m.b(*ring1[i + 1]), h), (*m.b(*ring1[i]), h)]
                 m.face(pts, "Wood", (-mid[0], -mid[1], 0.0))
         # End faces, at both ends of the step.
         for j, sgn in ((0, -1), (segs, 1)):
-            pts = [(*m.b(*ring0[j]), FL), (*m.b(*ring1[j]), FL), (*m.b(*ring1[j]), h), (*m.b(*ring0[j]), h)]
+            pts = [(*m.b(*ring0[j]), fl), (*m.b(*ring1[j]), fl), (*m.b(*ring1[j]), h), (*m.b(*ring0[j]), h)]
             ang = base - a + 2 * a * j / segs + sgn * math.pi / 2
             m.face(pts, "Wood", (-math.cos(ang), -math.sin(ang), 0.0))
-        tiers.append(dict(k=k, r0=r0, r1=r1, a=a, h=h - FL))
+        tiers.append(dict(k=k, r0=r0, r1=r1, a=a, h=h - fl))
     return tiers
 
 
@@ -1291,6 +1827,134 @@ def p_pin_spot():
     return m
 
 
+@prop("Auditorium_Seat", solid=True)
+def p_auditorium_seat():
+    """Upholstered auditorium seat, 0.55 m wide, with wooden armrests on steel standards."""
+    m = new("Auditorium_Seat")
+    for x in (-0.275, 0.245):
+        bx(m, x, x + 0.03, -0.28, 0.18, 0.0, 0.62, "Steel")              # side standard
+        bx(m, x - 0.01, x + 0.04, -0.26, 0.24, 0.62, 0.66, "Wood")       # armrest
+    bx(m, -0.24, 0.24, -0.18, 0.26, 0.40, 0.50, "Velvet")               # seat cushion
+    bx(m, -0.24, 0.24, 0.18, 0.26, 0.30, 0.40, "Plastic")               # seat pan front
+    bx(m, -0.25, 0.25, -0.30, -0.18, 0.40, 1.02, "Plastic")             # back shell
+    bx(m, -0.23, 0.23, -0.18, -0.12, 0.50, 0.98, "Velvet")              # back cushion
+    bx(m, -0.25, 0.25, -0.31, -0.30, 0.86, 0.90, "Wood")                # writing-ledge strip on the back
+    return m
+
+
+def book_side(m, rnd, z0, z1, x0, x1, levels, y0, dy):
+    """Rows of books on shelves between z0 and z1 (front at z1), x0..x1."""
+    for k in range(levels):
+        y = y0 + k * dy
+        bx(m, x0, x1, z0, z1, y - 0.03, y, "Wood")
+        if k == levels - 1:
+            break
+        x = x0 + 0.01
+        while x < x1 - 0.06:
+            w = rnd.uniform(0.025, 0.06)
+            if rnd.random() < 0.07:
+                x += w * 2
+                continue
+            depth = rnd.uniform(0.17, 0.25)
+            front = z1 - 0.01 if z1 > z0 else z1 + 0.01
+            bx(m, x, x + w, front, front - depth if z1 > z0 else front + depth, y, y + rnd.uniform(0.2, 0.31), "Books")
+            x += w + 0.002
+
+
+@prop("Library_Stack", solid=True)
+def p_library_stack():
+    """Double-sided library stack, 2 m long, books on both faces, with an end panel label."""
+    m = new("Library_Stack")
+    rnd = random.Random(11)
+    for x in (-1.0, 0.97):
+        bx(m, x, x + 0.03, -0.3, 0.3, 0.0, 2.1, "Wood")
+    bx(m, -0.97, 0.97, -0.01, 0.01, 0.0, 2.1, "Wood")
+    bx(m, -1.0, 1.0, -0.3, 0.3, 2.1, 2.14, "Wood")
+    bx(m, -0.97, 0.97, -0.3, 0.3, 0.0, 0.08, "Wood")
+    book_side(m, rnd, 0.01, 0.3, -0.97, 0.97, 6, 0.08 + 0.03, 0.39)
+    book_side(m, rnd, -0.01, -0.3, -0.97, 0.97, 6, 0.08 + 0.03, 0.39)
+    bx(m, 1.0, 1.005, -0.12, 0.12, 1.45, 1.65, "Notice")                # end panel label
+    return m
+
+
+@prop("Lift_Door")
+def p_lift_door():
+    """Wall-mounted lift doors: steel frame, two leaves, call buttons and a floor display."""
+    m = new("Lift_Door")
+    bx(m, -0.95, -0.8, 0.0, 0.08, 0.0, 2.35, "Steel")
+    bx(m, 0.8, 0.95, 0.0, 0.08, 0.0, 2.35, "Steel")
+    bx(m, -0.95, 0.95, 0.0, 0.08, 2.2, 2.35, "Steel")
+    bx(m, -0.8, -0.01, 0.0, 0.03, 0.0, 2.2, "Steel")
+    bx(m, 0.01, 0.8, 0.0, 0.03, 0.0, 2.2, "Steel")
+    bx(m, -0.8, 0.8, 0.0, 0.06, -0.005, 0.0, "Plastic")
+    bx(m, 1.1, 1.24, 0.0, 0.025, 1.0, 1.3, "Steel")                     # call panel
+    cyl(m, 1.17, 0.03, 0.022, 1.12, 1.135, "Plastic", seg=8)
+    cyl(m, 1.17, 0.03, 0.022, 1.2, 1.215, "Plastic", seg=8)
+    bx(m, -0.25, 0.25, 0.0, 0.04, 2.45, 2.62, "Screen")                 # floor display
+    return m
+
+
+@prop("Stage_Curtain")
+def p_stage_curtain():
+    """A pleated velvet curtain panel, 2.6 m wide and 7 m tall."""
+    m = new("Stage_Curtain")
+    n = 13
+    w = 2.6 / n
+    for k in range(n):
+        x = -1.3 + w * (k + 0.5)
+        ang = math.radians(28 if k % 2 == 0 else -28)
+        obox(m, x, 0.12, w / math.cos(ang) + 0.01, 0.025, ang, 0.0, 7.0, "Velvet")
+    bx(m, -1.35, 1.35, 0.0, 0.28, 7.0, 7.12, "Velvet")
+    return m
+
+
+@prop("Acoustic_Panel")
+def p_acoustic_panel():
+    """Wall panel of vertical timber slats over dark fabric, 1.2 x 2.4 m."""
+    m = new("Acoustic_Panel")
+    bx(m, -0.6, 0.6, 0.0, 0.02, 0.0, 2.4, "Plastic")
+    for k in range(12):
+        x = -0.58 + k * 0.1
+        bx(m, x, x + 0.06, 0.02, 0.07, 0.02, 2.38, "Wood")
+    bx(m, -0.6, 0.6, 0.02, 0.07, 0.0, 0.02, "Wood")
+    bx(m, -0.6, 0.6, 0.02, 0.07, 2.38, 2.4, "Wood")
+    return m
+
+
+@prop("Stage_Screen")
+def p_stage_screen():
+    """The auditorium's big projection screen, 8 x 4.5 m, its bottom edge 3 m above the origin."""
+    m = new("Stage_Screen")
+    bx(m, -4.2, 4.2, 0.0, 0.1, 2.8, 3.0, "Plastic")
+    bx(m, -4.2, 4.2, 0.0, 0.1, 7.5, 7.7, "Plastic")
+    bx(m, -4.2, -4.0, 0.0, 0.1, 3.0, 7.5, "Plastic")
+    bx(m, 4.0, 4.2, 0.0, 0.1, 3.0, 7.5, "Plastic")
+    bx(m, -4.0, 4.0, 0.06, 0.07, 3.0, 7.5, "Whiteboard")
+    return m
+
+
+@prop("Speaker", solid=True)
+def p_speaker():
+    """PA speaker cabinet on a low stand."""
+    m = new("Speaker")
+    bx(m, -0.3, 0.3, -0.25, 0.25, 0.0, 0.1, "Plastic")
+    bx(m, -0.28, 0.28, -0.22, 0.22, 0.1, 1.15, "Plastic")
+    bx(m, -0.25, 0.25, 0.22, 0.235, 0.15, 1.1, "Metal")
+    cyl(m, 0.0, 0.236, 0.16, 0.35, 0.36, "Plastic", seg=12)
+    return m
+
+
+@prop("Exit_Sign")
+def p_exit_sign():
+    """Lit exit sign over a doorway; the origin is on the wall at the sign's bottom edge."""
+    m = new("Exit_Sign")
+    bx(m, -0.22, 0.22, 0.0, 0.05, 0.0, 0.16, "Plastic")
+    bx(m, -0.19, 0.19, 0.05, 0.055, 0.02, 0.14, "Red_Paint")
+    bx(m, -0.12, 0.12, 0.055, 0.058, 0.06, 0.1, "LightPanel")
+    return m
+
+
+
 # ------------------------------------------------------------------ furnishing
 PLACED = []    # dict(prop, x, y, z, yaw)
 LIGHTS = []    # dict(x, y, z, range, intensity, color)
@@ -1746,23 +2410,91 @@ def f_activity(r):
 
 
 def f_gallery(r):
-    fr = Frame(r["rect"], r["front"])
-    # Exhibition panels down the middle, benches between, boards on the outer wall's piers.
-    v = 4.0
+    X0, X1, Z0, Z1 = r["rect"]
+    # Exhibition panels down the middle of the long axis, benches and plants between them.
+    along_x = X1 - X0 > Z1 - Z0
+    length = max(X1 - X0, Z1 - Z0)
     k = 0
-    while v < fr.depth - 3.0:
+    t = 4.0
+    while t < length - 3.0:
+        X = X0 + t if along_x else (X0 + X1) / 2
+        Z = (Z0 + Z1) / 2 if along_x else Z0 + t
         if k % 2 == 0:
-            fr.put("Display_Panel", 0.0, v, FL, "right")
+            put("Display_Panel", X, Z, FL, 0 if along_x else 1, 1 if along_x else 0)
         else:
-            fr.put("Bench", -1.2, v, FL, "right")
-            fr.put("Plant_Pot", 1.5, v, FL)
-        v += 3.5
+            if along_x:
+                put("Bench", X, Z - 1.2, FL, 0, 1)
+                put("Plant_Pot", X, Z + 1.5, FL)
+            else:
+                put("Bench", X + 1.2, Z, FL, -1, 0)
+                put("Plant_Pot", X - 1.5, Z, FL)
+        t += 3.5
         k += 1
+    fr = Frame(r["rect"], r["front"])
     for v in (2.0, fr.depth - 2.0):
         fr.put("Water_Cooler", fr.width / 2 - 0.5, v, FL, "left")
     fr.wall_item("Fire_Extinguisher", "right", fr.depth / 2)
     ceiling_grid(r["rect"], 3.0, "Pin_Spot")
     room_lights(r["rect"], per=50.0, intensity=1.5)
+
+
+def f_board(r):
+    fr = Frame(r["rect"], r["front"])
+    vc = fr.depth / 2 + 0.2
+    # A hollow square of tables, chairs all round the outside.
+    for u in (-2.0, 2.0):
+        for sgn in (-1, 1):
+            fr.put("Table_Meeting", u, vc + sgn * 2.2, FL, "in")
+    for u in (-4.6, 4.6):
+        fr.put("Table_Meeting", u, vc, FL, "right")
+    for k in range(8):
+        u = -3.5 + k
+        fr.put("Chair_Office", u, vc + 3.15, FL, "front")
+        fr.put("Chair_Office", u, vc - 3.15, FL, "in")
+    for dv in (-1.2, 0.0, 1.2):
+        fr.put("Chair_Office", -5.55, vc + dv, FL, "right")
+        fr.put("Chair_Office", 5.55, vc + dv, FL, "left")
+    fr.wall_item("TV_Wall", "front", 0.0)
+    fr.wall_item("Crest_Panel", "back", 0.0)
+    if fr.width > 15:
+        fr.put("Sofa_3", fr.width / 2 - 1.2, vc, FL, "left")
+        fr.put("Table_Coffee", fr.width / 2 - 2.3, vc, FL, "in", yaw_extra=90)
+    for u, v in ((-fr.width / 2 + 0.6, 0.6), (fr.width / 2 - 0.6, 0.6), (-fr.width / 2 + 0.6, fr.depth - 0.6),
+                 (fr.width / 2 - 0.6, fr.depth - 0.6)):
+        fr.put("Plant_Pot", u, v, FL)
+    fr.wall_item("AC_Unit", "left", fr.depth / 2, y=FL + 0.2)
+    fr.wall_item("Wall_Clock", "right", fr.depth / 2)
+    ceiling_grid(r["rect"], 2.6)
+    room_lights(r["rect"], per=35.0)
+
+
+def f_director(r):
+    fr = Frame(r["rect"], r["front"])
+    # The desk near the front wall, a meeting table and a sofa set further in, shelves along the sides.
+    fr.put("Table_Faculty", 0.0, 2.0, FL, "in")
+    fr.put("Chair_Office", 0.0, 1.25, FL, "in")
+    for u in (-0.5, 0.5):
+        fr.put("Chair_Visitor", u, 3.1, FL, "front")
+    fr.wall_item("Crest_Panel", "front", 0.0)
+    for k in range(4):
+        fr.wall_item("Bookshelf", "left", 1.0 + 1.02 * k)
+    fr.wall_item("Filing_Cabinet", "right", 1.0)
+    fr.wall_item("TV_Wall", "right", fr.depth / 2 + 1.0)
+    v = fr.depth - 2.4
+    fr.put("Table_Round", -fr.width / 4, v, FL)
+    for k in range(4):
+        a = math.pi / 2 * k + math.pi / 4
+        fr.put("Chair_Visitor", -fr.width / 4 + 0.85 * math.cos(a), v + 0.85 * math.sin(a), FL, "in",
+               yaw_extra=math.degrees(-a) - 90)
+    fr.put("Sofa_3", fr.width / 4, v + 1.0, FL, "front")
+    fr.put("Table_Coffee", fr.width / 4, v - 0.2, FL, "in")
+    fr.put("Sofa_1", fr.width / 4 - 1.7, v - 0.2, FL, "right")
+    fr.put("Sofa_1", fr.width / 4 + 1.7, v - 0.2, FL, "left")
+    for u in (-fr.width / 2 + 0.6, fr.width / 2 - 0.6):
+        fr.put("Plant_Pot", u, 0.6, FL)
+    fr.wall_item("AC_Unit", "left", fr.depth * 0.7, y=FL + 0.2)
+    ceiling_grid(r["rect"], 2.6)
+    room_lights(r["rect"], per=35.0)
 
 
 def f_foyer(r):
@@ -1891,17 +2623,159 @@ def place_entrance_doors():
                 put("Door_Glass", hx, hz, FL, yaw=round(math.degrees(math.atan2(-nrm[1], nrm[0])), 2))
 
 
-def furnish():
+def f_stacks(r):
+    fr = Frame(r["rect"], r["front"])
+    # A issue desk and a catalogue computer by the front wall, then rows of double-sided stacks.
+    fr.put("Reception_Counter", -fr.width / 4, 1.6, FL, "in")
+    fr.put("Chair_Office", -fr.width / 4 - 0.6, 1.0, FL, "in")
+    fr.put("Desk_Computer", fr.width / 4, 1.4, FL, "front")
+    fr.put("Chair_Office", fr.width / 4, 2.0, FL, "front")
+    fr.wall_item("Notice_Board", "front", 0.0)
+    v = 4.0
+    while v < fr.depth - 1.5:
+        u = -fr.width / 2 + 1.5
+        while u + 2.0 < fr.width / 2 - 1.3:
+            fr.put("Library_Stack", u + 1.0, v, FL, "in")
+            u += 2.05
+        v += 1.95
+    fr.wall_item("Fire_Extinguisher", "back", fr.width / 2 - 0.8)
+    ceiling_grid(r["rect"], 2.6)
+    room_lights(r["rect"], per=40.0)
+
+
+FURNISH["stacks"] = f_stacks
+FURNISH["board"] = f_board
+FURNISH["director"] = f_director
+
+
+def stair_extras():
+    """Lift doors beside each stair, and lights over the landing and in the stairwell."""
+    for st in STAIRS:
+        X, Z = st.P(ST_L, ST_W + PART + 1.4)
+        put("Lift_Door", X, Z, FL, 0.0, -st.uz)
+        X, Z = st.P(ST_L, ST_W + PART + 2.9)
+        put("Fire_Extinguisher", X, Z, FL, 0.0, -st.uz)
+        lx, lz = st.P(0.75, 1.5)
+        put("Light_Panel", lx, lz, CEIL)
+        LIGHTS.append(dict(x=round(lx, 2), y=CEIL - 0.25, z=round(lz, 2), range=6.5, intensity=1.0, color=WARM))
+        mx, mz = st.P((ST_MID + ST_L) / 2, 1.5)
+        LIGHTS.append(dict(x=round(mx, 2), y=round(FL + FLOOR / 2 + 2.1, 2), z=round(mz, 2), range=6.0, intensity=0.9, color=WARM))
+
+
+def furnish_auditorium():
+    seats = 0
+    for i in range(ROWS):
+        r = row_radius(i)
+        y = FL + RAKE * i
+        for a0, a1 in hall_seat_spans(i):
+            n = int((a1 - a0) * r / SEAT_W)
+            for k in range(n):
+                a = a0 + (a1 - a0) * (k + 0.5) / n
+                X, Z = fan_point(r + 0.06, a)
+                put("Auditorium_Seat", X, Z, y, HC[0] - X, HC[1] - Z)
+                seats += 1
+    ys = FL + STAGE_H
+    # The stage: the dais table with its chairs, a lectern, the screen, curtains and speakers.
+    tx = HC[0] - 1.8
+    put("Table_Meeting", tx, HC[1], ys, 1, 0)
+    for dz in (-1.5, -0.5, 0.5, 1.5):
+        put("Chair_Office", tx - 0.85, HC[1] + dz, ys, 1, 0)
+    lx, lz = fan_point(3.0, math.radians(-38))
+    put("Lectern", lx, lz, ys, 1, 0.3)
+    put("Plant_Pot", *fan_point(3.4, math.radians(38)), ys)
+    put("Stage_Screen", hall_arc_x(AZC) + 0.05, AZC, ys, 1, 0)
+    for dz in (-10.5, -7.9, -5.3, 5.3, 7.9, 10.5):
+        Z = AZC + dz
+        X = hall_arc_x(Z) + 0.08
+        put("Stage_Curtain", X, Z, ys, AX0 + AR - X, AZC - Z)     # flat against the curved wall
+    for a in (-72, 72):
+        X, Z = fan_point(STAGE_R - 0.5, math.radians(a))
+        put("Speaker", X, Z, ys, math.cos(math.radians(a)), math.sin(math.radians(a)))
+    # Downlights, and the lights that matter.
+    for rr, step in ((2.5, 45), (7.5, 22), (11.0, 16), (14.5, 12)):
+        for a in range(-80, 81, step):
+            X, Z = fan_point(rr, math.radians(a))
+            put("Pin_Spot", X, Z, HALL_CEIL)
+    for rr, angs, inten in ((2.0, (-40, 0, 40), 2.2), (8.5, (-55, -18, 18, 55), 1.9), (13.5, (-60, -30, 0, 30, 60), 1.9)):
+        for a in angs:
+            X, Z = fan_point(rr, math.radians(a))
+            LIGHTS.append(dict(x=round(X, 2), y=round(HALL_CEIL - 0.8, 2), z=round(Z, 2), range=11.0, intensity=inten, color=WARM))
+    for Z in (HALL_S + 5.0, HALL_N - 5.0):
+        LIGHTS.append(dict(x=round(HALL_E - 4.0, 2), y=FL + 3.0, z=round(Z, 2), range=8.0, intensity=1.2, color=WARM))
+    # Timber acoustic panels on the side walls, and high up on the back wall above the balcony.
+    for Z, dz in ((HALL_S, 1.0), (HALL_N, -1.0)):
+        X = hall_arc_x(Z) + 1.2
+        while X < HALL_E - 1.0:
+            for y in (FL + 1.0, FL + FLOOR + 1.6, FL + 2 * FLOOR + 1.6):
+                put("Acoustic_Panel", X, Z + dz * 0.01, y, 0, dz)
+            X += 1.45
+    door_z = [Z for zs in HALL_DOORS.values() for Z in zs]
+    Z = HALL_S + 1.0
+    while Z < HALL_N - 1.0:
+        put("Acoustic_Panel", HALL_E - 0.01, Z, FL + FLOOR + 3.0, -1, 0)
+        if not any(abs(Z - dz) < 1.7 for dz in door_z) and not (266.0 < Z < 297.0):
+            put("Acoustic_Panel", HALL_E - 0.01, Z, FL + 0.6, -1, 0)
+        Z += 1.45
+    # Panels and plants along the balcony's end walls, which face the side aisles.
+    rb = row_radius(ROWS - 1) + ROW_PITCH / 2
+    for sgn in (-1, 1):
+        X0, Z = fan_point(rb, sgn * row_end(ROWS - 1))
+        X = X0 + 1.2
+        while X < HALL_E - 2.6:
+            put("Acoustic_Panel", X, Z + sgn * 0.01, FL + 0.5, 0, sgn)
+            X += 1.45
+        put("Plant_Pot", X0 + 0.6, Z + sgn * 0.5, FL)
+    # Exit signs over the doors on both sides, extinguishers beside them.
+    for k, zs in HALL_DOORS.items():
+        for Z in zs:
+            top = level_floor(k) + HALL_DOOR_H + 0.15
+            put("Exit_Sign", HALL_E - 0.01, Z, top, -1, 0)
+            put("Exit_Sign", OX0 + WO + 0.01, Z, top, 1, 0)
+            put("Fire_Extinguisher", HALL_E - 0.01, Z + 1.6, level_floor(k), -1, 0)
+    # The sound and light desk at the back of the balcony, plants at its ends.
+    yb = FL + FLOOR
+    put("Desk_Computer", HALL_E - 1.5, AZC - 0.7, yb, -1, 0)
+    put("Desk_Computer", HALL_E - 1.5, AZC + 0.7, yb, -1, 0)
+    put("Chair_Office", HALL_E - 0.85, AZC - 0.7, yb, -1, 0)
+    put("Chair_Office", HALL_E - 0.85, AZC + 0.7, yb, -1, 0)
+    for Z in (HALL_S + 12.0, HALL_N - 12.0):
+        put("Plant_Pot", HALL_E - 0.6, Z, yb)
+    print("Auditorium: %d seats" % seats)
+
+
+def furnish_level(k):
+    use_level(k)
+    n0, l0 = len(PLACED), len(LIGHTS)
     for r in ROOMS:
         FURNISH[r["kind"]](r)
     furnish_corridors()
     place_doors()
-    place_entrance_doors()
-    # The vestibule in the glass bay: plants and a pair of benches, a high light.
-    put("Plant_Pot", EX - 6.0, OZ1 + 2.0, FL)
-    put("Plant_Pot", EX + 6.0, OZ1 + 2.0, FL)
-    LIGHTS.append(dict(x=EX, y=HIGH_CEIL - 0.5, z=OZ1 + 4.0, range=9.0, intensity=1.6, color=WARM))
-    put("Pin_Spot", EX, OZ1 + 4.0, HIGH_CEIL)
+    if k == 0:
+        place_entrance_doors()
+        # The vestibule in the glass bay: plants and a pair of benches, a high light.
+        put("Plant_Pot", EX - 6.0, OZ1 + 2.0, FL)
+        put("Plant_Pot", EX + 6.0, OZ1 + 2.0, FL)
+        LIGHTS.append(dict(x=EX, y=HIGH_CEIL - 0.5, z=OZ1 + 4.0, range=9.0, intensity=1.6, color=WARM))
+        put("Pin_Spot", EX, OZ1 + 4.0, HIGH_CEIL)
+    # Nothing may stand on the stairs or in front of the lifts.
+    keep = [rc for st in STAIRS for rc in st.keep_out()]
+    PLACED[n0:] = [p for p in PLACED[n0:] if not in_rects(p["x"], p["z"], keep)]
+    stair_extras()
+    if k == 0:
+        furnish_auditorium()
+    dy = k * FLOOR
+    for p in PLACED[n0:]:
+        p["y"] = round(p["y"] + dy, 3)
+        p["level"] = k
+    for l in LIGHTS[l0:]:
+        l["y"] = round(l["y"] + dy, 2)
+        l["level"] = k
+
+
+def furnish():
+    for k in range(PAV_LEVEL + 1):
+        furnish_level(k)
+    use_level(0)
 
 
 # ------------------------------------------------------------------ output
@@ -1942,11 +2816,13 @@ def main():
         "propModels": props_out,
         "props": [dict(p, zone=0) for p in PLACED],
         "lights": [dict(l, zone=0) for l in LIGHTS],
-        "rooms": [dict(name=r["name"], kind=r["kind"], rect=[round(v, 2) for v in r["rect"]], zone=0) for r in ROOMS],
+        "levelHeight": FLOOR,
+        "rooms": [dict(name=r["name"], kind=r["kind"], rect=[round(v, 2) for v in r["rect"]], level=k, zone=0)
+                  for k, lv in enumerate(LEVEL_PLANS) for r in lv["rooms"]],
     }
     with open(OUT_JSON, "w") as f:
         json.dump(data, f, separators=(",", ":"))
-    print("Wrote %s: %d props, %d lights, %d rooms" % (OUT_JSON, len(PLACED), len(LIGHTS), len(ROOMS)))
+    print("Wrote %s: %d props, %d lights, %d rooms" % (OUT_JSON, len(PLACED), len(LIGHTS), len(data["rooms"])))
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ namespace Jagti.EditorTools
             mats["Wood"] = Lit("Int_Wood", Grain("Tex_Wood", new Color(0.50f, 0.33f, 0.19f), 82, true), 0.3f);
             mats["Laminate"] = Lit("Int_Laminate", Grain("Tex_Laminate", new Color(0.82f, 0.72f, 0.58f), 83, false), 0.35f);
             mats["Fabric"] = Lit("Int_Fabric", Weave("Tex_Fabric", new Color(0.15f, 0.22f, 0.40f), 0.18f, 84, 256), 0.05f);
+            mats["Velvet"] = Lit("Int_Velvet", Weave("Tex_Velvet", new Color(0.42f, 0.07f, 0.09f), 0.12f, 95, 256), 0.12f);
             mats["Leather"] = Lit("Int_Leather", Noise("Tex_Leather", new Color(0.33f, 0.19f, 0.11f), 0.12f, 85, 12), 0.45f);
             mats["Plastic"] = Lit("Int_Plastic", Noise("Tex_Plastic", new Color(0.13f, 0.13f, 0.14f), 0.04f, 86, 8), 0.35f);
             mats["Steel"] = Lit("Int_Steel", Brushed(), 0.6f, 0.6f);

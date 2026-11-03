@@ -5,7 +5,18 @@ An original zombie survival game set on the IIM Jammu campus at Jagti, built in 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 4A, walk-in academic block
+## Current phase: 4B, upper floors, stairs and the Mandapam auditorium
+
+The whole academic block can now be explored, not just the ground floor.
+
+- **Stairs and lifts:** a dog-leg stair in each of the four corner pavilions climbs from the ground to the pavilion's glazed top floor (level 4), with lift doors beside it on every floor. The pavilions' walls are solid stone below the window row, as on the model, so they make natural stair cores.
+- **Floors 1 to 3:** the same ring corridor and partitions as the ground floor, with each floor's own windows (two slender windows per bay, the blue glass ribbon right round the top floor). The rooms change from floor to floor: more case rooms, classrooms and seminar rooms, a library reading hall and library stacks, a finance lab, a board room, the faculty lounge, programme, accounts, placement, alumni and dean's offices, a club room, a music room, an exhibition hall and an archive. Toilets stack on every floor. Over 200 rooms in all.
+- **Top floor of the pavilions:** a glass-walled lounge in each, looking out over the roofs.
+- **The Mandapam auditorium:** 474 maroon upholstered seats in a fan of curved rows round a curved stage, raked up to a balcony at first-floor level. Ground-floor doors from the gallery lead to the side aisles; first-floor doors from the auditorium foyer open onto the balcony. The stage has a dais table, a lectern, speakers, a big projection screen and velvet drapes; timber acoustic panels line the walls, and a clerestory glass band runs round the curved wall under the ceiling.
+
+Only the floor you are on and the floors just above and below it are drawn, so being inside the building costs about as much as it did with one floor.
+
+## Phase 4A: walk-in academic block
 
 The academic block's ground floor is now a real building you can walk into. Doors open at the glass bay under the porch (into a double-height vestibule and the entrance lobby), in the middle of each courtyard side (out to the garden paths), and in the curved east front (into the double-height "block 1" foyer facing the amphitheatre).
 
@@ -19,7 +30,7 @@ Each room has its own furniture, about 4,100 pieces in all: desks, office chairs
 
 Room lights switch on around you as you walk (within about 24 m), and the furniture is only drawn when you are in or near the building, so the rest of the campus runs as before. The renderer switches to Forward+ so a room can have more than eight lights. Zombies can follow you in: the navigation mesh now covers the corridors and rooms.
 
-Upper floors, stairs and the auditorium come in phase 4B, then the hostels and mess (4C) and the remaining buildings and outdoor detail (4D).
+Next: the hostels and mess (4C), then the remaining buildings and outdoor detail (4D).
 
 ## Phase 3: survival gameplay
 

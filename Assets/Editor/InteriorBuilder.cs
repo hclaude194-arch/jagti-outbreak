@@ -33,6 +33,7 @@ namespace Jagti.EditorTools
         public float x, y, z;   // y above the building base
         public float yaw;
         public int zone;
+        public int level;       // storey: 0 = ground floor
     }
 
     [Serializable]
@@ -43,6 +44,7 @@ namespace Jagti.EditorTools
         public float intensity;
         public float[] color;
         public int zone;
+        public int level;
     }
 
     [Serializable]
@@ -53,6 +55,7 @@ namespace Jagti.EditorTools
         public PropModelData[] propModels;
         public PropData[] props;
         public InteriorLightData[] lights;
+        public float levelHeight;
     }
 
     /// <summary>
@@ -97,7 +100,9 @@ namespace Jagti.EditorTools
 
             var zoneRoots = new List<InteriorZone>();
             var zoneRenderers = new List<List<Renderer>>();
+            var zoneRendererLevels = new List<List<int>>();
             var zoneLights = new List<List<Light>>();
+            var zoneLightLevels = new List<List<int>>();
             var zoneBase = new List<float>();
             var zoneTurn = new List<Quaternion>();
             var zoneScale = new List<Vector3>();
@@ -134,8 +139,14 @@ namespace Jagti.EditorTools
 
                 zoneRoots.Add(zone);
                 zoneRenderers.Add(renderers);
+                var shellLevels = new List<int>();
+                for (int i = 0; i < renderers.Count; i++) shellLevels.Add(-1);   // the shell: drawn on every floor
+                zoneRendererLevels.Add(shellLevels);
                 zoneLights.Add(new List<Light>());
+                zoneLightLevels.Add(new List<int>());
                 zoneBase.Add(ground(z.baseX, z.baseZ));
+                zone.baseY = zoneBase[zoneBase.Count - 1];
+                if (list.levelHeight > 0f) zone.levelHeight = list.levelHeight;
                 zoneTurn.Add(turn);
                 zoneScale.Add(scale);
                 zoneFurniture.Add(Child(root.transform, "Furniture"));
@@ -162,6 +173,7 @@ namespace Jagti.EditorTools
                         // Small things cast no shadows (the room lights cast none anyway).
                         r.shadowCastingMode = ShadowCastingMode.Off;
                         zoneRenderers[p.zone].Add(r);
+                        zoneRendererLevels[p.zone].Add(p.level);
                     }
                     placed++;
                 }
@@ -183,13 +195,16 @@ namespace Jagti.EditorTools
                     light.shadows = LightShadows.None;
                     light.lightmapBakeType = LightmapBakeType.Realtime;
                     zoneLights[l.zone].Add(light);
+                    zoneLightLevels[l.zone].Add(l.level);
                 }
             }
 
             for (int i = 0; i < zoneRoots.Count; i++)
             {
                 zoneRoots[i].renderers = zoneRenderers[i].ToArray();
+                zoneRoots[i].rendererLevels = zoneRendererLevels[i].ToArray();
                 zoneRoots[i].lights = zoneLights[i].ToArray();
+                zoneRoots[i].lightLevels = zoneLightLevels[i].ToArray();
             }
             Debug.Log("[Jagti] Interiors: " + zoneRoots.Count + " building(s), " + placed + " pieces of furniture, " +
                       (list.lights != null ? list.lights.Length : 0) + " room lights.");
