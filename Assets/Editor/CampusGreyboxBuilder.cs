@@ -106,6 +106,8 @@ namespace Jagti.EditorTools
 
             var buildingRoot = Child(root.transform, "Buildings");
             BuildingModels.Place(models, Child(buildingRoot, "Landmarks"), Ground);
+            Progress("Building interiors and furniture", 0.6f);
+            InteriorBuilder.Build(Child(buildingRoot, "Interiors"), Ground);
             var zones = new Dictionary<string, Transform>();
             foreach (var b in layout.buildings)
             {

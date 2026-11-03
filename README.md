@@ -5,7 +5,23 @@ An original zombie survival game set on the IIM Jammu campus at Jagti, built in 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 3, survival gameplay
+## Current phase: 4A, walk-in academic block
+
+The academic block's ground floor is now a real building you can walk into. Doors open at the glass bay under the porch (into a double-height vestibule and the entrance lobby), in the middle of each courtyard side (out to the garden paths), and in the curved east front (into the double-height "block 1" foyer facing the amphitheatre).
+
+Inside, a 3 m corridor rings the courtyard, with a second corridor in the deep south wing. There are 55 furnished rooms:
+
+- **Teaching:** six tiered horseshoe case rooms with curved desk rows, three classrooms, two seminar rooms and eight syndicate rooms.
+- **Offices and labs:** faculty cabins, the admin office, a meeting room, two computer labs, a server room and a research room.
+- **Shared spaces:** the reading room lined with bookshelves, the cafeteria, student lounges in the corner pavilions, the activity room, a gallery, toilets and stores.
+
+Each room has its own furniture, about 4,100 pieces in all: desks, office chairs, lecterns, whiteboards, projectors and screens, ceiling fans, AC units, bookshelves, sofas, plants, notice boards, doors and toilet cubicles. Windows have clear glass on the inside and sills.
+
+Room lights switch on around you as you walk (within about 24 m), and the furniture is only drawn when you are in or near the building, so the rest of the campus runs as before. The renderer switches to Forward+ so a room can have more than eight lights. Zombies can follow you in: the navigation mesh now covers the corridors and rooms.
+
+Upper floors, stairs and the auditorium come in phase 4B, then the hostels and mess (4C) and the remaining buildings and outdoor detail (4D).
+
+## Phase 3: survival gameplay
 
 The campus is now a game. Zombies roam it: 18 at the start, rising to 30 the longer you survive, kept in a ring around you and spawned out of sight. They wander, come to investigate noise (footsteps carry 7 m, sprinting 18 m, a pistol shot 65 m, the shotgun 95 m), chase you when they see you (further when your torch is on), and claw at you up close. About one in seven is a runner. Headshots do 2.5x damage.
 
@@ -77,6 +93,7 @@ The overlay in the top-left shows your frame rate and the nearest place. Please 
 - `tools/layout/generate_terrain.py` shapes the hilltop, flattens roads and building plots into it, paints the ground, and places grass and trees. It writes `Assets/Data/terrain_*.bytes` and `campus_terrain.json`.
 - `Assets/Editor/CampusGreyboxBuilder.cs` turns that data into the scene; `CampusTerrainBuilder.cs` makes the Unity Terrain; `ProceduralAssets.cs` makes the ground textures and tree models from code, saved under `Assets/Generated` (rebuilt each time, not stored in Git).
 - `tools/blender/build_buildings.py` builds the landmark buildings in headless Blender from the same layout data and exports `Assets/Models/Buildings/*.fbx` (small files, kept in plain Git) plus `Assets/Data/building_models.json`. `BuildingModels.cs` places them and `BuildingMaterials.cs` paints their facade textures in code.
+- `tools/blender/build_interiors.py` (run after `build_buildings.py`) builds the walk-in interiors: the interior shell (floors, ceilings, walls with window openings, partitions with doorways, tiered case rooms) as `Assets/Models/Buildings/*_Interior.fbx`, one small FBX per kind of furniture in `Assets/Models/Props/`, and `Assets/Data/interiors.json`, which lists every room, piece of furniture and light. `InteriorBuilder.cs` places them and `InteriorMaterials.cs` paints floors, walls and furniture in code; `InteriorZone.cs` hides the interior and switches off its lights when you're away.
 - `Assets/Editor/JagtiProjectSetup.cs` sets up URP for integrated graphics and rebuilds the scene whenever the layout data is newer than the last build.
 - `Assets/Scripts/` holds runtime code: the first-person controller, labels and the test overlay, and `Gameplay/` (zombie AI and spawner, weapons, health and stamina, inventory, loot crates, HUD, synthesized sounds). `Assets/Editor/GameplayBuilder.cs` adds these to the scene and places the supply crates.
 - Models, textures and audio are stored with Git LFS (see `.gitattributes`).
