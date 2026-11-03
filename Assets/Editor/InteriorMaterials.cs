@@ -43,6 +43,16 @@ namespace Jagti.EditorTools
             mats["Bedsheet"] = Lit("Int_Bedsheet", Check(), 0.05f);
             mats["Linen"] = Lit("Int_Linen", Weave("Tex_Linen", new Color(0.91f, 0.90f, 0.86f), 0.06f, 96, 256), 0.05f);
             mats["Wall_Tile"] = Lit("Int_Wall_Tile", WallTile(), 0.75f);
+            // Phase 4D: shops, the medical centre, the sports complex and outdoor props.
+            mats["Sign_Board"] = Lit("Int_Sign_Board", Noise("Tex_Sign_Board", new Color(0.09f, 0.21f, 0.42f), 0.05f, 97, 6), 0.45f);
+            mats["Sports_Floor"] = Lit("Int_Sports_Floor", Planks("Tex_Sports_Floor", new Color(0.80f, 0.61f, 0.39f), 24, 98), 0.55f);
+            mats["Court_Line"] = Lit("Int_Court_Line", Noise("Tex_Court_Line", new Color(0.95f, 0.95f, 0.93f), 0.03f, 99, 4), 0.5f);
+            mats["Rubber"] = Lit("Int_Rubber", Speckle("Tex_Rubber", new Color(0.12f, 0.12f, 0.13f), 100), 0.1f);
+            mats["Goods"] = Lit("Int_Goods", Packets(), 0.3f);
+            mats["Produce"] = Lit("Int_Produce", Noise("Tex_Produce", new Color(0.78f, 0.42f, 0.12f), 0.35f, 101, 16), 0.45f);
+            mats["Net"] = Cutout("Int_Net", NetMesh());
+            mats["Lamp_Glow"] = Emissive("Int_Lamp_Glow", new Color(1f, 0.9f, 0.72f), 2.2f);
+            mats["Paint_Yellow"] = Lit("Int_Paint_Yellow", Noise("Tex_Paint_Yellow", new Color(0.90f, 0.70f, 0.10f), 0.06f, 102, 6), 0.5f);
         }
 
         // ------------------------------------------------------------------ material helpers
@@ -146,25 +156,29 @@ namespace Jagti.EditorTools
         // Oak planks 0.2 m wide, staggered ends, grain along the plank.
         static Texture2D Planks()
         {
+            return Planks("Tex_Floor_Wood", new Color(0.56f, 0.38f, 0.23f), 12, 13);
+        }
+
+        // Wooden floor boards: rows of planks with staggered joints (rows per texture tile).
+        static Texture2D Planks(string name, Color baseC, int rows, int seed)
+        {
             var px = new Color[Size * Size];
-            var baseC = new Color(0.56f, 0.38f, 0.23f);
-            const int rows = 12;
             for (int y = 0; y < Size; y++)
                 for (int x = 0; x < Size; x++)
                 {
                     float u = x / (float)Size, v = y / (float)Size;
                     int row = (int)(v * rows);
                     float fv = v * rows - row;
-                    float offset = Hash(row, 0, 13);
+                    float offset = Hash(row, 0, seed);
                     float along = Mathf.Repeat(u * 2f + offset, 1f);
                     int plank = (int)(u * 2f + offset);
-                    float shade = 0.85f + 0.25f * Hash(row, plank, 14);
+                    float shade = 0.85f + 0.25f * Hash(row, plank, seed + 1);
                     float grain = Mathf.Sin((v * rows * 6f + Fbm(u * 4f, v, 4, 3, 94) * 6f) * Mathf.PI * 2f) * 0.06f;
                     Color c = baseC * shade * (1f + grain);
                     if (fv < 0.03f || along < 0.004f) c *= 0.55f;
                     px[y * Size + x] = c;
                 }
-            return Save("Tex_Floor_Wood", px);
+            return Save(name, px);
         }
 
         // Fine woven texture (carpet, upholstery).
@@ -393,6 +407,85 @@ namespace Jagti.EditorTools
                     px[y * Size + x] = col;
                 }
             return Save("Tex_Cardboard", px);
+        }
+
+        // ------------------------------------------------------------------ Phase 4D textures
+
+        // Gym rubber: near black with fine coloured flecks.
+        static Texture2D Speckle(string name, Color c, int seed)
+        {
+            var px = new Color[Size * Size];
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float h = Hash(x, y, seed);
+                    Color col = c * (0.9f + 0.2f * Hash(x / 3, y / 3, seed + 1));
+                    if (h > 0.985f) col = new Color(0.55f, 0.55f, 0.58f);
+                    else if (h > 0.975f) col = new Color(0.20f, 0.35f, 0.60f);
+                    px[y * Size + x] = col;
+                }
+            return Save(name, px);
+        }
+
+        // Shop shelf stock: blocks of brightly printed packets with white labels.
+        static Texture2D Packets()
+        {
+            var px = new Color[Size * Size];
+            var palette = new[]
+            {
+                new Color(0.85f, 0.15f, 0.12f), new Color(0.95f, 0.75f, 0.10f), new Color(0.10f, 0.45f, 0.75f),
+                new Color(0.15f, 0.60f, 0.25f), new Color(0.95f, 0.50f, 0.10f), new Color(0.55f, 0.20f, 0.55f),
+                new Color(0.92f, 0.90f, 0.85f), new Color(0.20f, 0.20f, 0.22f),
+            };
+            const int cols = 16, rows = 8;
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    int cx = x * cols / Size, cy = y * rows / Size;
+                    float fu = x * cols / (float)Size - cx, fv = y * rows / (float)Size - cy;
+                    var col = palette[(int)(Hash(cx, cy, 103) * palette.Length) % palette.Length];
+                    if (fv > 0.45f && fv < 0.7f && fu > 0.15f && fu < 0.85f) col = Color.Lerp(col, Color.white, 0.75f);
+                    if (fu < 0.04f || fv < 0.03f) col *= 0.6f;
+                    px[y * Size + x] = col;
+                }
+            return Save("Tex_Goods", px);
+        }
+
+        // Diamond mesh for nets and chain-link fencing: white or galvanised wire, see-through holes.
+        static Texture2D NetMesh()
+        {
+            var c32 = new Color32[Size * Size];
+            const int cells = 8;
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    float u = x * cells / (float)Size, v = y * cells / (float)Size;
+                    float a = Mathf.Abs(Mathf.Repeat(u + v, 1f) - 0.5f);
+                    float b = Mathf.Abs(Mathf.Repeat(u - v, 1f) - 0.5f);
+                    bool wire = a > 0.44f || b > 0.44f;
+                    byte g = (byte)(205 + 30 * Hash(x, y, 104));
+                    c32[y * Size + x] = new Color32(g, g, (byte)(g - 5), (byte)(wire ? 255 : 0));
+                }
+            var tex = ProceduralAssets.SaveTexture("Tex_Net", Size, c32, true);
+            tex.wrapMode = TextureWrapMode.Repeat;
+            EditorUtility.SetDirty(tex);
+            return tex;
+        }
+
+        static Material Cutout(string name, Texture2D tex)
+        {
+            var m = ProceduralAssets.LitMaterial(name, Color.white, tex, 0.2f);
+            if (m.HasProperty("_AlphaClip"))
+            {
+                m.SetFloat("_AlphaClip", 1f);
+                m.SetFloat("_Cutoff", 0.5f);
+                m.EnableKeyword("_ALPHATEST_ON");
+                m.renderQueue = (int)RenderQueue.AlphaTest;
+                m.SetOverrideTag("RenderType", "TransparentCutout");
+            }
+            if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);    // both faces
+            EditorUtility.SetDirty(m);
+            return m;
         }
     }
 }

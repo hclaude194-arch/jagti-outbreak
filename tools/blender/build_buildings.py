@@ -81,6 +81,16 @@ MATERIALS = {
     "Bedsheet": (0.6, 0.6, (0.42, 0.52, 0.72)),
     "Linen": (0.5, 0.5, (0.92, 0.91, 0.87)),
     "Wall_Tile": (1.2, 1.2, (0.93, 0.94, 0.94)),
+    # Phase 4D: shops, the medical centre, the sports complex and outdoor props.
+    "Sign_Board": (1.0, 1.0, (0.10, 0.22, 0.42)),
+    "Sports_Floor": (2.4, 2.4, (0.80, 0.62, 0.40)),
+    "Court_Line": (1.0, 1.0, (0.96, 0.96, 0.94)),
+    "Rubber": (1.0, 1.0, (0.13, 0.13, 0.14)),
+    "Goods": (0.6, 0.3, (0.70, 0.45, 0.30)),
+    "Produce": (0.5, 0.5, (0.75, 0.45, 0.15)),
+    "Net": (0.2, 0.2, (0.92, 0.92, 0.90)),
+    "Lamp_Glow": (1.0, 1.0, (1.0, 0.92, 0.75)),
+    "Paint_Yellow": (1.0, 1.0, (0.92, 0.72, 0.10)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 
@@ -547,13 +557,14 @@ def hall_bays(A, B_):
     return [i for i in range(bays) if z0 < A[1] + sgn * (i + 0.5) * bw < z1]
 
 
-def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True, skip=()):
+def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True, skip=(), shops=None):
     """Sandstone facade from the campus model: tall recessed windows between pilasters,
     a blue glass ribbon on the top floor, string courses and a parapet with coping.
     Bays listed in doors get a ground-floor doorway instead of windows; bays listed in skip
     are left open (where another part of the building covers the facade, and the interior
-    shell supplies the wall)."""
+    shell supplies the wall). shops maps bay index -> is_door for ground-floor shop fronts."""
     L = run.L
+    shops = shops or {}
     bays, bw = facade_bays(L)
     top = z0 + floors * FLOOR
     lower = floors - 1 if ribbon else floors
@@ -569,6 +580,9 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
             zb = z0 + 0.6 if f == 0 else zf
             if f == 0 and i in doors:
                 facade_door(run, s0, s1, kind, steps)
+                continue
+            if f == 0 and i in shops:
+                shop_front(run, s0, s1, shops[i])
                 continue
             wz0 = zf + (0.75 if f else 0.95)
             wz1 = zf + FLOOR - 0.4
@@ -602,6 +616,8 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
         zc = z0 + lower * FLOOR
         for c0, c1 in open_spans(bays, bw, skip):
             run.box(c0, c1, zc - 0.1, zc + 0.15, 0.0, 0.42, "Concrete")
+    if shops:
+        shop_canopy(run, bw, shops)
     # Parapet with coping.
     run.rect(0, L, top, top + 1.1, 0, "Stone")
     if inner:
@@ -1363,7 +1379,131 @@ def utility_facade(run, floors, top):
     run.box(-0.05, L + 0.05, top + 0.6, top + 0.75, -0.25, 0.1, "Concrete")
 
 
-def detailed_model(model_name, parts, style, doors=()):
+# ------------------------------------------------------------------ Phase 4D: shops, medical, sports
+# Shop units on the ground floor of the shopping and medical blocks. Their east fronts face the
+# plaza by Annapurna Mess. Each unit is a run of east-facade bays counted from the south end,
+# (name, first bay, last bay, door bay). build_civic_interiors.py reads the same table, and
+# build_outdoor.py puts each name on the fascia board over the unit.
+SHOP_UNITS = {
+    "Shopping & Medical 1 (ATM)": [("ATM", 7, 7, 7), ("Pharmacy", 5, 6, 5)],
+    "Shopping & Medical 2": [("Stationery & Photocopy", 0, 1, 1), ("Mobile Repair", 2, 2, 2), ("General Store", 3, 5, 4)],
+    "Shopping & Medical 3": [("Barber", 0, 1, 0), ("Fruit & Juice", 2, 2, 2), ("Cafe", 3, 5, 4)],
+}
+SHOP_TOP = 2.75     # head of the shop front openings
+SHOP_SILL = 1.05    # top of the stall riser under the shop windows
+SHOP_INSET = 0.3    # stone either side of a shop front, inside its bay
+FASCIA = (2.85, 3.3, 0.33, 0.43)   # sign board over each unit: z0, z1, d0, d1 (in front of the pilasters)
+# Ordinary doorways (facade_door) per side, as bay indices from the south or west end.
+CIVIC_DOORS = {
+    "Shopping & Medical 1 (ATM)": [("E", 2), ("W", 2)],     # clinic entrance; back door by the stair
+    "Shopping & Medical 2": [("W", 3)],                     # back door into the stair hall
+    "Shopping & Medical 3": [("W", 3)],
+    "Sports Complex": [("W", 2), ("W", 13), ("E", 10)],    # lobby; hall exits
+}
+
+
+def box_rect(name):
+    bd = BUILDINGS[name]
+    return (bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] - bd["depth"] / 2, bd["z"] + bd["depth"] / 2)
+
+
+def side_bays(name, side):
+    """(bays, bay width, world coordinate of bay 0's low end) along one side of a box building:
+    bays run from the south end on east and west sides, from the west end on north and south."""
+    X0, X1, Z0, Z1 = box_rect(name)
+    L, lo = (Z1 - Z0, Z0) if side in "EW" else (X1 - X0, X0)
+    bays, bw = facade_bays(L)
+    return bays, bw, lo
+
+
+def side_point(name, side, i):
+    """World point (X, Z) on the facade line at the middle of bay i of a side."""
+    X0, X1, Z0, Z1 = box_rect(name)
+    bays, bw, lo = side_bays(name, side)
+    a = lo + (i + 0.5) * bw
+    return {"E": (X1, a), "W": (X0, a), "N": (a, Z1), "S": (a, Z0)}[side]
+
+
+def shop_points(name):
+    """[(X, Z, is_door)] at the middle of every shop-front bay of a building."""
+    out = []
+    for unit, b0, b1, door in SHOP_UNITS.get(name, ()):
+        for i in range(b0, b1 + 1):
+            out.append((*side_point(name, "E", i), i == door))
+    return out
+
+
+def door_points(name):
+    return [side_point(name, sd, i) for sd, i in CIVIC_DOORS.get(name, ())]
+
+
+def shop_front(run, s0, s1, door):
+    """A shop front filling bay s0..s1 on the ground floor: a wide opening with stone either
+    side, a stall riser and glass for a window, an open doorway with a steel frame and a
+    rolled-up shutter for a door, reveals through the wall to the interior shell."""
+    os0, os1 = s0 + SHOP_INSET, s1 - SHOP_INSET
+    t = WALL["outer"]
+    z_lo = 0.6 if door else SHOP_SILL
+    run.rect(s0, os0, 0.6, FLOOR, 0, "Stone")
+    run.rect(os1, s1, 0.6, FLOOR, 0, "Stone")
+    run.rect(os0, os1, SHOP_TOP, FLOOR, 0, "Stone")
+    run.side(os0, z_lo, SHOP_TOP, 0, -t, "Stone", 1)
+    run.side(os1, z_lo, SHOP_TOP, 0, -t, "Stone", -1)
+    run.hband(os0, os1, SHOP_TOP, 0, -t, "Stone", up=False)
+    # Rolled-up shutter in its box under the head, guide channels down the jambs.
+    run.box(os0, os1, SHOP_TOP - 0.28, SHOP_TOP, -0.06, -0.3, "Metal", top=False)
+    for a, b_ in ((os0, os0 + 0.06), (os1 - 0.06, os1)):
+        run.box(a, b_, z_lo, SHOP_TOP - 0.28, -0.06, -0.12, "Metal", top=False, bottom=False)
+    if door:
+        run.hband(os0, os1, 0.6, 0.18, -t, "Concrete", up=True)
+        for k in range(3):
+            run.box(os0 - 0.3, os1 + 0.3, -0.8, 0.45 - 0.15 * k, 0.18, 0.18 + 0.35 * (k + 1), "Concrete", bottom=False)
+        return
+    run.rect(os0, os1, 0.6, SHOP_SILL, 0, "Stone")
+    run.hband(os0 - 0.05, os1 + 0.05, SHOP_SILL, 0.06, -t * 0.4, "Concrete", up=True)
+    run.rect(os0, os1, SHOP_SILL, SHOP_TOP - 0.28, -0.2, "Glass")
+    # Steel glazing frame: a transom and two mullions.
+    run.box(os0, os1, SHOP_TOP - 0.62, SHOP_TOP - 0.56, -0.2, -0.15, "Metal")
+    for k in (1, 2):
+        sx = os0 + (os1 - os0) * k / 3
+        run.box(sx - 0.03, sx + 0.03, SHOP_SILL, SHOP_TOP - 0.28, -0.2, -0.15, "Metal", top=False, bottom=False)
+
+
+def shop_canopy(run, bw, shops):
+    """A concrete canopy over the shop fronts and a sign board over each unit (the unit's name
+    is set on the board in Unity, from outdoor_props.json)."""
+    idx = sorted(shops)
+    spans, cur = [], [idx[0], idx[0]]
+    for i in idx[1:]:
+        if i == cur[1] + 1:
+            cur[1] = i
+        else:
+            spans.append(cur)
+            cur = [i, i]
+    spans.append(cur)
+    for a, b_ in spans:
+        s0, s1 = a * bw - 0.3, (b_ + 1) * bw + 0.3
+        run.box(max(0.0, s0), min(run.L, s1), FLOOR - 0.1, FLOOR + 0.04, 0.0, 1.35, "Concrete")
+    z0, z1, d0, d1 = FASCIA
+    for (s0, s1) in shop_board_spans(run, bw, shops):
+        run.box(s0, s1, z0, z1, d0, d1, "Sign_Board")
+
+
+def shop_board_spans(run, bw, shops):
+    """Run s-ranges of the fascia boards: one per shop unit (units are told apart by their door)."""
+    idx = sorted(shops)
+    groups, cur = [], [idx[0]]
+    for i in idx[1:]:
+        if i == cur[-1] + 1 and not (shops[i] and any(shops[j] for j in cur)):
+            cur.append(i)
+        else:
+            groups.append(cur)
+            cur = [i]
+    groups.append(cur)
+    return [(g[0] * bw + SHOP_INSET, (g[-1] + 1) * bw - SHOP_INSET) for g in groups]
+
+
+def detailed_model(model_name, parts, style, doors=(), shops=()):
     """One model from layout footprints; each part is a wing in the given style. doors lists
     world points (X, Z) on civic facades where a ground-floor doorway replaces the windows."""
     m = Model(model_name, *centre(parts[0]))
@@ -1396,7 +1536,9 @@ def detailed_model(model_name, parts, style, doors=()):
                     utility_facade(sub, floors, top)
                 else:
                     door_bays = [bay_at(sub, X, Z) for X, Z in doors if run_has(sub, X, Z)]
-                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True, doors=door_bays)
+                    shop_bays = {bay_at(sub, X, Z): d for X, Z, d in shops if run_has(sub, X, Z)}
+                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True, doors=door_bays,
+                                    shops=shop_bays)
         # Roof: a stair and lift room, water tanks on hostels and housing.
         cx, cy = m.b((X0 + X1) / 2, (Z0 + Z1) / 2)
         w, d = abs(X1 - X0), abs(Z1 - Z0)
@@ -1629,7 +1771,10 @@ HAND_COVERED = {
     "Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West", "Sindhu Hostel - Step 2", "Sindhu Hostel - South",
     "Hostel U - West", "Hostel U - North", "Hostel U - East",
     "Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3",
+    "Shopping & Medical 1 (ATM)", "Shopping & Medical 2", "Shopping & Medical 3", "Sports Complex",
 }
+CIVIC_4D = [("Shopping_Medical_1_ATM", "Shopping & Medical 1 (ATM)"), ("Shopping_Medical_2", "Shopping & Medical 2"),
+            ("Shopping_Medical_3", "Shopping & Medical 3"), ("Sports_Complex", "Sports Complex")]
 
 
 MODELS = [
@@ -1647,6 +1792,8 @@ MODELS = [
     lambda: detailed_model("Hostel_Chain_2", ["Hostel Chain 2"], "hostel"),
     lambda: detailed_model("Hostel_Chain_3", ["Hostel Chain 3"], "hostel"),
 ]
+MODELS += [(lambda mn=mn, n=n: detailed_model(mn, [n], "civic", doors=door_points(n), shops=shop_points(n)))
+           for mn, n in CIVIC_4D]
 MODELS += [(lambda g=g: detailed_model(*g)) for g in auto_models()]
 
 

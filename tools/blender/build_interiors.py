@@ -2805,7 +2805,11 @@ def main():
     rooms = [dict(name=r["name"], kind=r["kind"], rect=[round(v, 2) for v in r["rect"]], level=k, zone=0)
              for k, lv in enumerate(LEVEL_PLANS) for r in lv["rooms"]]
     buildings = [dict(shell=shell, name="Academic Block", floorOffset=FL, maxLevel=PAV_LEVEL)]
+    import build_civic_interiors as CI    # Phase 4D: shops, medical centre, sports complex
     for extra in HI.build_all():
+        buildings.append(extra)
+        rooms += extra["rooms"]
+    for extra in CI.build_all(len(buildings)):
         buildings.append(extra)
         rooms += extra["rooms"]
     shells, zones = [], []

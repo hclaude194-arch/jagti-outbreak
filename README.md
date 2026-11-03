@@ -5,7 +5,17 @@ An original zombie survival game set on the IIM Jammu campus at Jagti, built in 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 4C, walk-in hostels and Annapurna Mess
+## Current phase: 4D, shops, medical centre, sports complex and outdoor detail
+
+The last group of buildings can now be entered, and the campus outside has street furniture.
+
+- **Shopping and medical blocks:** the plaza fronts of the three blocks by Annapurna Mess now have shop fronts: wide glazed openings with rolled-up shutters, a concrete canopy and a blue fascia board with each shop's name. A paved walk with planters and garden lights runs along them to the mess. Each block has a stair in a back corner (with a back door) up to two more floors.
+- **Medical centre (block 1):** a waiting hall with a reception counter, rows of steel waiting chairs and a TV; two consulting rooms (doctor's desk, examination couch behind a folding screen, eye chart, medicine cabinet), a dressing room and toilets. Upstairs a seven-bed ward and an observation room with hospital beds, lockers, drips and screens, the duty doctor's room, the nurses' station and a linen store; on top medical records, physiotherapy, the medical officer's room and a staff room. On the plaza front: a pharmacy (counters, shelves of medicines, a vaccine fridge) and an ATM vestibule with two cash machines.
+- **Shops (blocks 2 and 3):** stationery and photocopy shop, mobile repair counter, general store (stocked shelving, drinks coolers, checkout), barber (mirror stations and barber chairs), fruit and juice bar, and a cafe with tables. Upstairs: a bank branch with tellers' counters and a strong room, a bookshop, a laundry and press with a tailor's shop, and a computer and reading room.
+- **Sports complex:** a full-height hall with four marked badminton courts, nets, benches, a scoreboard and high-bay lamps; a lobby with reception and a trophy cabinet, men's and women's changing rooms (lockers, benches, showers, WCs), an equipment store and first aid. Upstairs a gym (treadmills, bikes, power racks, benches, dumbbells) that looks down into the hall through a long window, and on top an indoor games room (table tennis, carrom, chess) and a yoga room.
+- **Outdoors:** lamp posts along the roads, benches and twin bins along the paths, round the lawns and outside the hostels, cycle stands, a name board for every named place, finger signposts at the main junctions, steel railings where the ground drops steeply beside a road, chain-link fences round the hostel courts with basketball hoops and volleyball nets.
+
+## Phase 4C: walk-in hostels and Annapurna Mess
 
 Every hostel can now be entered and explored on all seven floors: Brahmaputra, Hostel U, the three chain blocks and Sindhu.
 
@@ -42,7 +52,6 @@ Each room has its own furniture, about 4,100 pieces in all: desks, office chairs
 
 Room lights switch on around you as you walk (within about 24 m), and the furniture is only drawn when you are in or near the building, so the rest of the campus runs as before. The renderer switches to Forward+ so a room can have more than eight lights. Zombies can follow you in: the navigation mesh now covers the corridors and rooms.
 
-Next: the shops, medical, sports complex and outdoor detail (4D).
 
 ## Phase 3: survival gameplay
 
@@ -117,6 +126,7 @@ The overlay in the top-left shows your frame rate and the nearest place. Please 
 - `Assets/Editor/CampusGreyboxBuilder.cs` turns that data into the scene; `CampusTerrainBuilder.cs` makes the Unity Terrain; `ProceduralAssets.cs` makes the ground textures and tree models from code, saved under `Assets/Generated` (rebuilt each time, not stored in Git).
 - `tools/blender/build_buildings.py` builds the landmark buildings in headless Blender from the same layout data and exports `Assets/Models/Buildings/*.fbx` (small files, kept in plain Git) plus `Assets/Data/building_models.json`. `BuildingModels.cs` places them and `BuildingMaterials.cs` paints their facade textures in code.
 - `tools/blender/build_interiors.py` (run after `build_buildings.py`) builds the walk-in interiors: the interior shell (floors, ceilings, walls with window openings, partitions with doorways, tiered case rooms) as `Assets/Models/Buildings/*_Interior.fbx`, one small FBX per kind of furniture in `Assets/Models/Props/`, and `Assets/Data/interiors.json`, which lists every room, piece of furniture and light. `InteriorBuilder.cs` places them and `InteriorMaterials.cs` paints floors, walls and furniture in code; `InteriorZone.cs` hides the interior and switches off its lights when you're away.
+- `tools/blender/build_outdoor.py` (run after `build_buildings.py` and the terrain) makes the street furniture models and `Assets/Data/outdoor_props.json`, which says where each lamp post, bench, sign and railing stands and what each sign says. `OutdoorBuilder.cs` sets them out on the terrain and writes the sign text.
 - `Assets/Editor/JagtiProjectSetup.cs` sets up URP for integrated graphics and rebuilds the scene whenever the layout data is newer than the last build.
 - `Assets/Scripts/` holds runtime code: the first-person controller, labels and the test overlay, and `Gameplay/` (zombie AI and spawner, weapons, health and stamina, inventory, loot crates, HUD, synthesized sounds). `Assets/Editor/GameplayBuilder.cs` adds these to the scene and places the supply crates.
 - Models, textures and audio are stored with Git LFS (see `.gitattributes`).

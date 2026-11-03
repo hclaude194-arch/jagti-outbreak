@@ -70,6 +70,11 @@ namespace Jagti.EditorTools
     {
         const string ListPath = "Assets/Data/interiors.json";
 
+        /// <summary>The import correction of the first interior shell (turn and scale); the
+        /// furniture and the outdoor props were exported the same way, so they take it too.</summary>
+        public static Quaternion PropTurn = Quaternion.identity;
+        public static Vector3 PropScale = Vector3.one;
+
         public static void Build(Transform parent, Func<float, float, float> ground)
         {
             var json = AssetDatabase.LoadAssetAtPath<TextAsset>(ListPath);
@@ -77,6 +82,9 @@ namespace Jagti.EditorTools
             var list = JsonUtility.FromJson<InteriorList>(json.text);
             if (list == null || list.shells == null || list.zones == null) return;
 
+            PropTurn = Quaternion.identity;
+            PropScale = Vector3.one;
+            bool correctionSet = false;
             JagtiProjectSetup.EnsureForwardPlus();
             var materials = BuildingMaterials.Get();
 
@@ -131,6 +139,12 @@ namespace Jagti.EditorTools
                         // Furniture was modelled the same way as the shell, so it takes the same correction.
                         turn = shell.transform.rotation;
                         scale = shell.transform.localScale;
+                        if (!correctionSet)
+                        {
+                            PropTurn = turn;
+                            PropScale = scale;
+                            correctionSet = true;
+                        }
                         foreach (var r in shell.GetComponentsInChildren<Renderer>()) renderers.Add(r);
                     }
                 }
