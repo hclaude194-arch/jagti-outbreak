@@ -26,6 +26,7 @@ namespace Jagti.Royale
         public Texture2D mapTexture;
         public Rect mapWorld;               // world X/Z covered by mapTexture (x, z, width, depth)
         public PlaceData[] places;
+        public PlayerMover mover;
 
         Texture2D white, dot, arrow, scope;
         GUIStyle small, normal, big, huge, centre;
@@ -366,11 +367,14 @@ namespace Jagti.Royale
             }
 
             // Pickup prompt and healing.
-            if (arsenal != null && !string.IsNullOrEmpty(arsenal.Prompt))
+            string prompt = arsenal != null ? arsenal.Prompt : null;
+            if (string.IsNullOrEmpty(prompt) && mover != null) prompt = mover.Prompt;
+            if (!string.IsNullOrEmpty(prompt))
             {
                 Fill(new Rect(w / 2 - 190, h / 2 + 60, 380, 28), new Color(0f, 0f, 0f, 0.5f));
-                Label(new Rect(w / 2 - 190, h / 2 + 62, 380, 24), arsenal.Prompt, centre);
+                Label(new Rect(w / 2 - 190, h / 2 + 62, 380, 24), prompt, centre);
             }
+            DrawVehicle(w, h);
             if (player.IsHealing)
             {
                 Fill(new Rect(w / 2 - 100, h / 2 + 96, 200, 10), new Color(0f, 0f, 0f, 0.6f));
@@ -516,6 +520,7 @@ namespace Jagti.Royale
             Vector2 off = new Vector2(r.x, r.y);
             DrawWorldCircles(v => toScreen(v) - off, size / span);
             foreach (var s in director.supplyDrops) Marker(toScreen(s) - off, new Color(0.95f, 0.2f, 0.15f), 8f);
+            DrawGettingAround(v => toScreen(v) - off, false);
             GUI.EndClip();
             PlayerArrow(r.center, 18f);
             Label(new Rect(r.x, r.y + size + 4, size, 20), NearestPlace(), new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
@@ -553,8 +558,54 @@ namespace Jagti.Royale
             }
             DrawWorldCircles(toScreen, scale);
             foreach (var s in director.supplyDrops) Marker(toScreen(s), new Color(0.95f, 0.2f, 0.15f), 10f);
+            DrawGettingAround(toScreen, true);
             PlayerArrow(toScreen(player.transform.position), 20f);
             Label(new Rect(r.x, r.yMax + 6, mw, 24), "M  close map", new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
+        }
+
+        /// <summary>Zip lines as dotted orange lines (towers as squares); vehicles within 150 m as small marks.</summary>
+        void DrawGettingAround(System.Func<Vector3, Vector2> toScreen, bool full)
+        {
+            var zipCol = new Color(1f, 0.6f, 0.15f, 0.9f);
+            foreach (var z in ZipLine.All)
+            {
+                Vector2 a = toScreen(z.a), b = toScreen(z.b);
+                int n = Mathf.Clamp(Mathf.RoundToInt((b - a).magnitude / 5f), 4, 60);
+                for (int i = 1; i < n; i++) Marker(Vector2.Lerp(a, b, i / (float)n), zipCol, 2.5f);
+                GUI.color = zipCol;
+                GUI.DrawTexture(new Rect(a.x - 3, a.y - 3, 6, 6), white);
+                GUI.DrawTexture(new Rect(b.x - 3, b.y - 3, 6, 6), white);
+                GUI.color = Color.white;
+            }
+            Vector3 me = player.transform.position;
+            foreach (var v in Vehicle.All)
+            {
+                if (v.Wrecked || (mover != null && mover.Riding == v)) continue;
+                if (!full && (v.transform.position - me).sqrMagnitude > 150f * 150f) continue;
+                if (full && (v.transform.position - me).sqrMagnitude > 300f * 300f) continue;
+                Vector2 s = toScreen(v.transform.position);
+                GUI.color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
+                GUI.DrawTexture(new Rect(s.x - 4, s.y - 3, 8, 6), white);
+                GUI.color = new Color(0.55f, 0.85f, 1f, 1f);
+                GUI.DrawTexture(new Rect(s.x - 3, s.y - 2, 6, 4), white);
+                GUI.color = Color.white;
+            }
+        }
+
+        /// <summary>The vehicle panel while riding: health bar and speed.</summary>
+        void DrawVehicle(float w, float h)
+        {
+            if (mover == null || mover.Riding == null) return;
+            var v = mover.Riding;
+            Rect r = new Rect(w / 2 - 130, h - 150, 260, 40);
+            Fill(r, new Color(0f, 0f, 0f, 0.5f));
+            float f = Mathf.Clamp01(v.Health / v.maxHealth);
+            Color c = f > 0.5f ? new Color(0.85f, 0.85f, 0.85f) : f > 0.25f ? new Color(1f, 0.7f, 0.2f) : new Color(1f, 0.25f, 0.15f);
+            Fill(new Rect(r.x + 8, r.y + 28, r.width - 16, 6), new Color(1f, 1f, 1f, 0.15f));
+            Fill(new Rect(r.x + 8, r.y + 28, (r.width - 16) * f, 6), c);
+            Label(new Rect(r.x + 8, r.y + 4, 160, 22), v.DisplayName.Substring(0, 1).ToUpper() + v.DisplayName.Substring(1), small);
+            Label(new Rect(r.x + 100, r.y + 4, r.width - 108, 22), Mathf.RoundToInt(Mathf.Abs(v.Speed) * 3.6f) + " km/h",
+                  new GUIStyle(small) { alignment = TextAnchor.UpperRight });
         }
 
         void DrawWorldCircles(System.Func<Vector3, Vector2> toScreen, float pixelsPerMetre)

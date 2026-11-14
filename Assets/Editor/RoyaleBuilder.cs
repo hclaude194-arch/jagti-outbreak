@@ -6,6 +6,7 @@ using Jagti.Royale;
 using Jagti.World;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Rendering;
 
 namespace Jagti.EditorTools
@@ -152,7 +153,13 @@ namespace Jagti.EditorTools
             var me = pgo.AddComponent<Combatant>();
             me.isPlayer = true;
             me.displayName = "You";
-            me.eye = player.cameraPivot;
+            // Bots aim at the head, which the controller keeps over the body in first and third person
+            // (the camera itself pulls back behind the shoulder in third person).
+            var headMark = new GameObject("Head").transform;
+            headMark.SetParent(pgo.transform, false);
+            headMark.localPosition = player.cameraPivot.localPosition;
+            player.headMarker = headMark;
+            me.eye = headMark;
             var diver = pgo.AddComponent<SkyDiver>();
             diver.helicopter = heli;
             diver.skin = skins[0];
@@ -165,6 +172,24 @@ namespace Jagti.EditorTools
             arsenal.palette = palette;
             arsenal.grenadeTemplate = GrenadeTemplate(br, palette, ParticleMaterial("Blast_Smoke", puffTex));
             arsenal.smokeTemplate = SmokeTemplate(br, palette, ParticleMaterial("Smoke_Screen", puffTex));
+
+            // Getting around (5D): vaulting, wading, riding and zip lines. The walker's capsule is off while
+            // riding or zipping, so a separate hit area stands in for it.
+            var riderGo = new GameObject("Rider Hitbox");
+            riderGo.transform.SetParent(pgo.transform, false);
+            var riderCol = riderGo.AddComponent<CapsuleCollider>();
+            riderCol.center = new Vector3(0f, 1.05f, 0f);
+            riderCol.height = 1.5f;
+            riderCol.radius = 0.3f;
+            riderGo.AddComponent<Hitbox>().owner = health;
+            riderCol.enabled = false;
+            var mover = pgo.AddComponent<PlayerMover>();
+            mover.riderHitbox = riderCol;
+            FillWater(mover, layout);
+
+            var blastSmoke = ParticleMaterial("Wreck_Smoke", puffTex);
+            int vehicleSpots = PlaceVehicles(layout, br, palette, blastSmoke, ground);
+            int zipLines = PlaceZipLines(layout, br, ground);
 
             // ---------------------------------------------------------------- referee and HUD
             var dirGo = new GameObject("Match Director");
@@ -204,9 +229,235 @@ namespace Jagti.EditorTools
             hud.mapTexture = map;
             hud.mapWorld = mapWorld;
             hud.places = layout.places;
+            hud.mover = mover;
 
             Debug.Log("[Jagti] Battle royale: " + points + " loot points, helicopter, haze over " + Mathf.RoundToInt(haze.startRadius) +
-                      " m, " + director.botCount + " bots.");
+                      " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines.");
+        }
+
+        // ------------------------------------------------------------------ getting around
+
+        /// <summary>Water the player can wade through: the channel segments and the round basins.</summary>
+        static void FillWater(PlayerMover mover, CampusLayout layout)
+        {
+            var segs = new List<Vector4>();
+            var widths = new List<float>();
+            if (layout.water != null)
+                foreach (var w in layout.water)
+                {
+                    if (w.points == null) continue;
+                    for (int i = 0; i + 3 < w.points.Length; i += 2)
+                    {
+                        segs.Add(new Vector4(w.points[i], w.points[i + 1], w.points[i + 2], w.points[i + 3]));
+                        widths.Add(Mathf.Max(1f, w.width));
+                    }
+                }
+            mover.channels = segs.ToArray();
+            mover.channelWidths = widths.ToArray();
+            var pools = new List<Vector3>();
+            if (layout.pools != null)
+                foreach (var p in layout.pools)
+                    pools.Add(new Vector3(p.x, p.z, p.radius));
+            mover.pools = pools.ToArray();
+        }
+
+        static bool InsidePolygon(float[] poly, float x, float z)
+        {
+            if (poly == null || poly.Length < 6) return true;
+            bool inside = false;
+            int n = poly.Length / 2;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                float xi = poly[i * 2], zi = poly[i * 2 + 1], xj = poly[j * 2], zj = poly[j * 2 + 1];
+                if ((zi > z) != (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+            }
+            return inside;
+        }
+
+        /// <summary>
+        /// Candidate parking spots for scooters and carts: along the kerb of every road at least 4 m wide
+        /// (about one per 90 m) and a few bays in each car park, each on solid ground with nothing in the
+        /// way. VehicleSpawner picks a random spread of them each match.
+        /// </summary>
+        static int PlaceVehicles(CampusLayout layout, Transform br, Material[] palette, Material smoke, Func<float, float, float> ground)
+        {
+            Physics.SyncTransforms();
+            var spots = new List<Vector4>();
+            var parking = new List<bool>();
+            var half = new Vector3(1.0f, 0.65f, 1.7f);
+            Func<float, float, float, bool, bool> tryAdd = (x, z, yaw, park) =>
+            {
+                if (!InsidePolygon(layout.boundary, x, z)) return false;
+                float g = ground(x, z);
+                RaycastHit hit;
+                float y = g;
+                if (Physics.Raycast(new Vector3(x, g + 6f, z), Vector3.down, out hit, 9f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (hit.point.y > g + 1.2f) return false;       // under a roof, a canopy or a bridge deck
+                    y = hit.point.y;
+                }
+                // Level enough to park on.
+                var rot = Quaternion.Euler(0f, yaw, 0f);
+                Vector3 f = rot * Vector3.forward, r = rot * Vector3.right;
+                float gf = ground(x + f.x * 1.6f, z + f.z * 1.6f), gb = ground(x - f.x * 1.6f, z - f.z * 1.6f);
+                float gl = ground(x - r.x, z - r.z), gr = ground(x + r.x, z + r.z);
+                if (Mathf.Abs(gf - gb) > 0.9f || Mathf.Abs(gl - gr) > 0.5f) return false;
+                float top = Mathf.Max(Mathf.Max(gf, gb), Mathf.Max(gl, gr), y);
+                if (Physics.CheckBox(new Vector3(x, top + 0.35f + half.y, z), half, rot, ~0, QueryTriggerInteraction.Ignore)) return false;
+                NavMeshHit nh;
+                if (!NavMesh.SamplePosition(new Vector3(x, y, z), out nh, 2f, NavMesh.AllAreas)) return false;
+                foreach (var s in spots)
+                    if ((new Vector3(s.x, s.y, s.z) - new Vector3(x, y, z)).sqrMagnitude < 15f * 15f) return false;
+                spots.Add(new Vector4(x, y + 0.05f, z, yaw));
+                parking.Add(park);
+                return true;
+            };
+
+            if (layout.roads != null)
+                foreach (var road in layout.roads)
+                {
+                    if (road.points == null || road.width < 4f) continue;
+                    if (road.name == "Highway" || road.name.StartsWith("Courtyard")) continue;   // off campus / inside a building's court
+                    float carry = 45f;          // the first spot a little way in from the road's start
+                    int side = 1;
+                    for (int i = 0; i + 3 < road.points.Length; i += 2)
+                    {
+                        var a = new Vector2(road.points[i], road.points[i + 1]);
+                        var b = new Vector2(road.points[i + 2], road.points[i + 3]);
+                        float len = (b - a).magnitude;
+                        if (len < 0.1f) continue;
+                        Vector2 dir = (b - a) / len, perp = new Vector2(dir.y, -dir.x);
+                        float t = carry;
+                        while (t < len)
+                        {
+                            Vector2 p = a + dir * t + perp * side * (road.width / 2f - 1.1f);
+                            float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + (side < 0 ? 180f : 0f);
+                            if (tryAdd(p.x, p.y, yaw, false)) side = -side;
+                            t += 90f;
+                        }
+                        carry = t - len;
+                    }
+                }
+            if (layout.areas != null)
+                foreach (var area in layout.areas)
+                {
+                    if (area.type != "parking") continue;
+                    bool wide = area.width >= area.depth;
+                    float along = wide ? area.width : area.depth;
+                    int n = Mathf.Clamp(Mathf.FloorToInt(along / 16f), 1, 4);
+                    for (int k = 0; k < n; k++)
+                    {
+                        float u = (k + 0.5f) / n - 0.5f;
+                        float x = area.x + (wide ? u * area.width : 0f);
+                        float z = area.z + (wide ? 0f : u * area.depth);
+                        tryAdd(x, z, wide ? 0f : 90f, true);   // nose in across the long side
+                    }
+                }
+
+            var go = new GameObject("Vehicles");
+            go.transform.SetParent(br, false);
+            var spawner = go.AddComponent<VehicleSpawner>();
+            spawner.spots = spots.ToArray();
+            spawner.parking = parking.ToArray();
+            spawner.palette = palette;
+            spawner.smokeMaterial = smoke;
+            return spots.Count;
+        }
+
+        /// <summary>
+        /// Zip lines on the steep slopes: tower pairs 70-220 m apart with at least 8 m of drop, both bases on
+        /// walkable ground inside the boundary, the sagging cable at least 2.5 m above the ground the whole way
+        /// and nothing (buildings, trees) between the tower tops. The best few, kept well apart, are built.
+        /// </summary>
+        static int PlaceZipLines(CampusLayout layout, Transform br, Func<float, float, float> ground)
+        {
+            Physics.SyncTransforms();
+            const float tower = 4.4f, step = 24f;
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            for (int i = 0; i + 1 < layout.boundary.Length; i += 2)
+            {
+                minX = Mathf.Min(minX, layout.boundary[i]); maxX = Mathf.Max(maxX, layout.boundary[i]);
+                minZ = Mathf.Min(minZ, layout.boundary[i + 1]); maxZ = Mathf.Max(maxZ, layout.boundary[i + 1]);
+            }
+            // Tower sites: level-ish, open ground on the NavMesh.
+            var sites = new List<Vector3>();
+            for (float x = minX + step; x < maxX - step; x += step)
+                for (float z = minZ + step; z < maxZ - step; z += step)
+                {
+                    if (!InsidePolygon(layout.boundary, x, z)) continue;
+                    float g = ground(x, z);
+                    float hi = g, lo = g;
+                    for (int c = 0; c < 4; c++)
+                    {
+                        float h = ground(x + ((c & 1) == 0 ? -1.2f : 1.2f), z + ((c & 2) == 0 ? -1.2f : 1.2f));
+                        hi = Mathf.Max(hi, h); lo = Mathf.Min(lo, h);
+                    }
+                    if (hi - lo > 1.0f) continue;
+                    NavMeshHit nh;
+                    if (!NavMesh.SamplePosition(new Vector3(x, g, z), out nh, 1.5f, NavMesh.AllAreas) || Mathf.Abs(nh.position.y - g) > 0.6f) continue;
+                    if (Physics.CheckBox(new Vector3(x, hi + 0.3f + tower / 2f, z), new Vector3(1.3f, tower / 2f, 1.3f), Quaternion.identity, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    sites.Add(new Vector3(x, g, z));
+                }
+
+            var pairs = new List<KeyValuePair<float, Vector3[]>>();
+            for (int i = 0; i < sites.Count; i++)
+                for (int j = 0; j < sites.Count; j++)
+                {
+                    Vector3 a = sites[i], b = sites[j];
+                    float dh = a.y - b.y;
+                    if (dh < 8f) continue;
+                    float len = new Vector2(b.x - a.x, b.z - a.z).magnitude;
+                    if (len < 70f || len > 220f || dh / len > 0.45f) continue;
+                    Vector3 ta = a + Vector3.up * tower, tb = b + Vector3.up * tower;
+                    float sag = (tb - ta).magnitude * 0.018f;
+                    bool clear = true;
+                    for (int k = 1; k < 24 && clear; k++)
+                    {
+                        float s = k / 24f;
+                        Vector3 p = Vector3.Lerp(ta, tb, s) - Vector3.up * (4f * sag * s * (1f - s));
+                        if (p.y - ground(p.x, p.z) < 2.5f) clear = false;
+                    }
+                    if (!clear) continue;
+                    float score = dh * (1f - Mathf.Abs(len - 150f) / 250f);
+                    pairs.Add(new KeyValuePair<float, Vector3[]>(score, new[] { a, b }));
+                }
+            pairs.Sort((p, q) => q.Key.CompareTo(p.Key));
+
+            var root = new GameObject("Zip Lines").transform;
+            root.SetParent(br, false);
+            var steel = ProceduralAssets.LitMaterial("Zip_Steel", new Color(0.42f, 0.43f, 0.45f), null, 0.55f);
+            var cable = ProceduralAssets.LitMaterial("Zip_Cable", new Color(0.12f, 0.12f, 0.13f), null, 0.6f);
+            var paint = ProceduralAssets.LitMaterial("Zip_Paint", new Color(0.9f, 0.55f, 0.1f), null, 0.3f);
+            var ends = new List<Vector3>();
+            int built = 0;
+            foreach (var pr in pairs)
+            {
+                if (built >= 5) break;
+                Vector3 a = pr.Value[0], b = pr.Value[1];
+                bool far = true;
+                foreach (var e in ends)
+                    if ((e - a).sqrMagnitude < 90f * 90f || (e - b).sqrMagnitude < 90f * 90f) { far = false; break; }
+                if (!far) continue;
+                // Nothing between the tops (start and stop just short of the towers themselves).
+                Vector3 ta = a + Vector3.up * (tower - 0.3f), tb = b + Vector3.up * (tower - 0.3f);
+                Vector3 d = (tb - ta).normalized;
+                if (Physics.Linecast(ta + d * 2f, tb - d * 2f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                var go = new GameObject("Zip Line " + (built + 1));
+                go.transform.SetParent(root, false);
+                go.transform.position = a;
+                var z = go.AddComponent<ZipLine>();
+                z.a = a;
+                z.b = b;
+                z.towerHeight = tower;
+                z.steel = steel;
+                z.cable = cable;
+                z.paint = paint;
+                ends.Add(a);
+                ends.Add(b);
+                built++;
+            }
+            if (built == 0) Debug.LogWarning("[Jagti] No zip line sites found (" + sites.Count + " tower sites, " + pairs.Count + " pairs).");
+            return built;
         }
 
         // ------------------------------------------------------------------ loot points

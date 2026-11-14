@@ -13,7 +13,7 @@ namespace Jagti.Royale
     /// </summary>
     public class HumanBody : MonoBehaviour
     {
-        public enum Pose { Stand, FreeFall, Glide, Dead }
+        public enum Pose { Stand, FreeFall, Glide, Dead, Seat, Hang }
 
         // Bone order in the skinned mesh.
         const int BHips = 0, BSpine = 1, BChest = 2, BHead = 3,
@@ -34,6 +34,8 @@ namespace Jagti.Royale
         public float crouch;
         /// <summary>Up/down angle of the aim in degrees (positive = up).</summary>
         public float aimPitch;
+        /// <summary>Seated: where the hands grip (handlebar or wheel) and the feet rest, in world space.</summary>
+        [HideInInspector] public Vector3 handTargetL, handTargetR, footTargetL, footTargetR;
 
         Transform[] bones;
         SkinnedMeshRenderer skin;
@@ -445,6 +447,8 @@ namespace Jagti.Royale
                 case Pose.FreeFall: FreeFall(dt); break;
                 case Pose.Glide: Glide(dt); break;
                 case Pose.Dead: Dead(dt); break;
+                case Pose.Seat: Seat(dt); break;
+                case Pose.Hang: Hang(dt); break;
             }
         }
 
@@ -587,6 +591,50 @@ namespace Jagti.Royale
             bones[BThighR].localRotation = Quaternion.Euler(-50f - sw, 0f, 4f);
             bones[BShinL].localRotation = Quaternion.Euler(50f, 0f, 0f);
             bones[BShinR].localRotation = Quaternion.Euler(45f, 0f, 0f);
+            bones[BFootL].localRotation = Quaternion.identity;
+            bones[BFootR].localRotation = Quaternion.identity;
+        }
+
+        /// <summary>Riding: sat on the seat (the root is 0.8 m below it), hands on the bars, feet on the boards.</summary>
+        void Seat(float dt)
+        {
+            Transform root = transform;
+            bones[BHips].localPosition = new Vector3(0f, 0.8f, -0.02f);
+            bones[BHips].localRotation = Quaternion.identity;
+            bones[BSpine].localRotation = Quaternion.Euler(10f, 0f, 0f);
+            bones[BChest].localRotation = Quaternion.Euler(6f, 0f, 0f);
+            bones[BHead].localRotation = Quaternion.Euler(-14f, 0f, 0f);
+            Solve(bones[BThighL], bones[BShinL], Thigh, Shin, footTargetL + root.up * Ankle, root.forward + root.up * 0.6f - root.right * 0.2f);
+            Solve(bones[BThighR], bones[BShinR], Thigh, Shin, footTargetR + root.up * Ankle, root.forward + root.up * 0.6f + root.right * 0.2f);
+            bones[BFootL].rotation = Quaternion.LookRotation(root.forward, root.up);
+            bones[BFootR].rotation = Quaternion.LookRotation(root.forward, root.up);
+            Transform chest = bones[BChest];
+            Solve(bones[BUpperL], bones[BLowerL], UpperArm, Forearm, handTargetL + root.up * 0.04f, -chest.up - chest.right * 0.9f);
+            Solve(bones[BUpperR], bones[BLowerR], UpperArm, Forearm, handTargetR + root.up * 0.04f, -chest.up + chest.right * 0.9f);
+            bones[BHandL].rotation = Hang(root.forward * 0.4f - root.up, root.forward);
+            bones[BHandR].rotation = Hang(root.forward * 0.4f - root.up, root.forward);
+        }
+
+        /// <summary>On the zip line: hands up on the trolley, legs swinging.</summary>
+        void Hang(float dt)
+        {
+            phase += dt * 2.4f;
+            float sway = Mathf.Sin(phase) * 6f;
+            bones[BHips].localPosition = new Vector3(0f, HipHeight, 0f);
+            bones[BHips].localRotation = Quaternion.Euler(sway * 0.5f, 0f, 0f);
+            bones[BSpine].localRotation = Quaternion.identity;
+            bones[BChest].localRotation = Quaternion.identity;
+            bones[BHead].localRotation = Quaternion.Euler(-10f, 0f, 0f);
+            bones[BUpperL].localRotation = Quaternion.Euler(-8f, 0f, -168f);
+            bones[BUpperR].localRotation = Quaternion.Euler(-8f, 0f, 168f);
+            bones[BLowerL].localRotation = Quaternion.Euler(-10f, 0f, 0f);
+            bones[BLowerR].localRotation = Quaternion.Euler(-10f, 0f, 0f);
+            bones[BHandL].localRotation = Quaternion.identity;
+            bones[BHandR].localRotation = Quaternion.identity;
+            bones[BThighL].localRotation = Quaternion.Euler(-25f + sway, 0f, -4f);
+            bones[BThighR].localRotation = Quaternion.Euler(-15f - sway, 0f, 4f);
+            bones[BShinL].localRotation = Quaternion.Euler(30f, 0f, 0f);
+            bones[BShinR].localRotation = Quaternion.Euler(20f, 0f, 0f);
             bones[BFootL].localRotation = Quaternion.identity;
             bones[BFootR].localRotation = Quaternion.identity;
         }

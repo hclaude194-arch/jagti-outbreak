@@ -18,6 +18,8 @@ namespace Jagti.Royale
         public static System.Action<bool, bool> PlayerHit;
         /// <summary>A shot passed close to the player (the HUD shows where it came from).</summary>
         public static System.Action<Vector3> PlayerNearMiss;
+        /// <summary>The collider the last Trace stopped at (vehicles take damage through it).</summary>
+        public static Collider LastHitCollider;
 
         static readonly RaycastHit[] hitBuffer = new RaycastHit[24];
         static readonly Dictionary<Combatant, float> totals = new Dictionary<Combatant, float>();
@@ -45,6 +47,11 @@ namespace Jagti.Royale
                 float distance;
                 if (Trace(shooter, origin, d, def.range * 1.6f, out end, out victim, out head, out distance))
                 {
+                    if (victim == null && LastHitCollider != null)
+                    {
+                        var vehicle = LastHitCollider.GetComponentInParent<Vehicle>();
+                        if (vehicle != null) vehicle.TakeHit(def.damage * tierDamage * 0.6f, shooter);
+                    }
                     if (victim != null)
                     {
                         float fall = Mathf.Lerp(1f, def.falloffMin, Mathf.Clamp01(distance / def.range));
@@ -93,6 +100,7 @@ namespace Jagti.Royale
             victim = null;
             head = false;
             end = origin + dir * range;
+            LastHitCollider = null;
             distance = range;
             int n = Physics.RaycastNonAlloc(origin, dir, hitBuffer, range, MaskAll, QueryTriggerInteraction.Ignore);
             float best = float.MaxValue;
@@ -107,6 +115,7 @@ namespace Jagti.Royale
             }
             if (bestIndex < 0) return false;
             var hit = hitBuffer[bestIndex];
+            LastHitCollider = hit.collider;
             end = hit.point;
             distance = hit.distance;
             var box = hit.collider.GetComponent<Hitbox>();

@@ -76,6 +76,11 @@ namespace Jagti.Royale
                 if (thrower != null && thrower.isPlayer && c != thrower && Ballistics.PlayerHit != null)
                     Ballistics.PlayerHit(false, wasAlive && !c.Alive);
             }
+            foreach (var v in Vehicle.All.ToArray())
+            {
+                float dv = (v.transform.position - p).magnitude;
+                if (dv < radius + 1f) v.TakeHit(maxDamage * 1.6f * Mathf.Clamp01(1f - dv / (radius + 1f)), thrower);
+            }
             NoiseEvents.Emit(p, 140f);
             Ballistics.SoundAt(p, "explosion", 1f);
             Blast(p);
