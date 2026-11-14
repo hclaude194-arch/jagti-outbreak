@@ -84,6 +84,16 @@ namespace Jagti.Gameplay
                 case "clink": return Click(name, 0.08f, 2600f);
                 case "death_grunt": return Hurt(name);
                 case "alert": return Tones(name, new[] { 660f, 880f, 660f, 880f }, 0.18f);
+                case "revolver": return Shot(name, 0.75f, 0.06f, 58f, 1.3f);
+                case "carbine": return Shot(name, 0.45f, 0.045f, 85f, 0.9f);
+                case "double": return Shot(name, 0.95f, 0.12f, 44f, 1.15f);
+                case "lmg": return Shot(name, 0.55f, 0.05f, 68f, 1.05f);
+                case "sniper": return Shot(name, 1.6f, 0.08f, 42f, 2.1f);
+                case "suppressed": return Thud(name, 0.16f, 210f, 0.85f);
+                case "bolt": return Reload(name);
+                case "armour_break": return Tones(name, new[] { 1500f, 1100f, 700f }, 0.05f);
+                case "smoke_pop": return Wind(name, 1.4f, 0.55f);
+                case "heartbeat": return Thud(name, 0.5f, 48f, 0.1f);
                 case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
                 default: return Click(name, 0.02f, 1000f);
             }

@@ -7,10 +7,14 @@ namespace Jagti.Royale
 {
     /// <summary>
     /// The player's hands in a match. 1-3 pick a gun slot (the wheel cycles), left click fires
-    /// (hold for automatic guns), right click aims down the sights, R reloads, E picks up what you
-    /// look at, X drops the gun in hand, Q uses a bandage or medkit, Z drinks a chai flask, G throws
-    /// a grenade. With no gun, left click punches. Ammo for the guns you carry is picked up by walking over it.
-    /// View models reuse the loot models, held upright.
+    /// (hold for automatic guns; burst guns fire three), right click aims down the sights, R reloads,
+    /// E picks up what you look at, X drops the gun in hand, Q uses a bandage or medkit, Z drinks a
+    /// chai flask, G throws a grenade, 4 a smoke grenade, V switches between the over-the-shoulder
+    /// camera and first person (aiming always goes to first person). With no gun, left click punches.
+    /// Ammo for the guns you carry is picked up by walking over it.
+    /// Each gun has its own recoil pattern: the kick climbs over a spray and drifts to one side the
+    /// same way every time, so it can be learnt and pulled against. Grips and compensators tame it.
+    /// View models reuse the loot models, held upright, with their attachments fitted.
     /// </summary>
     [RequireComponent(typeof(Combatant))]
     public class PlayerArsenal : MonoBehaviour
@@ -18,13 +22,22 @@ namespace Jagti.Royale
         public Material[] palette;          // LootVisuals palette
         public Material flashMaterial;
         public GameObject grenadeTemplate;  // inactive template made by RoyaleBuilder
+        public GameObject smokeTemplate;    // inactive smoke grenade template
+        public bool thirdPerson = true;
+        public float shoulderDistance = 2.4f;
 
         public string Prompt { get; private set; }
         public LootDrop Target { get; private set; }
         public bool Aiming { get; private set; }
         public float ReloadProgress { get { return reloadTime > 0f ? 1f - reloadLeft / reloadTime : 0f; } }
         public bool Reloading { get { return reloadLeft > 0f; } }
-        public bool Scoped { get { var g = combatant.loadout.Current; return Aiming && g != null && g.def.zoomFov < 30f && aimBlend > 0.9f; } }
+        public bool Scoped { get { var g = combatant.loadout.Current; return Aiming && g != null && g.AimFov < 30f && aimBlend > 0.9f; } }
+        /// <summary>The red dot or 2x sight is up (the HUD draws its reticle).</summary>
+        public bool DotSight { get { var g = combatant.loadout.Current; return Aiming && g != null && !Scoped && aimBlend > 0.8f && (g.Sight == 0 || g.Sight == 1); } }
+        public bool InThirdPerson { get { return thirdPerson && aimBlend < 0.5f; } }
+        public float AimBlend { get { return aimBlend; } }
+        /// <summary>Recent firing, 0..1 (the HUD opens the crosshair with it).</summary>
+        public float Bloom { get; private set; }
         public float HitMarker { get; private set; }
         public bool HitWasHead { get; private set; }
         public bool HitWasKill { get; private set; }
@@ -47,6 +60,10 @@ namespace Jagti.Royale
         float flashT;
         readonly List<LootDrop> near = new List<LootDrop>();
         int shownGun = -2;
+        int shotIndex;
+        float lastShotTime = -9f;
+        int burstLeft;
+        ParticleSystem shells;
 
         static readonly Vector3 HipPos = new Vector3(0.24f, -0.22f, 0.5f);
         static readonly Vector3 AimPos = new Vector3(0f, -0.105f, 0.36f);
@@ -103,10 +120,14 @@ namespace Jagti.Royale
                 Target = null;
                 SetAim(false);
                 ShowView(-1);
+                if (!combatant.Alive && diver != null && diver.body != null && diver.Current == SkyDiver.State.Landed)
+                    diver.body.gameObject.SetActive(false);
                 return;
             }
             var l = combatant.loadout;
             bool locked = Cursor.lockState == CursorLockMode.Locked;
+            Bloom = Mathf.MoveTowards(Bloom, 0f, Time.deltaTime * 2.5f);
+            if (Input.GetKeyDown(KeyCode.V)) thirdPerson = !thirdPerson;
 
             // Slots.
             if (Input.GetKeyDown(KeyCode.Alpha1)) Select(0);
@@ -127,8 +148,14 @@ namespace Jagti.Royale
             }
             if (gun != null && Input.GetKeyDown(KeyCode.R)) StartReload();
 
-            // Shooting or punching.
-            if (locked && switchT <= 0f && Time.time >= nextShot)
+            // Shooting or punching. A burst gun finishes its burst once the trigger is pulled.
+            if (burstLeft > 0 && (gun == null || gun.loaded <= 0 || Reloading)) burstLeft = 0;
+            if (burstLeft > 0 && Time.time >= nextShot && switchT <= 0f)
+            {
+                Fire(gun);
+                if (--burstLeft == 0) nextShot = Time.time + gun.def.burstGap;
+            }
+            else if (locked && switchT <= 0f && Time.time >= nextShot)
             {
                 bool trigger = gun != null && gun.def.automatic ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
                 if (trigger)
@@ -136,7 +163,11 @@ namespace Jagti.Royale
                     combatant.CancelHeal();
                     if (gun == null) Punch();
                     else if (Reloading) { }
-                    else if (gun.loaded > 0) Fire(gun);
+                    else if (gun.loaded > 0)
+                    {
+                        Fire(gun);
+                        if (gun.def.burst > 1) burstLeft = gun.def.burst - 1;
+                    }
                     else
                     {
                         SynthAudio.Play2D("empty", 0.6f);
@@ -149,15 +180,41 @@ namespace Jagti.Royale
             // Heals and grenades.
             if (Input.GetKeyDown(KeyCode.Q)) Heal();
             if (Input.GetKeyDown(KeyCode.Z) && !combatant.StartHeal(ItemKind.ChaiFlask)) Say(l.chai > 0 ? "Already healing" : "No chai flask");
-            if (Input.GetKeyDown(KeyCode.G)) Throw();
+            if (Input.GetKeyDown(KeyCode.G)) Throw(false);
+            if (Input.GetKeyDown(KeyCode.Alpha4)) Throw(true);
             if (Input.GetKeyDown(KeyCode.X) && gun != null) DropCurrent();
 
             FindTarget();
             if (Input.GetKeyDown(KeyCode.E) && Target != null) PickUp(Target, true);
             AutoPickup();
 
-            ShowView(gun != null ? gun.def.id : -1);
+            ShowView(gun != null && !InThirdPerson ? gun.def.id : -1);
+            if (gun != null && shownGun >= 0 && views[shownGun] != null) LootVisuals.Dress(views[shownGun].transform, gun, palette);
             AnimateView();
+            UpdateCamera(gun);
+        }
+
+        /// <summary>Over the shoulder normally; first person while aiming or when V is toggled off.</summary>
+        void UpdateCamera(GunItem gun)
+        {
+            fpc.thirdPersonDistance = InThirdPerson ? shoulderDistance : 0f;
+            fpc.shoulderOffset = 0.55f;
+            fpc.crouchEnabled = true;
+            var body = diver != null ? diver.body : null;
+            if (body == null) return;
+            bool show = InThirdPerson;
+            if (body.gameObject.activeSelf != show) body.gameObject.SetActive(show);
+            if (!show) return;
+            var l = combatant.loadout;
+            body.pose = HumanBody.Pose.Stand;
+            body.speed = fpc.HorizontalSpeed;
+            body.crouch = fpc.CrouchAmount;
+            body.armed = gun != null;
+            body.ShowGun(gun != null ? gun.def.id : -1);
+            body.Dress(gun);
+            body.ShowGear(l.vest, l.helmet, l.backpack);
+            body.aiming = Input.GetMouseButton(0) || Time.time - lastShotTime < 1.5f;
+            body.aimPitch = -fpc.Pitch;
         }
 
         // ------------------------------------------------------------------ guns
@@ -187,7 +244,7 @@ namespace Jagti.Royale
         void StartReload()
         {
             var gun = combatant.loadout.Current;
-            if (gun == null || Reloading || gun.loaded >= gun.def.magazine) return;
+            if (gun == null || Reloading || gun.loaded >= gun.Magazine) return;
             if (combatant.loadout.CountFor(gun) <= 0)
             {
                 Say("No " + RoyaleItems.AmmoNames[(int)gun.def.ammo]);
@@ -203,20 +260,56 @@ namespace Jagti.Royale
             nextShot = Time.time + def.interval;
             gun.loaded--;
             kick = 1f;
-            float spread = Mathf.Lerp(def.hipSpread, def.aimSpread, aimBlend) * RoyaleItems.TierSpread(gun.tier);
+            Bloom = Mathf.Min(1f, Bloom + 0.25f);
+
+            // The recoil pattern: count shots in this spray.
+            shotIndex = Time.time - lastShotTime > Mathf.Max(0.35f, def.interval * 1.6f) ? 0 : shotIndex + 1;
+            lastShotTime = Time.time;
+
+            float spread = Mathf.Lerp(def.hipSpread, def.aimSpread, aimBlend) * gun.SpreadScale;
             if (fpc.HorizontalSpeed > 1f) spread *= 1.5f;
             if (!fpc.IsGrounded) spread *= 2f;
+            if (fpc.Crouching) spread *= 0.8f;
+            if (def.automatic && aimBlend < 0.5f) spread *= 1f + Mathf.Min(shotIndex, 10) * 0.04f;
+
+            // Where the shot goes: in first person straight from the eye; over the shoulder, from the
+            // head towards whatever is under the crosshair (so walls beside the camera don't matter).
             Transform eye = fpc.cameraPivot;
-            Ballistics.Fire(combatant, gun, eye.position, eye.forward, spread);
-            fpc.AddRecoil(def.recoil * RoyaleItems.TierRecoil(gun.tier) * (Aiming ? 0.7f : 1f));
-            fpc.Shake(def.gunClass == GunClass.Shotgun ? 0.35f : 0.12f);
-            SynthAudio.Play2D(def.sound, def.gunClass == GunClass.Marksman || def.gunClass == GunClass.Shotgun ? 1f : 0.8f);
-            if (flash != null)
+            Vector3 origin = eye.position, dir = eye.forward;
+            if (InThirdPerson)
+            {
+                Vector3 aimPoint;
+                Combatant ignoredVictim;
+                bool ignoredHead;
+                float ignoredDistance;
+                Ballistics.Trace(combatant, eye.position, eye.forward, def.range * 1.6f, out aimPoint, out ignoredVictim, out ignoredHead, out ignoredDistance);
+                origin = fpc.HeadPosition;
+                dir = (aimPoint - origin).normalized;
+            }
+            Ballistics.Fire(combatant, gun, origin, dir, spread);
+
+            float up = def.recoil * gun.RecoilScale * (Aiming ? 0.7f : 1f) * (fpc.Crouching ? 0.8f : 1f) * (1f + 0.04f * Mathf.Min(shotIndex, 12));
+            float wander = Mathf.PerlinNoise(shotIndex * 0.37f, def.id * 3.1f + 0.5f) * 2f - 1f;
+            float side = up * def.recoilSide * (wander + def.recoilBias);
+            fpc.AddRecoil(up, side);
+            fpc.Shake(def.gunClass == GunClass.Shotgun ? 0.35f : def.bolt ? 0.3f : 0.12f);
+            bool loud = def.gunClass == GunClass.Marksman || def.gunClass == GunClass.Shotgun;
+            SynthAudio.Play2D(gun.Suppressed ? "suppressed" : def.sound, loud ? 1f : 0.8f);
+            if (def.bolt) Invoke("BoltSound", 0.45f);
+            if (flash != null && !gun.Suppressed)
             {
                 flash.enabled = true;
                 flashT = 0.045f;
+                flash.transform.position = InThirdPerson ? fpc.HeadPosition + dir * 0.9f - Vector3.up * 0.25f
+                                                         : viewRoot.TransformPoint(new Vector3(0f, 0.05f, 0.6f));
             }
+            if (shells != null && def.gunClass != GunClass.Shotgun && def.burst == 0 && !def.bolt && def.id != 5 && !InThirdPerson) shells.Emit(1);
             if (gun.loaded == 0 && combatant.loadout.CountFor(gun) > 0) Invoke("StartReload", 0.3f);
+        }
+
+        void BoltSound()
+        {
+            SynthAudio.Play2D("bolt", 0.5f);
         }
 
         void Punch()
@@ -241,12 +334,14 @@ namespace Jagti.Royale
         {
             Aiming = on;
             float target = on ? 1f : 0f;
-            aimBlend = Mathf.MoveTowards(aimBlend, target, Time.deltaTime * 6f);
+            var cur = combatant.loadout.Current;
+            float rate = cur != null ? 1f / Mathf.Max(0.08f, cur.def.aimTime) : 6f;
+            aimBlend = Mathf.MoveTowards(aimBlend, target, Time.deltaTime * rate);
             fpc.speedScale = Mathf.Lerp(1f, 0.55f, aimBlend);
             if (cam != null)
             {
-                var g = combatant.loadout.Current;
-                float zoom = g != null ? g.def.zoomFov : baseFov;
+                var g = cur;
+                float zoom = g != null ? g.AimFov : baseFov;
                 cam.fieldOfView = Mathf.Lerp(baseFov, zoom, aimBlend);
             }
         }
@@ -269,14 +364,16 @@ namespace Jagti.Royale
             else if (l.medkits == 0) Say("Bandages only heal to " + (int)RoyaleItems.BandageCap);
         }
 
-        void Throw()
+        void Throw(bool smoke)
         {
             var l = combatant.loadout;
-            if (l.grenades <= 0) { Say("No grenades"); return; }
-            if (grenadeTemplate == null) return;
-            l.grenades--;
+            if (smoke ? l.smokes <= 0 : l.grenades <= 0) { Say(smoke ? "No smoke grenades" : "No grenades"); return; }
+            var template = smoke ? smokeTemplate : grenadeTemplate;
+            if (template == null) return;
+            if (smoke) l.smokes--; else l.grenades--;
             Transform eye = fpc.cameraPivot;
-            var go = Instantiate(grenadeTemplate, eye.position + eye.forward * 0.6f, Quaternion.identity);
+            Vector3 from = InThirdPerson ? fpc.HeadPosition + eye.forward * 0.5f : eye.position + eye.forward * 0.6f;
+            var go = Instantiate(template, from, Quaternion.identity);
             go.SetActive(true);
             var g = go.GetComponent<Grenade>();
             g.thrower = combatant;
@@ -291,7 +388,8 @@ namespace Jagti.Royale
             if (gun == null || LootDirector.Instance == null) return;
             // Rounds in the magazine go back to the carried ammo.
             l.ammo[(int)gun.def.ammo] += gun.loaded;
-            LootDirector.Instance.Drop(transform.position + transform.forward * 0.8f, ItemKind.Gun, gun.def.id, gun.tier, 1);
+            gun.loaded = 0;
+            LootDirector.Instance.DropGun(transform.position + transform.forward * 0.8f, gun);
             l.guns[l.selected] = null;
             reloadLeft = 0f;
             Cycle(1);
@@ -349,10 +447,11 @@ namespace Jagti.Royale
             if (swapped != null)
             {
                 l.ammo[(int)swapped.def.ammo] += swapped.loaded;
-                loot.Drop(transform.position, ItemKind.Gun, swapped.def.id, swapped.tier, 1);
+                swapped.loaded = 0;
+                loot.DropGun(transform.position, swapped);
                 reloadLeft = 0f;
             }
-            if (oldLevel > 0) loot.Drop(transform.position, d.kind, oldLevel, (Tier)oldLevel, 1);
+            if (oldLevel > 0) loot.DropReplaced(transform.position, d.kind, oldLevel);
             if (d.kind == ItemKind.Gun) switchT = 0.35f;
             Say("+ " + label);
             SynthAudio.Play2D(d.kind == ItemKind.Gun ? "equip" : "pickup", 0.5f);
@@ -407,6 +506,42 @@ namespace Jagti.Royale
                 go.SetActive(false);
                 views[i] = go;
             }
+            // Spent cases: little brass bits flicked out to the right.
+            var sh = new GameObject("Shell Cases");
+            sh.transform.SetParent(viewRoot, false);
+            sh.transform.localPosition = new Vector3(0.03f, 0.04f, 0.12f);
+            sh.transform.localRotation = Quaternion.Euler(-35f, 70f, 0f);
+            shells = sh.AddComponent<ParticleSystem>();
+            shells.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var sm = shells.main;
+            sm.loop = false;
+            sm.playOnAwake = false;
+            sm.startLifetime = 0.8f;
+            sm.startSpeed = new ParticleSystem.MinMaxCurve(1.8f, 2.6f);
+            sm.startSize3D = true;
+            sm.startSizeX = 0.012f;
+            sm.startSizeY = 0.012f;
+            sm.startSizeZ = 0.035f;
+            sm.startRotation3D = true;
+            sm.gravityModifier = 1.2f;
+            sm.maxParticles = 12;
+            sm.simulationSpace = ParticleSystemSimulationSpace.World;
+            var sem = shells.emission;
+            sem.rateOverTime = 0f;
+            var sshape = shells.shape;
+            sshape.shapeType = ParticleSystemShapeType.Cone;
+            sshape.angle = 12f;
+            sshape.radius = 0.005f;
+            var srot = shells.rotationOverLifetime;
+            srot.enabled = true;
+            srot.separateAxes = true;
+            srot.x = new ParticleSystem.MinMaxCurve(8f, 20f);
+            var sr = sh.GetComponent<ParticleSystemRenderer>();
+            sr.renderMode = ParticleSystemRenderMode.Mesh;
+            sr.mesh = LootVisuals.Cube();
+            if (palette != null && palette.Length > LootVisuals.Brass) sr.sharedMaterial = palette[LootVisuals.Brass];
+            sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
             var f = new GameObject("Muzzle Flash");
             f.transform.SetParent(viewRoot, false);
             f.transform.localPosition = new Vector3(0f, 0.05f, 0.6f);

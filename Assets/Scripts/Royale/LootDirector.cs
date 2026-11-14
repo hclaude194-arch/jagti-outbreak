@@ -140,12 +140,45 @@ namespace Jagti.Royale
             return d;
         }
 
+        static readonly List<int> stripped = new List<int>();
+
+        /// <summary>Drops a gun; its attachments come off and land beside it.</summary>
+        public void DropGun(Vector3 at, GunItem g)
+        {
+            stripped.Clear();
+            g.Strip(stripped);
+            Drop(at, ItemKind.Gun, g.def.id, g.tier, 1);
+            for (int i = 0; i < stripped.Count; i++)
+            {
+                float a = (i + 1) * 1.9f;
+                Drop(at + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 0.4f, ItemKind.Attachment, stripped[i],
+                     RoyaleItems.DisplayTier(ItemKind.Attachment, stripped[i], Tier.Common), 1);
+            }
+        }
+
+        /// <summary>Drops what a pickup replaced: older armour or pack (level), or a swapped-out attachment (type + 1).</summary>
+        public void DropReplaced(Vector3 at, ItemKind kind, int old)
+        {
+            if (kind == ItemKind.Attachment)
+                Drop(at, kind, old - 1, RoyaleItems.DisplayTier(kind, old - 1, Tier.Common), 1);
+            else
+                Drop(at, kind, old, (Tier)old, 1);
+        }
+
         /// <summary>Everything a fallen player carried, spread in a small circle.</summary>
         public void DropLoadout(Loadout l, Vector3 at)
         {
             var items = new List<LootDrop>();
+            var parts = new List<int>();
             foreach (var g in l.guns)
-                if (g != null) items.Add(new LootDrop { kind = ItemKind.Gun, value = g.def.id, tier = g.tier, count = 1 });
+                if (g != null)
+                {
+                    items.Add(new LootDrop { kind = ItemKind.Gun, value = g.def.id, tier = g.tier, count = 1 });
+                    g.Strip(parts);
+                }
+            foreach (int a in parts)
+                items.Add(new LootDrop { kind = ItemKind.Attachment, value = a, tier = RoyaleItems.DisplayTier(ItemKind.Attachment, a, Tier.Common), count = 1 });
+            if (l.smokes > 0) items.Add(new LootDrop { kind = ItemKind.Smoke, count = l.smokes });
             for (int t = 0; t < 4; t++)
                 if (l.ammo[t] > 0) items.Add(new LootDrop { kind = ItemKind.Ammo, value = t, count = l.ammo[t] });
             if (l.vest > 0 && l.vestDurability > 10f) items.Add(new LootDrop { kind = ItemKind.Vest, value = l.vest, tier = (Tier)l.vest, count = 1 });

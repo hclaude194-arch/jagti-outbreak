@@ -38,6 +38,16 @@ namespace Jagti.Player
         [HideInInspector] public float thirdPersonDistance;
         /// <summary>Scales walking and sprinting (aiming down sights slows you).</summary>
         [HideInInspector] public float speedScale = 1f;
+        /// <summary>Sideways offset of the third-person camera (over the right shoulder).</summary>
+        [HideInInspector] public float shoulderOffset;
+        /// <summary>C or Left Ctrl toggles crouching (battle royale only).</summary>
+        [HideInInspector] public bool crouchEnabled;
+
+        public bool Crouching { get; private set; }
+        /// <summary>0 standing .. 1 crouched, eased.</summary>
+        public float CrouchAmount { get { return crouchT; } }
+        /// <summary>Where the head is, whatever the camera is doing (third person pulls the camera back).</summary>
+        public Vector3 HeadPosition { get { return transform.TransformPoint(pivotBase - new Vector3(0f, crouchT * CrouchDrop, 0f)); } }
 
         public float Pitch { get { return pitch; } }
 
@@ -54,6 +64,11 @@ namespace Jagti.Player
         float shake;
         float bobPhase;
         float camDistance;
+        float recoilYaw;
+        float crouchT;
+        float standHeight;
+        Vector3 standCenter;
+        const float CrouchDrop = 0.6f;
 
         void Awake()
         {
@@ -64,6 +79,8 @@ namespace Jagti.Player
                 if (cam != null) cameraPivot = cam.transform;
             }
             if (cameraPivot != null) pivotBase = cameraPivot.localPosition;
+            standHeight = controller.height;
+            standCenter = controller.center;
         }
 
         void Start()
@@ -94,16 +111,25 @@ namespace Jagti.Player
                 return;
             }
 
+            if (crouchEnabled && (Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.LeftControl))) SetCrouch(!Crouching);
+            UpdateCrouch();
+
             var input = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
             input = Vector3.ClampMagnitude(input, 1f);
-            IsSprinting = sprintAllowed && Input.GetKey(KeyCode.LeftShift) && input.z > 0.1f;
-            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale;
+            bool wantSprint = sprintAllowed && Input.GetKey(KeyCode.LeftShift) && input.z > 0.1f;
+            if (wantSprint && Crouching) SetCrouch(false);   // sprinting stands you up
+            IsSprinting = wantSprint && !Crouching;
+            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale * (Crouching ? 0.48f : 1f);
             Vector3 move = transform.TransformDirection(input) * speed;
 
             if (controller.isGrounded)
             {
                 if (velocity.y < 0f) velocity.y = -2f;
-                if (Input.GetButtonDown("Jump")) velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                if (Input.GetButtonDown("Jump"))
+                {
+                    if (Crouching) SetCrouch(false);
+                    else velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                }
             }
             velocity.y += gravity * Time.deltaTime;
 
@@ -121,10 +147,35 @@ namespace Jagti.Player
             if (transform.position.y < -150f) Teleport(spawnPoint); // below the lowest ravine
         }
 
+        /// <summary>Crouches or stands (standing needs headroom).</summary>
+        public void SetCrouch(bool on)
+        {
+            if (on == Crouching) return;
+            if (!on)
+            {
+                float r = controller.radius * 0.9f;
+                Vector3 bottom = transform.position + Vector3.up * (r + 0.05f);
+                if (Physics.SphereCast(bottom, r, Vector3.up, out RaycastHit hit, standHeight - r * 2f - 0.05f, ~0, QueryTriggerInteraction.Ignore)
+                    && !hit.collider.transform.IsChildOf(transform)) return;
+            }
+            Crouching = on;
+        }
+
+        void UpdateCrouch()
+        {
+            float target = Crouching ? 1f : 0f;
+            if (Mathf.Approximately(crouchT, target)) return;
+            crouchT = Mathf.MoveTowards(crouchT, target, Time.deltaTime * 5f);
+            float h = Mathf.Lerp(standHeight, standHeight - CrouchDrop, crouchT);
+            controller.height = h;
+            controller.center = new Vector3(standCenter.x, standCenter.y - (standHeight - h) * 0.5f, standCenter.z);
+        }
+
         void UpdateCamera()
         {
             if (cameraPivot == null) return;
             recoilPitch = Mathf.Lerp(recoilPitch, 0f, Time.deltaTime * 9f);
+            recoilYaw = Mathf.Lerp(recoilYaw, 0f, Time.deltaTime * 9f);
             shake = Mathf.MoveTowards(shake, 0f, Time.deltaTime * 2.5f);
 
             float bob = 0f;
@@ -135,16 +186,41 @@ namespace Jagti.Player
             }
             Vector3 jitter = shake > 0f ? Random.insideUnitSphere * shake * 0.08f : Vector3.zero;
             camDistance = Mathf.MoveTowards(camDistance, thirdPersonDistance, Time.deltaTime * 12f);
-            Vector3 back = camDistance > 0.01f ? Quaternion.Euler(pitch, 0f, 0f) * new Vector3(0f, 0.4f, -camDistance) : Vector3.zero;
-            cameraPivot.localPosition = pivotBase + new Vector3(0f, bob, 0f) + jitter + back;
-            cameraPivot.localEulerAngles = new Vector3(pitch - recoilPitch, 0f, jitter.x * 20f);
+            Vector3 head = pivotBase - new Vector3(0f, crouchT * CrouchDrop, 0f);
+            Vector3 back = Vector3.zero;
+            if (camDistance > 0.01f)
+            {
+                float side = shoulderOffset * Mathf.Clamp01(camDistance / 1.5f);
+                back = Quaternion.Euler(pitch, 0f, 0f) * new Vector3(side, 0.4f * Mathf.Clamp01(camDistance / 4f) + 0.15f, -camDistance);
+                // Keep the camera out of walls: pull it in to whatever is behind the player.
+                Vector3 from = transform.TransformPoint(head);
+                Vector3 to = transform.TransformPoint(head + back);
+                Vector3 d = to - from;
+                float len = d.magnitude;
+                if (len > 0.01f && Physics.SphereCast(from, 0.22f, d / len, out RaycastHit hit, len, ~0, QueryTriggerInteraction.Ignore)
+                    && !hit.collider.transform.IsChildOf(transform))
+                    back *= Mathf.Max(0.05f, (hit.distance - 0.05f) / len);
+            }
+            cameraPivot.localPosition = head + new Vector3(0f, bob, 0f) + jitter + back;
+            cameraPivot.localEulerAngles = new Vector3(pitch - recoilPitch, -recoilYaw, jitter.x * 20f);
         }
 
         /// <summary>Kicks the view up; it settles back over a fraction of a second.</summary>
         public void AddRecoil(float degrees)
         {
-            recoilPitch += degrees;
-            pitch = Mathf.Clamp(pitch - degrees * 0.35f, -85f, 85f); // part of the kick stays, like a real gun
+            AddRecoil(degrees, 0f);
+        }
+
+        /// <summary>
+        /// Kicks the view up and sideways. Part of it settles back, part stays (the gun climbs), so a
+        /// held spray walks up and to one side unless the mouse pulls against it.
+        /// </summary>
+        public void AddRecoil(float up, float side)
+        {
+            recoilPitch += up;
+            recoilYaw += side;
+            pitch = Mathf.Clamp(pitch - up * 0.35f, -85f, 85f); // part of the kick stays, like a real gun
+            transform.Rotate(0f, side * 0.4f, 0f);
         }
 
         public void Shake(float amount)

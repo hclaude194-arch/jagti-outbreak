@@ -6,7 +6,18 @@ An original battle royale (with the earlier zombie survival mode kept as a secon
 - Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 5B, opponents (untested in Unity)
+## Current phase: 5C, arsenal and feel (untested in Unity)
+
+- **Ten guns**, all original, named after places in Jammu: Ravi P9 and Basohli .45 (sidearms), Chenab SMG, Banihal 12 pump and Bhaderwah Double (shotguns), Tawi AR, the three-round-burst Ujh Carbine and the 75-round Udhampur LMG (rifles), Jhelum DMR and the bolt-action Pir Panjal (marksman). Each has its own model, sound, handling and aim-in time. The LMG, the DMR and the bolt-action rifle are rarer, and turn up more in better tiers and in supply crates.
+- **Recoil patterns:** each gun climbs and drifts the same way every spray, so you can learn it and pull against it. Crouching, aiming, a fore grip and a compensator all tame it.
+- **Attachments**, fitted automatically to the right gun when you pick them up and shown on the gun in your hands and on the bots: red dot, 2x sight, 4x and 8x scopes, compensator, suppressor (quieter, fewer tracers, heard from closer), fore grip and extended magazine. They drop beside a gun when you drop or swap it.
+- **Camera:** over the right shoulder by default with your own body visible, and first person when you aim (V switches). Shots in third person go from your head to what the crosshair covers, and the camera pulls in rather than going through walls. **C** or **Ctrl** crouches (steadier aim, smaller target, lower view).
+- **Smoke grenades (4):** a thick screen for about twenty seconds that bots can't see or shoot through. Bots throw them too when caught hurt in the open.
+- **Feedback:** damage numbers over the people you hit (yellow for headshots, blue when armour soaked it), an armour-broken call-out and sound, an elimination banner, a crosshair that opens as you fire, red dot reticles, spent cases flicking out, a red frame and heartbeat at low health.
+
+`tools/royale/preview_guns.py` renders the gun and attachment models straight from the C# model code.
+
+## Phase 5B: opponents
 
 The bots are now people worth fighting.
 
