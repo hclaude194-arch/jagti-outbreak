@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Jagti.World;
 
 namespace Jagti.EditorTools
 {
@@ -54,9 +55,32 @@ namespace Jagti.EditorTools
         const string ListPath = "Assets/Data/outdoor_props.json";
         const int FontSize = 64;
 
+        public const string CoverPath = "Assets/Data/cover_props.json";
+
+        /// <summary>How far away each kind of prop is still drawn (metres); cover stays visible far out
+        /// because fights depend on it. Anything not listed uses DefaultCull.</summary>
+        static readonly Dictionary<string, float> CullDistance = new Dictionary<string, float>
+        {
+            { "Bollard_Light", 90f }, { "Twin_Dustbin", 110f }, { "Cycle_Stand", 110f }, { "Planter_Box", 120f },
+            { "Park_Bench", 120f }, { "Sign_Arm", 120f }, { "Sign_Post", 140f }, { "Volleyball_Net", 160f },
+            { "Railing_Segment", 180f }, { "Fence_Panel", 200f }, { "Name_Board", 200f }, { "Basketball_Hoop", 200f },
+            { "Lamp_Post", 260f },
+        };
+        const float DefaultCull = 180f;
+        const float CoverCull = 450f;
+        const float SignTextCull = 60f;
+
         public static void Build(Transform parent, Func<float, float, float> ground)
         {
-            var json = AssetDatabase.LoadAssetAtPath<TextAsset>(ListPath);
+            Build(parent, ground, ListPath);
+        }
+
+        /// <summary>Places the props of one list (the street furniture, or the battle royale cover).</summary>
+        public static void Build(Transform parent, Func<float, float, float> ground, string listPath)
+        {
+            var cullRenderers = new List<Renderer>();
+            var cullDistances = new List<float>();
+            var json = AssetDatabase.LoadAssetAtPath<TextAsset>(listPath);
             if (json == null) return;
             var list = JsonUtility.FromJson<OutdoorList>(json.text);
             if (list == null) return;
@@ -104,8 +128,12 @@ namespace Jagti.EditorTools
                     go.transform.rotation = Quaternion.Euler(0f, p.yaw, 0f) * turn;
                     go.transform.localScale = scale;
                     BuildingModels.ApplyMaterials(go, materials, false);
+                    float cull;
+                    if (!CullDistance.TryGetValue(p.prop, out cull)) cull = p.prop.StartsWith("Cover_") ? CoverCull : DefaultCull;
                     foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
                     {
+                        cullRenderers.Add(r);
+                        cullDistances.Add(cull);
                         if (model.solid) r.gameObject.AddComponent<BoxCollider>();
                         r.shadowCastingMode = model.shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
                         GameObjectUtility.SetStaticEditorFlags(r.gameObject,
@@ -144,10 +172,18 @@ namespace Jagti.EditorTools
                     }
                     mr.shadowCastingMode = ShadowCastingMode.Off;
                     mr.receiveShadows = false;
+                    cullRenderers.Add(mr);
+                    cullDistances.Add(SignTextCull);
                     signs++;
                 }
             }
-            Debug.Log("[Jagti] Outdoor: " + placed + " props, " + signs + " signs.");
+            if (cullRenderers.Count > 0)
+            {
+                var culler = parent.gameObject.AddComponent<PropCuller>();
+                culler.renderers = cullRenderers.ToArray();
+                culler.distances = cullDistances.ToArray();
+            }
+            Debug.Log("[Jagti] " + listPath + ": " + placed + " props, " + signs + " signs.");
         }
     }
 }

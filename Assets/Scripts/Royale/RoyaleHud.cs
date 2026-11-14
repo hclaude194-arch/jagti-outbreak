@@ -27,6 +27,13 @@ namespace Jagti.Royale
         public Rect mapWorld;               // world X/Z covered by mapTexture (x, z, width, depth)
         public PlaceData[] places;
         public PlayerMover mover;
+        /// <summary>Loot rating per place (0 to 2, from the loot spots around it), filled by RoyaleBuilder.</summary>
+        public int[] placeLoot;
+
+        bool hasWaypoint;
+        Vector3 waypoint;
+        int areaIndex = -1;
+        float areaTime = -10f;
 
         Texture2D white, dot, arrow, scope;
         GUIStyle small, normal, big, huge, centre;
@@ -133,6 +140,8 @@ namespace Jagti.Royale
         {
             results = true;
             paused = false;
+            fullMap = false;
+            GameState.MapOpen = false;
             GameState.Paused = true;   // stops the walker from grabbing the mouse again
             Time.timeScale = 1f;
             GameState.SetCursorLocked(false);
@@ -155,7 +164,8 @@ namespace Jagti.Royale
                 if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) director.Restart();
                 return;
             }
-            if (Input.GetKeyDown(KeyCode.M)) fullMap = !fullMap;
+            if (Input.GetKeyDown(KeyCode.M)) SetMap(!fullMap);
+            TrackArea();
             if (Input.GetKeyDown(KeyCode.Escape)) SetPaused(!paused);
 
             if (player != null)
@@ -182,12 +192,49 @@ namespace Jagti.Royale
             }
         }
 
+        void SetMap(bool on)
+        {
+            fullMap = on;
+            GameState.MapOpen = on;
+            if (!paused && !results) GameState.SetCursorLocked(!on);
+        }
+
+        /// <summary>The named place the player is in (nearest within 110 m); a new one is announced
+        /// once the player is out of the helicopter.</summary>
+        void TrackArea()
+        {
+            if (places == null || player == null) return;
+            Vector3 p = player.transform.position;
+            int best = -1;
+            float bestD = 110f * 110f;
+            for (int i = 0; i < places.Length; i++)
+            {
+                float d = (places[i].x - p.x) * (places[i].x - p.x) + (places[i].z - p.z) * (places[i].z - p.z);
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            if (best == areaIndex) return;
+            areaIndex = best;
+            bool flying = diver != null && diver.Current == SkyDiver.State.InHelicopter;
+            if (best >= 0 && !flying && player.Alive) areaTime = Time.time;
+        }
+
+        /// <summary>A place name as players should see it: guesses marked "?" in the layout lose their bracket.</summary>
+        public static string CleanName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "";
+            int b = name.IndexOf(" (");
+            if (b > 0 && name.IndexOf('?') > b) return name.Substring(0, b);
+            return name.Replace("?", "");
+        }
+
+        static readonly string[] LootWords = { "light loot", "good loot", "rich loot" };
+
         void SetPaused(bool on)
         {
             paused = on;
             GameState.Paused = on;
             Time.timeScale = on ? 0f : 1f;
-            GameState.SetCursorLocked(!on);
+            GameState.SetCursorLocked(!on && !fullMap);
         }
 
         // ------------------------------------------------------------------ drawing
@@ -217,8 +264,11 @@ namespace Jagti.Royale
             if (results) { DrawResults(w, h); return; }
 
             DrawTop(w);
+            DrawCompass(w);
             DrawFeed();
             DrawBanner(w, h);
+            DrawArea(w, h);
+            DrawWaypointMarker(w, h);
             if (diver != null && diver.Current != SkyDiver.State.Landed) DrawDrop(w, h);
             else if (player.Alive) DrawCombat(w, h);
             DrawMinimap(w);
@@ -521,6 +571,14 @@ namespace Jagti.Royale
             DrawWorldCircles(v => toScreen(v) - off, size / span);
             foreach (var s in director.supplyDrops) Marker(toScreen(s) - off, new Color(0.95f, 0.2f, 0.15f), 8f);
             DrawGettingAround(v => toScreen(v) - off, false);
+            if (hasWaypoint)
+            {
+                Vector2 wp = toScreen(waypoint) - off;
+                Vector2 c = new Vector2(size / 2, size / 2), dv = wp - c;
+                float lim = size / 2 - 8f;
+                if (Mathf.Abs(dv.x) > lim || Mathf.Abs(dv.y) > lim) dv *= lim / Mathf.Max(Mathf.Abs(dv.x), Mathf.Abs(dv.y));
+                WaypointPin(c + dv);
+            }
             GUI.EndClip();
             PlayerArrow(r.center, 18f);
             Label(new Rect(r.x, r.y + size + 4, size, 20), NearestPlace(), new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
@@ -542,12 +600,37 @@ namespace Jagti.Royale
                 return new Vector2(r.x + uv.x * mw, r.y + (1f - uv.y) * mh);
             };
             float scale = mw / mapWorld.width;
+            MapGrid(r, toScreen);
             if (places != null)
-                foreach (var pl in places)
+            {
+                var nameStyle = new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontSize = 12, fontStyle = FontStyle.Bold };
+                for (int i = 0; i < places.Length; i++)
                 {
+                    var pl = places[i];
                     Vector2 s = toScreen(new Vector3(pl.x, 0f, pl.z));
-                    Label(new Rect(s.x - 70, s.y - 9, 140, 18), pl.name, new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontSize = 11 });
+                    int rating = placeLoot != null && i < placeLoot.Length ? placeLoot[i] : 0;
+                    Color dotCol = rating == 2 ? new Color(1f, 0.8f, 0.2f) : rating == 1 ? new Color(0.85f, 0.85f, 0.85f) : new Color(0.6f, 0.6f, 0.6f);
+                    for (int k = 0; k <= rating; k++) Marker(new Vector2(s.x - rating * 4f + k * 8f, s.y + 10f), dotCol, 6f);
+                    Fill(new Rect(s.x - 75, s.y - 10, 150, 17), new Color(0f, 0f, 0f, 0.35f));
+                    Label(new Rect(s.x - 75, s.y - 10, 150, 18), CleanName(pl.name), nameStyle);
                 }
+            }
+            // Click to set a marker, right-click to clear it.
+            var ev = Event.current;
+            if (ev.type == EventType.MouseDown && r.Contains(ev.mousePosition))
+            {
+                if (ev.button == 0)
+                {
+                    float u = (ev.mousePosition.x - r.x) / mw, v = 1f - (ev.mousePosition.y - r.y) / mh;
+                    float wx = mapWorld.x + u * mapWorld.width, wz = mapWorld.y + v * mapWorld.height;
+                    waypoint = new Vector3(wx, HazeZone.GroundY(wx, wz), wz);
+                    hasWaypoint = true;
+                    SynthAudio.Play2D("equip", 0.4f);
+                }
+                else hasWaypoint = false;
+                ev.Use();
+            }
+            if (hasWaypoint) WaypointPin(toScreen(waypoint));
             // The helicopter's line while people are still aboard.
             if (director.helicopter != null && director.helicopter.Flying && diver != null && diver.Current == SkyDiver.State.InHelicopter)
             {
@@ -560,7 +643,96 @@ namespace Jagti.Royale
             foreach (var s in director.supplyDrops) Marker(toScreen(s), new Color(0.95f, 0.2f, 0.15f), 10f);
             DrawGettingAround(toScreen, true);
             PlayerArrow(toScreen(player.transform.position), 20f);
-            Label(new Rect(r.x, r.yMax + 6, mw, 24), "M  close map", new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
+            Label(new Rect(r.x, r.yMax + 6, mw, 24), "M  close map      click  set a marker      right-click  clear it      dots  how much loot is there",
+                  new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
+        }
+
+        /// <summary>A 100 m grid with lettered columns and numbered rows, for calling out positions.</summary>
+        void MapGrid(Rect r, System.Func<Vector3, Vector2> toScreen)
+        {
+            var line = new Color(1f, 1f, 1f, 0.12f);
+            var tag = new GUIStyle(small) { fontSize = 11, alignment = TextAnchor.UpperLeft, normal = { textColor = new Color(1f, 1f, 1f, 0.6f) } };
+            float x0 = Mathf.Ceil(mapWorld.x / 100f) * 100f;
+            int col = 0;
+            for (float x = x0; x < mapWorld.xMax; x += 100f, col++)
+            {
+                float sx = toScreen(new Vector3(x, 0f, 0f)).x;
+                Fill(new Rect(sx, r.y, 1f, r.height), line);
+                if (col < 26) Label(new Rect(sx + 3, r.y + 2, 20, 16), ((char)('A' + col)).ToString(), tag);
+            }
+            int row = 1;
+            for (float z = Mathf.Floor(mapWorld.yMax / 100f) * 100f; z > mapWorld.y; z -= 100f, row++)
+            {
+                float sy = toScreen(new Vector3(0f, 0f, z)).y;
+                Fill(new Rect(r.x, sy, r.width, 1f), line);
+                Label(new Rect(r.x + 3, sy + 2, 24, 16), row.ToString(), tag);
+            }
+        }
+
+        void WaypointPin(Vector2 s)
+        {
+            Fill(new Rect(s.x - 1.5f, s.y - 14f, 3f, 14f), new Color(0f, 0f, 0f, 0.6f));
+            Marker(new Vector2(s.x, s.y - 14f), new Color(0.1f, 0.1f, 0.1f), 13f);
+            Marker(new Vector2(s.x, s.y - 14f), new Color(1f, 0.85f, 0.15f), 9f);
+        }
+
+        /// <summary>A heading strip under the top bar: N, E, S, W and every 15 degrees, with the marker.</summary>
+        void DrawCompass(float w)
+        {
+            if (fpc == null) return;
+            float yaw = fpc.transform.eulerAngles.y;
+            const float width = 420f, span = 120f;          // degrees shown across the strip
+            Rect r = new Rect(w / 2 - width / 2, 44, width, 22);
+            Fill(r, new Color(0f, 0f, 0f, 0.35f));
+            var tag = new GUIStyle(small) { fontSize = 11, alignment = TextAnchor.MiddleCenter };
+            for (int deg = 0; deg < 360; deg += 15)
+            {
+                float d = Mathf.DeltaAngle(yaw, deg);
+                if (Mathf.Abs(d) > span / 2) continue;
+                float x = r.center.x + d / span * width;
+                bool cardinal = deg % 90 == 0;
+                string text = deg == 0 ? "N" : deg == 90 ? "E" : deg == 180 ? "S" : deg == 270 ? "W" : deg % 45 == 0 ? "" : "";
+                if (text != "") Label(new Rect(x - 12, r.y + 1, 24, 20), text, new GUIStyle(tag) { fontSize = 13, fontStyle = FontStyle.Bold });
+                else Fill(new Rect(x - 0.5f, r.y + (cardinal ? 3 : 13), 1f, cardinal ? 16 : 7), new Color(1f, 1f, 1f, 0.7f));
+                if (deg % 45 == 0 && !cardinal) Label(new Rect(x - 15, r.y + 1, 30, 14), deg.ToString(), new GUIStyle(tag) { fontSize = 9 });
+            }
+            Fill(new Rect(r.center.x - 1, r.y - 3, 2, 6), new Color(1f, 0.85f, 0.2f));
+            if (hasWaypoint)
+            {
+                Vector3 to = waypoint - player.transform.position;
+                float bearing = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+                float d = Mathf.Clamp(Mathf.DeltaAngle(yaw, bearing), -span / 2, span / 2);
+                Marker(new Vector2(r.center.x + d / span * width, r.yMax + 4), new Color(1f, 0.85f, 0.15f), 8f);
+                Label(new Rect(r.center.x + d / span * width - 40, r.yMax + 8, 80, 16),
+                      Mathf.RoundToInt(new Vector2(to.x, to.z).magnitude) + " m", new GUIStyle(tag) { fontSize = 10 });
+            }
+        }
+
+        /// <summary>The marker drawn over the world where it sits, with its distance.</summary>
+        void DrawWaypointMarker(float w, float h)
+        {
+            if (!hasWaypoint || fullMap) return;
+            var cam = Camera.main;
+            if (cam == null) return;
+            Vector3 sp = cam.WorldToScreenPoint(waypoint + Vector3.up * 2f);
+            if (sp.z <= 0f) return;
+            Vector2 s = new Vector2(sp.x, h - sp.y);
+            WaypointPin(new Vector2(s.x, s.y + 14f));
+            float dist = new Vector2(waypoint.x - player.transform.position.x, waypoint.z - player.transform.position.z).magnitude;
+            Label(new Rect(s.x - 40, s.y + 18, 80, 18), Mathf.RoundToInt(dist) + " m", new GUIStyle(small) { alignment = TextAnchor.UpperCenter, fontSize = 11 });
+        }
+
+        /// <summary>The place name, large, for a few seconds after walking or landing into it.</summary>
+        void DrawArea(float w, float h)
+        {
+            float age = Time.time - areaTime;
+            if (areaIndex < 0 || age > 3.5f || places == null) return;
+            float a = Mathf.Clamp01(age * 3f) * Mathf.Clamp01(3.5f - age);
+            GUI.color = new Color(1f, 1f, 1f, a);
+            Label(new Rect(0, h * 0.12f, w, 34), CleanName(places[areaIndex].name), new GUIStyle(big) { alignment = TextAnchor.MiddleCenter });
+            int rating = placeLoot != null && areaIndex < placeLoot.Length ? placeLoot[areaIndex] : 0;
+            Label(new Rect(0, h * 0.12f + 34, w, 22), LootWords[Mathf.Clamp(rating, 0, 2)], new GUIStyle(small) { alignment = TextAnchor.MiddleCenter });
+            GUI.color = Color.white;
         }
 
         /// <summary>Zip lines as dotted orange lines (towers as squares); vehicles within 150 m as small marks.</summary>
@@ -656,7 +828,7 @@ namespace Jagti.Royale
             foreach (var pl in places)
             {
                 float d = (pl.x - p.x) * (pl.x - p.x) + (pl.z - p.z) * (pl.z - p.z);
-                if (d < best) { best = d; name = pl.name; }
+                if (d < best) { best = d; name = CleanName(pl.name); }
             }
             return name;
         }

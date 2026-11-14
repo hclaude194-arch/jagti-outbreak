@@ -230,9 +230,40 @@ namespace Jagti.EditorTools
             hud.mapWorld = mapWorld;
             hud.places = layout.places;
             hud.mover = mover;
+            hud.placeLoot = RatePlaces(layout, loot);
 
             Debug.Log("[Jagti] Battle royale: " + points + " loot points, helicopter, haze over " + Mathf.RoundToInt(haze.startRadius) +
                       " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines.");
+        }
+
+        // ------------------------------------------------------------------ landing spots
+
+        /// <summary>
+        /// How much loot each named place has (loot spots within 90 m, weighted by their chance),
+        /// split into thirds: 0 light, 1 good, 2 rich. The map shows it so players can pick a busy or a
+        /// quiet landing.
+        /// </summary>
+        static int[] RatePlaces(CampusLayout layout, LootDirector loot)
+        {
+            int n = layout.places != null ? layout.places.Length : 0;
+            var score = new float[n];
+            if (loot.points != null)
+                for (int i = 0; i < n; i++)
+                {
+                    var pl = layout.places[i];
+                    for (int k = 0; k < loot.points.Length; k++)
+                    {
+                        float dx = loot.points[k].x - pl.x, dz = loot.points[k].z - pl.z;
+                        if (dx * dx + dz * dz < 90f * 90f)
+                            score[i] += loot.pointChances != null && k < loot.pointChances.Length ? loot.pointChances[k] : 1f;
+                    }
+                }
+            var sorted = (float[])score.Clone();
+            Array.Sort(sorted);
+            float lo = n > 0 ? sorted[n / 3] : 0f, hi = n > 0 ? sorted[(2 * n) / 3] : 0f;
+            var rating = new int[n];
+            for (int i = 0; i < n; i++) rating[i] = score[i] >= hi ? 2 : score[i] >= lo ? 1 : 0;
+            return rating;
         }
 
         // ------------------------------------------------------------------ getting around

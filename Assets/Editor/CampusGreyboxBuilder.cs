@@ -146,6 +146,9 @@ namespace Jagti.EditorTools
             InteriorBuilder.Build(Child(buildingRoot, "Interiors"), Ground);
             Progress("Street lamps, benches, signs and railings", 0.65f);
             OutdoorBuilder.Build(Child(root.transform, "Outdoor"), Ground);
+            // Battle royale cover on the open lawns (tools/royale/build_cover.py), before the bake so
+            // the NavMesh and the bots' cover search see it.
+            if (Mode == ModeRoyale) OutdoorBuilder.Build(Child(root.transform, "Cover"), Ground, OutdoorBuilder.CoverPath);
             var zones = new Dictionary<string, Transform>();
             foreach (var b in layout.buildings)
             {
