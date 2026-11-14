@@ -174,6 +174,7 @@ namespace Jagti.EditorTools
             director.helicopter = heli;
             director.haze = haze;
             director.loot = loot;
+            director.grenadeTemplate = arsenal.grenadeTemplate;
             director.skins = skins;
             director.shirts = shirts;
             director.pants = pants;

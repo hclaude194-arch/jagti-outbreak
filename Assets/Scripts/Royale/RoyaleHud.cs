@@ -517,10 +517,29 @@ namespace Jagti.Royale
                 Application.Quit();
 #endif
             }
-            Label(new Rect(0, h * 0.42f + 160, w, 160),
+            DifficultyPicker(w, h * 0.42f + 150);
+            Label(new Rect(0, h * 0.42f + 230, w, 160),
                 "WASD move   Shift sprint   Space jump   mouse aim   left click fire   right click aim down sights\n" +
                 "1-3 guns   R reload   E pick up   X drop gun   Q bandage or medkit   Z chai flask   G grenade\n" +
                 "M map   F torch   F3 frame time   Esc pause", new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
+        }
+
+        /// <summary>Three buttons for the bot difficulty; the choice applies from the next match.</summary>
+        void DifficultyPicker(float w, float y)
+        {
+            var current = BotDifficulty.Current;
+            float bw = 120, gap = 8, total = bw * 3 + gap * 2;
+            Label(new Rect(0, y, w, 22), "Bots", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter });
+            for (int i = 0; i < 3; i++)
+            {
+                var l = (BotDifficulty.Level)i;
+                var r = new Rect(w / 2 - total / 2 + i * (bw + gap), y + 24, bw, 30);
+                string text = l == current ? "[ " + BotDifficulty.Name(l) + " ]" : BotDifficulty.Name(l);
+                if (GUI.Button(r, text)) BotDifficulty.Current = l;
+            }
+            string note = BotDifficulty.Describe(current);
+            if (director != null && current != director.Difficulty) note += " (from the next match)";
+            Label(new Rect(0, y + 58, w, 20), note, new GUIStyle(small) { alignment = TextAnchor.MiddleCenter });
         }
 
         void DrawResults(float w, float h)
@@ -536,6 +555,7 @@ namespace Jagti.Royale
             Label(new Rect(0, h * 0.2f + 120, w, 30), stats, new GUIStyle(normal) { alignment = TextAnchor.MiddleCenter });
             float bw = 260;
             if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f, bw, 44), "Play again (Enter)")) director.Restart();
+            DifficultyPicker(w, h * 0.55f + 104);
             if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f + 54, bw, 40), "Quit"))
             {
 #if UNITY_EDITOR

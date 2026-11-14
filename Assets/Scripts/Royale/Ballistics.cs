@@ -139,6 +139,18 @@ namespace Jagti.Royale
 
         static void NearMiss(Combatant shooter, Vector3 a, Vector3 b)
         {
+            // Bots near the line know they are being shot at (and roughly from where).
+            Vector3 ab0 = b - a;
+            float len2 = Mathf.Max(0.001f, ab0.sqrMagnitude);
+            var all = Combatant.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var c = all[i];
+                if (c == shooter || c.isPlayer || c.UnderFire == null || !c.Alive) continue;
+                Vector3 q = c.AimPoint;
+                float t0 = Mathf.Clamp01(Vector3.Dot(q - a, ab0) / len2);
+                if ((a + ab0 * t0 - q).sqrMagnitude < 3f * 3f) c.UnderFire(shooter);
+            }
             if (shooter != null && shooter.isPlayer) return;
             var cam = Camera.main;
             if (cam == null || PlayerNearMiss == null) return;
