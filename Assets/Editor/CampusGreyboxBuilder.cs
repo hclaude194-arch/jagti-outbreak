@@ -40,6 +40,42 @@ namespace Jagti.EditorTools
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) Build();
         }
 
+        // The game mode the scene is built for. Battle royale is the default; the zombie survival
+        // mode from Phase 3 can still be built from the menu.
+        const string ModeKey = "Jagti.GameMode";
+        const string ModeRoyale = "royale";
+        const string ModeZombies = "zombies";
+
+        static string Mode { get { return EditorPrefs.GetString(ModeKey, ModeRoyale); } }
+
+        [MenuItem("Jagti/Game Mode/Battle Royale", priority = 20)]
+        public static void BuildRoyale()
+        {
+            EditorPrefs.SetString(ModeKey, ModeRoyale);
+            BuildFromMenu();
+        }
+
+        [MenuItem("Jagti/Game Mode/Zombie Survival", priority = 21)]
+        public static void BuildZombies()
+        {
+            EditorPrefs.SetString(ModeKey, ModeZombies);
+            BuildFromMenu();
+        }
+
+        [MenuItem("Jagti/Game Mode/Battle Royale", true)]
+        static bool RoyaleCheck()
+        {
+            Menu.SetChecked("Jagti/Game Mode/Battle Royale", Mode == ModeRoyale);
+            return true;
+        }
+
+        [MenuItem("Jagti/Game Mode/Zombie Survival", true)]
+        static bool ZombiesCheck()
+        {
+            Menu.SetChecked("Jagti/Game Mode/Zombie Survival", Mode == ModeZombies);
+            return true;
+        }
+
         /// <summary>The layout version in the JSON; the setup script rebuilds when it changes.</summary>
         public static int LayoutVersion()
         {
@@ -134,13 +170,20 @@ namespace Jagti.EditorTools
             MakeNavMesh(layout);
             var player = MakePlayer(layout);
 
-            Progress("Zombies, weapons and supply crates", 0.9f);
-            GameplayBuilder.Build(layout, player, root.transform, Ground);
+            if (Mode == ModeRoyale)
+            {
+                Progress("Battle royale: haze, helicopter, loot and map", 0.9f);
+                RoyaleBuilder.Build(layout, player, root.transform, Ground);
+            }
+            else
+            {
+                Progress("Zombies, weapons and supply crates", 0.9f);
+                GameplayBuilder.Build(layout, player, root.transform, Ground);
+                var hud = new GameObject("Debug HUD").AddComponent<DebugHud>();
+                hud.player = player;
+                hud.places = layout.places;
+            }
             CampusBusBuilder.Build(layout, Ground, RoadTop);   // after the bake, so it doesn't cut the NavMesh
-
-            var hud = new GameObject("Debug HUD").AddComponent<DebugHud>();
-            hud.player = player;
-            hud.places = layout.places;
 
             Progress("Saving", 0.95f);
             EditorSceneManager.SaveScene(scene, ScenePath);

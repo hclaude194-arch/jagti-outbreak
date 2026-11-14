@@ -29,6 +29,18 @@ namespace Jagti.Player
         /// <summary>Set by PlayerVitals: false while out of stamina.</summary>
         [HideInInspector] public bool sprintAllowed = true;
 
+        /// <summary>
+        /// When true, another script moves the player (the battle royale drop): this one only turns
+        /// the view with the mouse and places the camera.
+        /// </summary>
+        [HideInInspector] public bool externalControl;
+        /// <summary>Above zero, the camera sits this far behind the player (third person, used for the drop).</summary>
+        [HideInInspector] public float thirdPersonDistance;
+        /// <summary>Scales walking and sprinting (aiming down sights slows you).</summary>
+        [HideInInspector] public float speedScale = 1f;
+
+        public float Pitch { get { return pitch; } }
+
         public bool IsSprinting { get; private set; }
         public bool IsGrounded { get { return controller != null && controller.isGrounded; } }
         public float HorizontalSpeed { get; private set; }
@@ -41,6 +53,7 @@ namespace Jagti.Player
         float recoilPitch;
         float shake;
         float bobPhase;
+        float camDistance;
 
         void Awake()
         {
@@ -73,10 +86,18 @@ namespace Jagti.Player
                 pitch = Mathf.Clamp(pitch - my, -85f, 85f);
             }
 
+            if (externalControl)
+            {
+                IsSprinting = false;
+                HorizontalSpeed = 0f;
+                UpdateCamera();
+                return;
+            }
+
             var input = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
             input = Vector3.ClampMagnitude(input, 1f);
             IsSprinting = sprintAllowed && Input.GetKey(KeyCode.LeftShift) && input.z > 0.1f;
-            float speed = IsSprinting ? sprintSpeed : walkSpeed;
+            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale;
             Vector3 move = transform.TransformDirection(input) * speed;
 
             if (controller.isGrounded)
@@ -113,7 +134,9 @@ namespace Jagti.Player
                 bob = Mathf.Sin(bobPhase) * bobAmount * Mathf.Clamp01(HorizontalSpeed / walkSpeed);
             }
             Vector3 jitter = shake > 0f ? Random.insideUnitSphere * shake * 0.08f : Vector3.zero;
-            cameraPivot.localPosition = pivotBase + new Vector3(0f, bob, 0f) + jitter;
+            camDistance = Mathf.MoveTowards(camDistance, thirdPersonDistance, Time.deltaTime * 12f);
+            Vector3 back = camDistance > 0.01f ? Quaternion.Euler(pitch, 0f, 0f) * new Vector3(0f, 0.4f, -camDistance) : Vector3.zero;
+            cameraPivot.localPosition = pivotBase + new Vector3(0f, bob, 0f) + jitter + back;
             cameraPivot.localEulerAngles = new Vector3(pitch - recoilPitch, 0f, jitter.x * 20f);
         }
 
