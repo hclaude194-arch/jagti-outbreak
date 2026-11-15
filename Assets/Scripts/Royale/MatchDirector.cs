@@ -44,7 +44,8 @@ namespace Jagti.Royale
         public Material gearMaterial;
         public Material gunMaterial;
         public Material[] canopies;
-        public GameObject grenadeTemplate;   // the player's inactive grenade template, shared with bots
+        public GameObject grenadeTemplate;
+        public GameObject smokeTemplate;   // the player's inactive grenade template, shared with bots
 
         [Header("Supply drop looks")]
         public Material crateMaterial;

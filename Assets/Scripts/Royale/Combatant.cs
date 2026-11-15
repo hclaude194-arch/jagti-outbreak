@@ -32,6 +32,18 @@ namespace Jagti.Royale
         public Combatant LastAttacker { get; private set; }
         public float LastHitTime { get; private set; }
         public Vector3 LastHitFrom { get; private set; }
+        public struct DamageInfo
+        {
+            public Combatant victim, attacker;
+            public float amount, absorbed;
+            public bool head, armourBroke, killing;
+            public int armourLevel;
+            public string weapon;
+        }
+
+        /// <summary>Every hit on anyone (the HUD shows damage numbers and armour breaks from it).</summary>
+        public static System.Action<DamageInfo> Damaged;
+
         /// <summary>Called when a shot passes close by (bots use it to take cover).</summary>
         public System.Action<Combatant> UnderFire;
 
@@ -74,7 +86,16 @@ namespace Jagti.Royale
         public void ReceiveHit(float damage, bool head, Combatant attacker, string weapon, Vector3 from, bool ignoreArmour = false)
         {
             if (!Alive || damage <= 0f) return;
+            float raw = damage;
+            int armourBefore = head ? loadout.helmet : loadout.vest;
             if (!ignoreArmour) damage = loadout.Absorb(damage, head);
+            bool broke = armourBefore > 0 && (head ? loadout.helmet : loadout.vest) == 0;
+            if (Damaged != null) Damaged(new DamageInfo
+            {
+                victim = this, attacker = attacker, amount = Mathf.Min(damage, Health.current), absorbed = raw - damage,
+                head = head, armourBroke = broke, armourLevel = armourBefore, weapon = weapon,
+                killing = damage >= Health.current
+            });
             if (attacker != null && attacker != this)
             {
                 LastAttacker = attacker;

@@ -122,8 +122,10 @@ namespace Jagti.Royale
             var loot = LootDirector.Instance;
             if (loot == null) return;
             var rng = new System.Random(System.Environment.TickCount);
-            // An epic gun with ammo, plus epic armour or a pack.
-            int gunId = rng.NextDouble() < 0.5 ? 4 : 3;
+            // An epic gun with ammo (the crate is where the bolt-action rifle and LMG turn up most),
+            // a scope or suppressor, plus epic armour or a pack.
+            double roll = rng.NextDouble();
+            int gunId = roll < 0.3 ? 9 : roll < 0.55 ? 8 : roll < 0.8 ? 4 : 3;
             var def = RoyaleItems.Guns[gunId];
             Vector3 front = landing + new Vector3(0f, 0f, 1.2f);
             loot.Add(LootDirector.Snap(front, landing.y), 0f, ItemKind.Gun, gunId, Tier.Epic, 1);
@@ -131,6 +133,8 @@ namespace Jagti.Royale
             ItemKind extra = rng.NextDouble() < 0.5 ? ItemKind.Vest : rng.NextDouble() < 0.5 ? ItemKind.Helmet : ItemKind.Backpack;
             loot.Add(LootDirector.Snap(landing + new Vector3(-1.2f, 0f, 0.2f), landing.y), 90f, extra, 3, Tier.Epic, 1);
             loot.Add(LootDirector.Snap(landing + new Vector3(0.2f, 0f, -1.2f), landing.y), 0f, ItemKind.Medkit, 0, Tier.Rare, 2);
+            int part = gunId == 9 || gunId == 4 ? (int)AttachmentType.Suppressor : (rng.NextDouble() < 0.5 ? (int)AttachmentType.Scope4x : (int)AttachmentType.Suppressor);
+            loot.Add(LootDirector.Snap(landing + new Vector3(1.1f, 0f, -0.6f), landing.y), 45f, ItemKind.Attachment, part, Tier.Epic, 1);
         }
     }
 }

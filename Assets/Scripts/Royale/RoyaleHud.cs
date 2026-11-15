@@ -40,6 +40,20 @@ namespace Jagti.Royale
         readonly List<KeyValuePair<string, float>> pickups = new List<KeyValuePair<string, float>>();
         readonly List<KeyValuePair<Vector3, float>> threats = new List<KeyValuePair<Vector3, float>>();
 
+        struct Number
+        {
+            public Vector3 at;
+            public float time;
+            public string text;
+            public Color colour;
+            public bool shield;
+        }
+        readonly List<Number> numbers = new List<Number>();
+        string eliminated;
+        float eliminatedTime = -9f;
+        float heartbeat;
+        static readonly string[] PartShort = { "Dot", "2x", "4x", "8x", "Comp", "Supp", "Grip", "Ext mag" };
+
         void Awake()
         {
             Instance = this;
@@ -52,11 +66,13 @@ namespace Jagti.Royale
         void OnEnable()
         {
             Ballistics.PlayerNearMiss += OnNearMiss;
+            Combatant.Damaged += OnDamaged;
         }
 
         void OnDisable()
         {
             Ballistics.PlayerNearMiss -= OnNearMiss;
+            Combatant.Damaged -= OnDamaged;
         }
 
         void OnDestroy()
@@ -67,6 +83,43 @@ namespace Jagti.Royale
         void OnNearMiss(Vector3 from)
         {
             threats.Add(new KeyValuePair<Vector3, float>(from, Time.time));
+        }
+
+        /// <summary>Damage numbers over the people you hit; armour breaks and eliminations called out.</summary>
+        void OnDamaged(Combatant.DamageInfo d)
+        {
+            if (player == null) return;
+            if (d.victim == player)
+            {
+                if (d.armourBroke)
+                {
+                    Feed(d.head ? "Your helmet broke" : "Your vest broke");
+                    SynthAudio.Play2D("armour_break", 0.7f);
+                }
+                return;
+            }
+            if (d.attacker != player) return;
+            bool armoured = d.absorbed > d.amount * 0.25f;
+            Color c = d.head ? new Color(1f, 0.82f, 0.2f) : armoured ? new Color(0.55f, 0.8f, 1f) : Color.white;
+            if (d.killing) c = new Color(1f, 0.35f, 0.25f);
+            numbers.Add(new Number
+            {
+                at = d.victim.AimPoint + new Vector3(Random.Range(-0.3f, 0.3f), Random.Range(0.1f, 0.4f), Random.Range(-0.3f, 0.3f)),
+                time = Time.time,
+                text = Mathf.CeilToInt(d.amount).ToString(),
+                colour = c,
+            });
+            if (d.armourBroke)
+            {
+                numbers.Add(new Number { at = d.victim.AimPoint + Vector3.up * 0.7f, time = Time.time, text = d.head ? "helmet broken" : "vest broken", colour = new Color(0.55f, 0.8f, 1f), shield = true });
+                SynthAudio.Play2D("armour_break", 0.6f);
+            }
+            if (d.killing)
+            {
+                eliminated = d.victim.displayName;
+                eliminatedTime = Time.time;
+            }
+            if (numbers.Count > 24) numbers.RemoveAt(0);
         }
 
         public void Feed(string text)
@@ -117,6 +170,15 @@ namespace Jagti.Royale
                 lastHealth = h;
             }
             damageFlash = Mathf.MoveTowards(damageFlash, 0f, Time.deltaTime * 1.4f);
+            if (player != null && player.Alive && player.Landed && player.Health.current < 25f)
+            {
+                heartbeat -= Time.deltaTime;
+                if (heartbeat <= 0f)
+                {
+                    heartbeat = 0.9f;
+                    SynthAudio.Play2D("heartbeat", 0.5f);
+                }
+            }
         }
 
         void SetPaused(bool on)
@@ -148,6 +210,7 @@ namespace Jagti.Royale
             // Full-screen tints: the haze, damage, and the scope.
             if (haze != null && haze.PlayerInHaze > 0.01f) Fill(new Rect(0, 0, w, h), new Color(0.45f, 0.33f, 0.2f, 0.35f * haze.PlayerInHaze));
             if (damageFlash > 0.01f) Fill(new Rect(0, 0, w, h), new Color(0.7f, 0f, 0f, 0.3f * damageFlash));
+            if (player.Alive && player.Landed && player.Health.Fraction < 0.3f) Edges(w, h, new Color(0.65f, 0f, 0f, (0.3f - player.Health.Fraction) * 1.6f * (0.75f + 0.25f * Mathf.Sin(Time.time * 7f))));
             if (arsenal != null && arsenal.Scoped) DrawScope(w, h);
 
             if (results) { DrawResults(w, h); return; }
@@ -239,23 +302,54 @@ namespace Jagti.Royale
                 float gap = 6f;
                 if (gun != null)
                 {
-                    float spread = arsenal != null && arsenal.Aiming ? gun.def.aimSpread : gun.def.hipSpread;
+                    float blend = arsenal != null ? arsenal.AimBlend : 0f;
+                    float spread = Mathf.Lerp(gun.def.hipSpread, gun.def.aimSpread, blend) * gun.SpreadScale;
                     if (fpc != null && fpc.HorizontalSpeed > 1f) spread *= 1.5f;
+                    if (fpc != null && fpc.Crouching) spread *= 0.8f;
+                    if (arsenal != null) spread *= 1f + arsenal.Bloom * 0.4f;
                     gap = 4f + spread * 6f;
                 }
                 Color cc = new Color(1f, 1f, 1f, 0.85f);
                 float cx = w / 2, cy = h / 2;
-                Fill(new Rect(cx - 1, cy - 1, 2, 2), cc);
-                Fill(new Rect(cx - gap - 8, cy - 1, 8, 2), cc);
-                Fill(new Rect(cx + gap, cy - 1, 8, 2), cc);
-                Fill(new Rect(cx - 1, cy - gap - 8, 2, 8), cc);
-                Fill(new Rect(cx - 1, cy + gap, 2, 8), cc);
+                if (arsenal != null && arsenal.DotSight)
+                {
+                    // Red dot (and the 2x sight's ring) instead of the crosshair.
+                    var red = new Color(1f, 0.15f, 0.1f, 0.95f);
+                    GUI.color = red;
+                    GUI.DrawTexture(new Rect(cx - 3, cy - 3, 6, 6), dot);
+                    GUI.color = Color.white;
+                    if (gun.Sight == 1)
+                    {
+                        Fill(new Rect(cx - 18, cy - 0.5f, 10, 1), red);
+                        Fill(new Rect(cx + 8, cy - 0.5f, 10, 1), red);
+                        Fill(new Rect(cx - 0.5f, cy + 8, 1, 10), red);
+                    }
+                }
+                else
+                {
+                    Fill(new Rect(cx - 1, cy - 1, 2, 2), cc);
+                    Fill(new Rect(cx - gap - 8, cy - 1, 8, 2), cc);
+                    Fill(new Rect(cx + gap, cy - 1, 8, 2), cc);
+                    Fill(new Rect(cx - 1, cy - gap - 8, 2, 8), cc);
+                    Fill(new Rect(cx - 1, cy + gap, 2, 8), cc);
+                }
             }
             if (arsenal != null && arsenal.HitMarker > 0.01f)
             {
                 Color hc = arsenal.HitWasKill ? new Color(1f, 0.25f, 0.2f, arsenal.HitMarker) :
                            arsenal.HitWasHead ? new Color(1f, 0.85f, 0.2f, arsenal.HitMarker) : new Color(1f, 1f, 1f, arsenal.HitMarker);
                 HitMark(w / 2, h / 2, hc);
+            }
+            DrawNumbers();
+            float eAge = Time.time - eliminatedTime;
+            if (eAge < 2.2f && !string.IsNullOrEmpty(eliminated))
+            {
+                GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01((2.2f - eAge) * 2f));
+                float pop = 1f + Mathf.Max(0f, 0.25f - eAge) * 1.6f;
+                var st = new GUIStyle(big) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.RoundToInt(22 * pop) };
+                Label(new Rect(0, h / 2 + 130, w, 34), "ELIMINATED  " + eliminated, st);
+                Label(new Rect(0, h / 2 + 162, w, 24), player.Kills + (player.Kills == 1 ? " elimination" : " eliminations"), centre);
+                GUI.color = Color.white;
             }
 
             // Threat marks around the crosshair.
@@ -318,7 +412,8 @@ namespace Jagti.Royale
             if (l.backpack > 0) gear += "Pack " + l.backpack;
             Label(new Rect(bx + 50, by - 22, 310, 22), gear, new GUIStyle(small) { alignment = TextAnchor.UpperRight });
             Label(new Rect(bx, by + 16, 360, 20),
-                string.Format("Q bandage {0}  medkit {1}     Z chai {2}     G grenade {3}", l.bandages, l.medkits, l.chai, l.grenades), small);
+                string.Format("Q bandage {0}  medkit {1}   Z chai {2}   G grenade {3}   4 smoke {4}", l.bandages, l.medkits, l.chai, l.grenades, l.smokes), small);
+            if (fpc != null && fpc.Crouching) Label(new Rect(bx, by - 44, 120, 20), "Crouched", small);
 
             // Gun slots (bottom right).
             float sx = w - 250, sy = h - 210;
@@ -335,8 +430,11 @@ namespace Jagti.Royale
                 }
                 Fill(new Rect(r.x, r.y, 5, r.height), RoyaleItems.TierColours[(int)g.tier]);
                 Label(new Rect(r.x + 12, r.y + 4, 160, 22), (i + 1) + "  " + g.def.name, sel ? normal : small);
-                Label(new Rect(r.x + 12, r.y + 24, 220, 20), RoyaleItems.TierNames[(int)g.tier] + "  " + RoyaleItems.AmmoNames[(int)g.def.ammo], small);
+                string parts = "";
+                foreach (int part in g.parts) if (part >= 0) parts += (parts.Length > 0 ? " " : "") + PartShort[part];
+                Label(new Rect(r.x + 12, r.y + 24, 220, 20), parts.Length > 0 ? parts : RoyaleItems.TierNames[(int)g.tier] + "  " + RoyaleItems.AmmoNames[(int)g.def.ammo], small);
                 Label(new Rect(r.x + 120, r.y + 4, 112, 26), g.loaded + " / " + l.CountFor(g), new GUIStyle(sel ? big : normal) { alignment = TextAnchor.UpperRight });
+                if (g.def.burst > 1) Label(new Rect(r.x + 120, r.y + 26, 112, 18), "burst", new GUIStyle(small) { alignment = TextAnchor.UpperRight });
             }
             if (l.Current == null) Label(new Rect(sx, sy + 158, 240, 22), "Fists (find a gun!)", small);
 
@@ -350,6 +448,44 @@ namespace Jagti.Royale
                 Label(new Rect(14, py, 400, 22), pickups[i].Key, normal);
                 GUI.color = Color.white;
                 py -= 22;
+            }
+        }
+
+        void DrawNumbers()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            for (int i = numbers.Count - 1; i >= 0; i--)
+            {
+                var n = numbers[i];
+                float age = Time.time - n.time;
+                if (age > 0.9f) { numbers.RemoveAt(i); continue; }
+                Vector3 sp = cam.WorldToScreenPoint(n.at + Vector3.up * age * 0.6f);
+                if (sp.z <= 0f) continue;
+                float y = Screen.height - sp.y;
+                Color c = n.colour;
+                c.a = Mathf.Clamp01((0.9f - age) * 3f);
+                var st = new GUIStyle(n.shield ? normal : big) { alignment = TextAnchor.MiddleCenter, normal = { textColor = c } };
+                if (!n.shield) st.fontSize = Mathf.RoundToInt(20 + Mathf.Max(0f, 0.15f - age) * 60f);
+                var shadow = new GUIStyle(st) { normal = { textColor = new Color(0f, 0f, 0f, c.a * 0.8f) } };
+                GUI.Label(new Rect(sp.x - 80 + 1, y - 14 + 1, 160, 28), n.text, shadow);
+                GUI.Label(new Rect(sp.x - 80, y - 14, 160, 28), n.text, st);
+            }
+        }
+
+        /// <summary>A darkened frame round the screen (low health).</summary>
+        void Edges(float w, float h, Color c)
+        {
+            const int bands = 6;
+            for (int i = 0; i < bands; i++)
+            {
+                float t = 1f - i / (float)bands;
+                Color k = new Color(c.r, c.g, c.b, c.a * t * t * 0.5f);
+                float e = 14f + i * 14f;
+                Fill(new Rect(0, 0, w, e), k);
+                Fill(new Rect(0, h - e, w, e), k);
+                Fill(new Rect(0, e, e, h - 2 * e), k);
+                Fill(new Rect(w - e, e, e, h - 2 * e), k);
             }
         }
 
@@ -519,9 +655,9 @@ namespace Jagti.Royale
             }
             DifficultyPicker(w, h * 0.42f + 150);
             Label(new Rect(0, h * 0.42f + 230, w, 160),
-                "WASD move   Shift sprint   Space jump   mouse aim   left click fire   right click aim down sights\n" +
-                "1-3 guns   R reload   E pick up   X drop gun   Q bandage or medkit   Z chai flask   G grenade\n" +
-                "M map   F torch   F3 frame time   Esc pause", new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
+                "WASD move   Shift sprint   Space jump   C or Ctrl crouch   mouse aim   left click fire   right click aim down sights\n" +
+                "1-3 guns   R reload   E pick up   X drop gun   Q bandage or medkit   Z chai flask   G grenade   4 smoke\n" +
+                "V shoulder or first-person camera   M map   F torch   F3 frame time   Esc pause", new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
         }
 
         /// <summary>Three buttons for the bot difficulty; the choice applies from the next match.</summary>

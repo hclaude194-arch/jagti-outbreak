@@ -164,6 +164,7 @@ namespace Jagti.EditorTools
             var arsenal = pgo.AddComponent<PlayerArsenal>();
             arsenal.palette = palette;
             arsenal.grenadeTemplate = GrenadeTemplate(br, palette, ParticleMaterial("Blast_Smoke", puffTex));
+            arsenal.smokeTemplate = SmokeTemplate(br, palette, ParticleMaterial("Smoke_Screen", puffTex));
 
             // ---------------------------------------------------------------- referee and HUD
             var dirGo = new GameObject("Match Director");
@@ -175,6 +176,7 @@ namespace Jagti.EditorTools
             director.haze = haze;
             director.loot = loot;
             director.grenadeTemplate = arsenal.grenadeTemplate;
+            director.smokeTemplate = arsenal.smokeTemplate;
             director.skins = skins;
             director.shirts = shirts;
             director.pants = pants;
@@ -298,6 +300,30 @@ namespace Jagti.EditorTools
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             var g = go.AddComponent<Grenade>();
             g.blastMaterial = blast;
+            go.SetActive(false);
+            return go;
+        }
+
+        static GameObject SmokeTemplate(Transform parent, Material[] palette, Material smoke)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            go.name = "Smoke Grenade Template";
+            go.transform.SetParent(parent, false);
+            go.transform.localScale = new Vector3(0.066f, 0.06f, 0.066f);
+            go.GetComponent<Renderer>().sharedMaterial = palette[LootVisuals.Metal];
+            UnityEngine.Object.DestroyImmediate(go.GetComponent<Collider>());
+            var col = go.AddComponent<CapsuleCollider>();
+            col.radius = 0.5f;
+            col.height = 2f;
+            var rb = go.AddComponent<Rigidbody>();
+            rb.mass = 0.4f;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            var g = go.AddComponent<Grenade>();
+            g.smoke = true;
+            g.fuse = 1.6f;
+            g.smokeMaterial = smoke;
+            g.blastMaterial = smoke;
             go.SetActive(false);
             return go;
         }

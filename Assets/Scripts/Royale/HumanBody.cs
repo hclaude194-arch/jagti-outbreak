@@ -352,6 +352,10 @@ namespace Jagti.Royale
             for (int i = 0; i < heldGuns.Length; i++) heldGuns[i].SetActive(i == id);
             if (id < 0) return;
             // Hand points along the gun (grip behind the trigger, support hand under the fore-end).
+            if (id == 5) { gripR = new Vector3(0f, -0.05f, -0.06f); gripL = new Vector3(-0.02f, -0.06f, -0.04f); return; }
+            if (id == 7) { gripR = new Vector3(0f, -0.05f, -0.12f); gripL = new Vector3(0f, -0.03f, 0.12f); return; }
+            if (id == 8) { gripR = new Vector3(0f, -0.06f, -0.12f); gripL = new Vector3(0f, -0.02f, 0.3f); return; }
+            if (id == 9) { gripR = new Vector3(0f, -0.06f, -0.12f); gripL = new Vector3(0f, -0.04f, 0.22f); return; }
             switch (RoyaleItems.Guns[id].gunClass)
             {
                 case GunClass.Sidearm: gripR = new Vector3(0f, -0.05f, -0.03f); gripL = new Vector3(-0.02f, -0.06f, -0.01f); break;
@@ -360,6 +364,15 @@ namespace Jagti.Royale
                 case GunClass.Rifle: gripR = new Vector3(0f, -0.06f, -0.09f); gripL = new Vector3(0f, -0.03f, 0.26f); break;
                 default: gripR = new Vector3(0f, -0.06f, -0.06f); gripL = new Vector3(0f, -0.03f, 0.22f); break;
             }
+        }
+
+        /// <summary>Fits the shown gun's attachments to the held model.</summary>
+        public void Dress(GunItem g)
+        {
+            if (g == null || heldGuns == null || gunShown < 0 || g.def.id != gunShown) return;
+            var loot = LootDirector.Instance;
+            if (loot == null || loot.palette == null) return;
+            LootVisuals.Dress(heldGuns[gunShown].transform, g, loot.palette);
         }
 
         public void ShowGear(int vest, int helmet, int pack)

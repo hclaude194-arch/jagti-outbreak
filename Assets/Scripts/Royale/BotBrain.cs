@@ -472,6 +472,8 @@ namespace Jagti.Royale
                 case ItemKind.Bandage: return 3f;
                 case ItemKind.ChaiFlask: return 3f;
                 case ItemKind.Grenade: return 1.5f;
+                case ItemKind.Smoke: return 1f;
+                case ItemKind.Attachment: return 2f + (d.value == 2 || d.value == 5 || d.value == 7 ? 2f : 0f);
             }
             return 1f;
         }
@@ -549,7 +551,7 @@ namespace Jagti.Royale
             else
             {
                 agent.updateRotation = true;
-                if (l.Current != null && l.Current.loaded < l.Current.def.magazine && reloadLeft <= 0f && l.CountFor(l.Current) > 0)
+                if (l.Current != null && l.Current.loaded < l.Current.Magazine && reloadLeft <= 0f && l.CountFor(l.Current) > 0)
                     StartReload();
             }
         }
@@ -563,8 +565,8 @@ namespace Jagti.Royale
             int left = l.Take(d.kind, d.value, d.tier, d.count, l.Wants(d.kind, d.value, d.tier), out swapped, out old);
             if (left == d.count) { goal = null; return; }
             if (left > 0) d.count = left; else loot.Remove(d);
-            if (swapped != null) loot.Drop(transform.position, ItemKind.Gun, swapped.def.id, swapped.tier, 1);
-            if (old > 0) loot.Drop(transform.position, d.kind, old, (Tier)old, 1);
+            if (swapped != null) loot.DropGun(transform.position, swapped);
+            if (old > 0) loot.DropReplaced(transform.position, d.kind, old);
             if (l.selected < 0 || l.Current == null) l.selected = Mathf.Max(0, l.BestSlot(20f));
             goal = null;
             SynthAudio.Play3D(voice, "pickup", 0.3f);
@@ -620,7 +622,12 @@ namespace Jagti.Royale
                     longShot = false;
                     nextCoverTry = Time.time + 5f;
                 }
-                else nextCoverTry = Time.time + 2.5f;
+                else
+                {
+                    nextCoverTry = Time.time + 2.5f;
+                    // Caught in the open and hurt: hide in smoke instead.
+                    if (me.Health.current < 55f) ThrowSmoke();
+                }
             }
             if (cover != Cover.None && (Time.time > coverUntil || dist < 6f)) LeaveCover();
 
@@ -648,7 +655,7 @@ namespace Jagti.Royale
                         nextCoverTry = 0f;
                         break;
                     }
-                    if (gun != null && gun.loaded < gun.def.magazine && reloadLeft <= 0f && l.CountFor(gun) > 0) StartReload();
+                    if (gun != null && gun.loaded < gun.Magazine && reloadLeft <= 0f && l.CountFor(gun) > 0) StartReload();
                     if (me.Health.current < 65f && !me.IsHealing && Time.time - me.LastHitTime > 1.2f)
                         TryHeal();
                     bool busy = reloadLeft > 0f || me.IsHealing;
@@ -695,7 +702,13 @@ namespace Jagti.Royale
             Ballistics.Fire(me, gun, eye, dir, spread);
             if (body != null) body.Kick();
 
-            if (gun.def.automatic)
+            if (gun.def.burst > 1)
+            {
+                if (burstLeft <= 0) burstLeft = gun.def.burst;
+                burstLeft--;
+                nextShot = Time.time + (burstLeft == 0 ? gun.def.burstGap * Random.Range(1.2f, 2f) : gun.def.interval);
+            }
+            else if (gun.def.automatic)
             {
                 if (burstLeft <= 0) burstLeft = Random.Range(3, 7);
                 burstLeft--;
@@ -773,6 +786,26 @@ namespace Jagti.Royale
             me.StartHeal(ItemKind.ChaiFlask);
         }
 
+        /// <summary>Drops a smoke grenade between itself and the enemy to break line of sight.</summary>
+        void ThrowSmoke()
+        {
+            var l = me.loadout;
+            var director = MatchDirector.Instance;
+            if (l.smokes <= 0 || director == null || director.smokeTemplate == null || enemy == null) return;
+            if (Random.value > tune.cover) return;
+            l.smokes--;
+            Vector3 toward = (enemy.transform.position - transform.position);
+            toward.y = 0f;
+            Vector3 from = transform.position + Vector3.up * 1.4f + transform.forward * 0.4f;
+            var go = Instantiate(director.smokeTemplate, from, Quaternion.identity);
+            go.SetActive(true);
+            go.GetComponent<Grenade>().thrower = me;
+            go.GetComponent<Rigidbody>().AddForce(toward.normalized * 5f + Vector3.up * 2.5f, ForceMode.VelocityChange);
+            SynthAudio.Play3D(voice, "swing", 0.5f);
+            wantCover = false;
+            nextCoverTry = Time.time + 1.5f;
+        }
+
         /// <summary>Lobs a grenade at an enemy hiding nearby, now and then.</summary>
         void ConsiderGrenade()
         {
@@ -830,6 +863,7 @@ namespace Jagti.Royale
             body.speed = agent.enabled ? new Vector3(agent.velocity.x, 0f, agent.velocity.z).magnitude : 0f;
             body.armed = l.Current != null;
             body.ShowGun(l.Current != null ? l.Current.def.id : -1);
+            body.Dress(l.Current);
             body.ShowGear(l.vest, l.helmet, l.backpack);
             body.crouch = crouch;
             body.aiming = Current == State.Fight && cover != Cover.Hiding && cover != Cover.Moving && reloadLeft <= 0f && !me.IsHealing;

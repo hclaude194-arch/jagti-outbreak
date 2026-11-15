@@ -9,6 +9,9 @@ namespace Jagti.Royale
         public Tier tier;
         public int loaded;
 
+        /// <summary>Fitted attachment in each place (sight, muzzle, grip, magazine); -1 = none.</summary>
+        public readonly int[] parts = { -1, -1, -1, -1 };
+
         public GunItem(GunDef def, Tier tier, int loaded)
         {
             this.def = def;
@@ -17,6 +20,52 @@ namespace Jagti.Royale
         }
 
         public string Label { get { return def.name + " (" + RoyaleItems.TierNames[(int)tier] + ")"; } }
+
+        public int Sight { get { return parts[(int)AttachmentSlot.Sight]; } }
+        public bool Has(AttachmentType a) { return parts[(int)RoyaleItems.SlotOf(a)] == (int)a; }
+
+        /// <summary>Magazine size with an extended magazine fitted (half as much again).</summary>
+        public int Magazine { get { return Has(AttachmentType.ExtendedMag) ? Mathf.RoundToInt(def.magazine * 1.5f) : def.magazine; } }
+
+        /// <summary>Field of view when aiming: the fitted sight's, or the gun's own.</summary>
+        public float AimFov
+        {
+            get
+            {
+                float f = RoyaleItems.SightFov(Sight);
+                return f > 0f ? Mathf.Min(f, def.zoomFov < 30f && Sight == 0 ? def.zoomFov : f) : def.zoomFov;
+            }
+        }
+
+        public float RecoilScale
+        {
+            get
+            {
+                float k = RoyaleItems.TierRecoil(tier);
+                if (Has(AttachmentType.Compensator)) k *= 0.72f;
+                if (Has(AttachmentType.Grip)) k *= 0.82f;
+                return k;
+            }
+        }
+
+        public float SpreadScale
+        {
+            get { return RoyaleItems.TierSpread(tier) * (Has(AttachmentType.Grip) ? 0.88f : 1f); }
+        }
+
+        public bool Suppressed { get { return Has(AttachmentType.Suppressor); } }
+        public float Noise { get { return Suppressed ? def.noise * 0.35f : def.noise; } }
+
+        /// <summary>Takes every attachment off (they go on the floor with a dropped gun); returns their types.</summary>
+        public void Strip(System.Collections.Generic.List<int> into)
+        {
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i] >= 0) into.Add(parts[i]);
+                parts[i] = -1;
+            }
+            if (loaded > Magazine) loaded = Magazine;
+        }
     }
 
     /// <summary>
@@ -31,7 +80,7 @@ namespace Jagti.Royale
         public readonly int[] ammo = new int[4];
         public int vest, helmet, backpack;
         public float vestDurability, helmetDurability;
-        public int bandages, medkits, chai, grenades;
+        public int bandages, medkits, chai, grenades, smokes;
         public int selected;            // gun slot in hand; -1 = fists
 
         public GunItem Current { get { return selected >= 0 && selected < Slots ? guns[selected] : null; } }
@@ -65,6 +114,7 @@ namespace Jagti.Royale
                 case ItemKind.Gun:
                 {
                     var def = RoyaleItems.Guns[Mathf.Clamp(value, 0, RoyaleItems.Guns.Length - 1)];
+                    // A gun found on the floor comes loaded but with nothing fitted.
                     var gun = new GunItem(def, tier, def.magazine);
                     for (int i = 0; i < Slots; i++)
                     {
@@ -111,6 +161,16 @@ namespace Jagti.Royale
                 case ItemKind.Medkit: return AddCapped(ref medkits, count, HealLimit(1));
                 case ItemKind.ChaiFlask: return AddCapped(ref chai, count, HealLimit(2));
                 case ItemKind.Grenade: return AddCapped(ref grenades, count, HealLimit(3));
+                case ItemKind.Smoke: return AddCapped(ref smokes, count, HealLimit(4));
+                case ItemKind.Attachment:
+                {
+                    var g = FitFor((AttachmentType)value);
+                    if (g == null) return count;
+                    int place = (int)RoyaleItems.SlotOf((AttachmentType)value);
+                    droppedArmourLevel = g.parts[place] >= 0 ? g.parts[place] + 1 : 0;   // the replaced part (+1), dropped by the caller
+                    g.parts[place] = value;
+                    return 0;
+                }
             }
             return count;
         }
@@ -140,8 +200,32 @@ namespace Jagti.Royale
                 case ItemKind.Medkit: return medkits < HealLimit(1);
                 case ItemKind.ChaiFlask: return chai < HealLimit(2);
                 case ItemKind.Grenade: return grenades < HealLimit(3);
+                case ItemKind.Smoke: return smokes < HealLimit(4);
+                case ItemKind.Attachment: return FitFor((AttachmentType)value) != null;
             }
             return false;
+        }
+
+        /// <summary>
+        /// The gun an attachment should go on: the one in hand first, then the others; only where it
+        /// fits and the place is empty or holds a worse sight (a stronger scope replaces a weaker one).
+        /// </summary>
+        public GunItem FitFor(AttachmentType a)
+        {
+            int place = (int)RoyaleItems.SlotOf(a);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int i = 0; i < Slots; i++)
+                {
+                    var g = pass == 0 ? Current : guns[i];
+                    if (g == null || !RoyaleItems.Fits(g.def, a)) continue;
+                    int have = g.parts[place];
+                    if (have < 0) return g;
+                    if (pass == 1 && place == (int)AttachmentSlot.Sight && have < (int)a && g.def.gunClass != GunClass.Sidearm) return g;
+                    if (pass == 0) break;
+                }
+            }
+            return null;
         }
 
         /// <summary>Reloads the gun in hand from the carried ammo; returns rounds loaded.</summary>
@@ -149,7 +233,7 @@ namespace Jagti.Royale
         {
             if (g == null) return 0;
             int t = (int)g.def.ammo;
-            int n = Mathf.Min(ammo[t], g.def.magazine - g.loaded);
+            int n = Mathf.Min(ammo[t], g.Magazine - g.loaded);
             if (n <= 0) return 0;
             ammo[t] -= n;
             g.loaded += n;

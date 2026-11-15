@@ -57,7 +57,7 @@ namespace Jagti.Royale
                     }
                     else Puff(end, d);
                 }
-                if (p == 0 || p % 3 == 0) Tracer(origin + dir * 0.6f, end);
+                if ((p == 0 || p % 3 == 0) && !(gun.Suppressed && Random.value < 0.7f)) Tracer(origin + dir * 0.6f, end);
                 NearMiss(shooter, origin, end);
             }
 
@@ -69,8 +69,8 @@ namespace Jagti.Royale
                 if (shooter != null && shooter.isPlayer && PlayerHit != null) PlayerHit(head, wasAlive && !kv.Key.Alive);
             }
 
-            NoiseEvents.Emit(origin, def.noise);
-            if (shooter != null && !shooter.isPlayer) SoundAt(origin, def.sound, 1f);
+            NoiseEvents.Emit(origin, gun.Noise);
+            if (shooter != null && !shooter.isPlayer) SoundAt(origin, gun.Suppressed ? "suppressed" : def.sound, 1f);
             return anyHit;
         }
 
@@ -123,6 +123,7 @@ namespace Jagti.Royale
         /// <summary>True if nothing solid stands between the two points (ignoring both combatants).</summary>
         public static bool LineOfSight(Vector3 from, Vector3 to, Combatant a, Combatant b)
         {
+            if (SmokeCloud.Active.Count > 0 && SmokeCloud.Blocks(from, to)) return false;
             Vector3 d = to - from;
             float len = d.magnitude;
             if (len < 0.01f) return true;

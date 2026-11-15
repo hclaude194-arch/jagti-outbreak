@@ -16,6 +16,9 @@ namespace Jagti.Royale
         public float radius = 7.5f;
         public float maxDamage = 115f;
         public Material blastMaterial;
+        /// <summary>A smoke grenade: pops into a SmokeCloud instead of bursting.</summary>
+        public bool smoke;
+        public Material smokeMaterial;
 
         float t;
         float bounceCooldown;
@@ -33,7 +36,11 @@ namespace Jagti.Royale
         {
             t += Time.deltaTime;
             bounceCooldown -= Time.deltaTime;
-            if (t >= fuse) Explode();
+            if (t >= fuse)
+            {
+                if (smoke) Pop();
+                else Explode();
+            }
         }
 
         void OnCollisionEnter(Collision c)
@@ -41,6 +48,17 @@ namespace Jagti.Royale
             if (bounceCooldown > 0f || c.relativeVelocity.magnitude < 2f) return;
             bounceCooldown = 0.15f;
             Ballistics.SoundAt(transform.position, "clink", 0.6f);
+        }
+
+        void Pop()
+        {
+            var go = new GameObject("Smoke Cloud");
+            go.transform.position = transform.position;
+            var cloud = go.AddComponent<SmokeCloud>();
+            cloud.material = smokeMaterial != null ? smokeMaterial : blastMaterial;
+            Ballistics.SoundAt(transform.position, "smoke_pop", 0.8f);
+            NoiseEvents.Emit(transform.position, 40f);
+            Destroy(gameObject);
         }
 
         void Explode()
