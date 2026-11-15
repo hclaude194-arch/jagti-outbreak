@@ -91,9 +91,12 @@ namespace Jagti.EditorTools
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
             var roadRoot = Child(root.transform, "Roads");
-            concreteRoad = null;
+            asphaltRoad = null;
+            asphaltLined = null;
+            pavedRoad = null;
             kerbMaterial = null;
             foreach (var road in layout.roads) MakeRoad(road, layout.roads, roadRoot, materials);
+            MakeWater(layout, Child(root.transform, "Water"));
 
             // Landmark buildings come from Blender models; the rest stay grey blocks for now.
             var models = BuildingModels.Available();
@@ -121,10 +124,15 @@ namespace Jagti.EditorTools
             foreach (var place in layout.places) MakeLabel(place, labelRoot);
 
             MakeLighting();
-            var player = MakePlayer(layout);
 
+            // Bake before the player and crates exist so they do not punch holes in the NavMesh.
             Progress("Zombie navigation mesh (this can take a minute)", 0.7f);
             MakeNavMesh(layout);
+            var player = MakePlayer(layout);
+
+            Progress("Zombies, weapons and supply crates", 0.9f);
+            GameplayBuilder.Build(layout, player, root.transform, Ground);
+            CampusBusBuilder.Build(layout, Ground, RoadTop);   // after the bake, so it doesn't cut the NavMesh
 
             var hud = new GameObject("Debug HUD").AddComponent<DebugHud>();
             hud.player = player;
@@ -168,10 +176,10 @@ namespace Jagti.EditorTools
 
         static Color BuildingColor(BuildingData b)
         {
-            if (b.name.Contains("Hostel")) return new Color(0.80f, 0.74f, 0.64f);
-            if (b.zone == "academic") return new Color(0.86f, 0.82f, 0.74f);
+            if (b.name.Contains("Hostel")) return new Color(0.89f, 0.85f, 0.79f);
+            if (b.zone == "academic") return new Color(0.90f, 0.84f, 0.77f); // pinkish cream, as on the campus model
             if (b.name.Contains("Shed") || b.name.Contains("Substation")) return new Color(0.55f, 0.55f, 0.52f);
-            return new Color(0.74f, 0.72f, 0.68f);
+            return new Color(0.86f, 0.82f, 0.76f);
         }
 
         static void MakeArea(AreaData a, Transform parent, MaterialLibrary materials)
@@ -183,12 +191,12 @@ namespace Jagti.EditorTools
             float top = AreaTop;
             switch (a.type)
             {
-                case "parking": color = new Color(0.30f, 0.30f, 0.30f); top = RoadTop; break;
+                case "parking": color = new Color(0.42f, 0.42f, 0.41f); top = RoadTop; break;
                 case "court": color = new Color(0.30f, 0.42f, 0.48f); top = RoadTop; break;
                 case "track": color = new Color(0.62f, 0.30f, 0.22f); top = RoadTop; break;
-                case "field": color = new Color(0.38f, 0.48f, 0.26f); top = FieldTop; break;
-                case "amphitheatre": color = new Color(0.62f, 0.58f, 0.50f); break;
-                case "roundabout": color = new Color(0.35f, 0.47f, 0.25f); top = 0.35f; break;
+                case "field": color = new Color(0.32f, 0.50f, 0.20f); top = FieldTop; break;
+                case "amphitheatre": color = new Color(0.82f, 0.77f, 0.68f); break;
+                case "roundabout": color = new Color(0.28f, 0.48f, 0.18f); top = 0.35f; break;
                 case "substation": color = new Color(0.52f, 0.50f, 0.44f); break;
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
@@ -209,7 +217,7 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        static Material concreteRoad, kerbMaterial;
+        static Material asphaltRoad, asphaltLined, pavedRoad, kerbMaterial;
 
         static void MakeRoad(RoadData road, RoadData[] allRoads, Transform parent, MaterialLibrary materials)
         {
@@ -222,6 +230,7 @@ namespace Jagti.EditorTools
             var triangles = new List<int>();
             float half = road.width / 2f;
             float distance = 0f;
+            bool paved = IsPaved(road.name);
 
             for (int i = 0; i < count; i++)
             {
@@ -238,8 +247,17 @@ namespace Jagti.EditorTools
                 Vector2 left = p + normal * half, right = p - normal * half;
                 vertices.Add(new Vector3(left.x, Ground(left.x, left.y) + RoadTop, left.y));
                 vertices.Add(new Vector3(right.x, Ground(right.x, right.y) + RoadTop, right.y));
-                uvs.Add(new Vector2(0f, distance / road.width));
-                uvs.Add(new Vector2(1f, distance / road.width));
+                if (paved)
+                {
+                    // Paving tiles in metres so the slabs keep their size on every path width.
+                    uvs.Add(new Vector2(0f, distance / PavingTile));
+                    uvs.Add(new Vector2(road.width / PavingTile, distance / PavingTile));
+                }
+                else
+                {
+                    uvs.Add(new Vector2(0f, distance / road.width));
+                    uvs.Add(new Vector2(1f, distance / road.width));
+                }
 
                 if (i > 0)
                 {
@@ -260,17 +278,7 @@ namespace Jagti.EditorTools
             go.transform.SetParent(parent);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = go.AddComponent<MeshRenderer>();
-            // Campus roads are light concrete slabs (from the owner's photos); the highway is asphalt.
-            if (road.name == "Highway")
-                renderer.sharedMaterial = materials.Get("Road", new Color(0.24f, 0.24f, 0.25f));
-            else if (road.name == "Clock Tower Walkway")
-                renderer.sharedMaterial = materials.Get("Walkway", new Color(0.72f, 0.68f, 0.60f));
-            else
-            {
-                if (concreteRoad == null)
-                    concreteRoad = ProceduralAssets.LitMaterial("Road_Concrete", Color.white, ProceduralAssets.ConcreteRoadTexture(), 0.1f);
-                renderer.sharedMaterial = concreteRoad;
-            }
+            renderer.sharedMaterial = RoadMaterial(road, paved);
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
 
@@ -278,7 +286,121 @@ namespace Jagti.EditorTools
                 MakeKerbs(road, points, allRoads, go.transform);
         }
 
-        // Black-and-white painted kerbs along both edges, left open where another road joins.
+        const float PavingTile = 3f; // metres per paving texture tile (5 x 5 slabs of 0.6 m)
+
+        // Cream stone paving on the academic ring drive, the plazas and the garden paths, as on the campus model.
+        static bool IsPaved(string name)
+        {
+            return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ");
+        }
+
+        // Grey asphalt elsewhere (campus model); two-lane roads (6 m and wider) get a dashed white centre line.
+        static Material RoadMaterial(RoadData road, bool paved)
+        {
+            if (paved)
+            {
+                if (pavedRoad == null)
+                    pavedRoad = ProceduralAssets.LitMaterial("Road_Paving", Color.white, ProceduralAssets.PavingTexture(), 0.12f);
+                return pavedRoad;
+            }
+            if (road.width >= 6f)
+            {
+                if (asphaltLined == null)
+                    asphaltLined = ProceduralAssets.LitMaterial("Road_Asphalt_Lined", Color.white, ProceduralAssets.AsphaltTexture(true), 0.15f);
+                return asphaltLined;
+            }
+            if (asphaltRoad == null)
+                asphaltRoad = ProceduralAssets.LitMaterial("Road_Asphalt", Color.white, ProceduralAssets.AsphaltTexture(false), 0.15f);
+            return asphaltRoad;
+        }
+
+        // Water channels on the terraces and round pools, from the campus model.
+        static void MakeWater(CampusLayout layout, Transform parent)
+        {
+            if ((layout.water == null || layout.water.Length == 0) && (layout.pools == null || layout.pools.Length == 0)) return;
+            var water = ProceduralAssets.LitMaterial("Water_Channel", new Color(0.20f, 0.56f, 0.58f), null, 0.92f); // turquoise, as on the campus model
+            var stone = ProceduralAssets.LitMaterial("Water_Edge", new Color(0.88f, 0.83f, 0.76f), null, 0.15f);
+            if (layout.water != null)
+            {
+                foreach (var ch in layout.water)
+                {
+                    float[] points = Densify(ch.points, 1.5f);
+                    int count = points.Length / 2;
+                    if (count < 2) continue;
+                    var wv = new List<Vector3>(); var wu = new List<Vector2>(); var wt = new List<int>();
+                    var ev = new List<Vector3>(); var eu = new List<Vector2>(); var et = new List<int>();
+                    float half = ch.width / 2f, rim = 0.3f, distance = 0f;
+                    for (int i = 0; i < count - 1; i++)
+                    {
+                        Vector2 p0 = Point(points, i), p1 = Point(points, i + 1);
+                        Vector2 dir = (p1 - p0).normalized;
+                        var n = new Vector2(-dir.y, dir.x);
+                        float u0 = distance / ch.width;
+                        distance += Vector2.Distance(p0, p1);
+                        float u1 = distance / ch.width;
+                        System.Func<Vector2, float, Vector3> at = (q, up) => new Vector3(q.x, Ground(q.x, q.y) + up, q.y);
+                        // Water surface sits a little below the edging.
+                        AddQuad(wv, wu, wt, at(p0 + n * half, 0.06f), at(p1 + n * half, 0.06f), at(p1 - n * half, 0.06f), at(p0 - n * half, 0.06f), u0, u1, Vector3.up);
+                        foreach (float side in new[] { 1f, -1f })
+                        {
+                            Vector2 a0 = p0 + n * side * half, a1 = p1 + n * side * half;
+                            Vector2 b0 = p0 + n * side * (half + rim), b1 = p1 + n * side * (half + rim);
+                            AddQuad(ev, eu, et, at(a0, 0.22f), at(a1, 0.22f), at(b1, 0.22f), at(b0, 0.22f), u0, u1, Vector3.up);
+                            var inward = new Vector3(-n.x * side, 0f, -n.y * side);
+                            AddQuad(ev, eu, et, at(a0, -0.05f), at(a1, -0.05f), at(a1, 0.22f), at(a0, 0.22f), u0, u1, inward);
+                            AddQuad(ev, eu, et, at(b0, -0.2f), at(b1, -0.2f), at(b1, 0.22f), at(b0, 0.22f), u0, u1, -inward);
+                        }
+                    }
+                    MakeMeshObject("Water - " + ch.name, parent, wv, wu, wt, water, false);
+                    MakeMeshObject("Water Edge - " + ch.name, parent, ev, eu, et, stone, true);
+                }
+            }
+            if (layout.pools != null)
+            {
+                foreach (var pool in layout.pools)
+                {
+                    const int segs = 32;
+                    float g = Ground(pool.x, pool.z);
+                    var wv = new List<Vector3>(); var wu = new List<Vector2>(); var wt = new List<int>();
+                    var ev = new List<Vector3>(); var eu = new List<Vector2>(); var et = new List<int>();
+                    var c = new Vector3(pool.x, g + 0.35f, pool.z);
+                    for (int k = 0; k < segs; k++)
+                    {
+                        float a0 = k * Mathf.PI * 2f / segs, a1 = (k + 1) * Mathf.PI * 2f / segs;
+                        var d0 = new Vector3(Mathf.Cos(a0), 0f, Mathf.Sin(a0));
+                        var d1 = new Vector3(Mathf.Cos(a1), 0f, Mathf.Sin(a1));
+                        float r = pool.radius, ro = pool.radius + 0.45f;
+                        // Water as a fan of thin quads (centre, edge, edge, centre).
+                        AddQuad(wv, wu, wt, c, c + d0 * r, c + d1 * r, c, 0f, 1f, Vector3.up);
+                        Vector3 top = Vector3.up * 0.2f;
+                        AddQuad(ev, eu, et, c + d0 * r + top, c + d0 * ro + top, c + d1 * ro + top, c + d1 * r + top, 0f, 1f, Vector3.up);
+                        AddQuad(ev, eu, et, c + d0 * ro + Vector3.down * 0.8f, c + d1 * ro + Vector3.down * 0.8f, c + d1 * ro + top, c + d0 * ro + top, 0f, 1f, (d0 + d1));
+                        AddQuad(ev, eu, et, c + d0 * r + Vector3.down * 0.1f, c + d1 * r + Vector3.down * 0.1f, c + d1 * r + top, c + d0 * r + top, 0f, 1f, -(d0 + d1));
+                    }
+                    MakeMeshObject("Pool - " + pool.name, parent, wv, wu, wt, water, false);
+                    MakeMeshObject("Pool Edge - " + pool.name, parent, ev, eu, et, stone, true);
+                }
+            }
+        }
+
+        static void MakeMeshObject(string name, Transform parent, List<Vector3> v, List<Vector2> uv, List<int> t, Material mat, bool collider)
+        {
+            var mesh = new Mesh { name = name };
+            if (v.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.SetVertices(v);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(t, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject(name);
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            if (collider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            MarkStatic(go);
+        }
+
+        // Light stone kerbs along both edges, left open where another road joins.
         static void MakeKerbs(RoadData road, float[] points, RoadData[] allRoads, Transform parent)
         {
             if (kerbMaterial == null)

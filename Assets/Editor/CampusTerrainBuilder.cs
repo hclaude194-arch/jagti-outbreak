@@ -194,7 +194,7 @@ namespace Jagti.EditorTools
         static TerrainLayer[] MakeLayers()
         {
             var grass = ProceduralAssets.GroundTexture("Ground_Grass",
-                new Color(0.20f, 0.30f, 0.11f), new Color(0.33f, 0.45f, 0.18f), new Color(0.47f, 0.56f, 0.27f), 4, 0.45f, 1);
+                new Color(0.17f, 0.33f, 0.09f), new Color(0.29f, 0.50f, 0.16f), new Color(0.43f, 0.62f, 0.24f), 4, 0.40f, 1); // rich lawn green, as on the campus model
             var dry = ProceduralAssets.GroundTexture("Ground_DryGrass",
                 new Color(0.42f, 0.38f, 0.22f), new Color(0.60f, 0.54f, 0.33f), new Color(0.74f, 0.68f, 0.46f), 4, 0.5f, 2);
             var soil = ProceduralAssets.GroundTexture("Ground_Soil",
