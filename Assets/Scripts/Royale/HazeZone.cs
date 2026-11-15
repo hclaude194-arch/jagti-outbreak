@@ -124,6 +124,16 @@ namespace Jagti.Royale
             return best;
         }
 
+        /// <summary>
+        /// Online: the host's clock for the haze. Every machine runs the same rounds from the same seed;
+        /// this only pulls the timer back in line when it drifts (a slow load, a long frame).
+        /// </summary>
+        public void Sync(int round, bool closing, float timeLeft)
+        {
+            if (!Running || round != RoundIndex || closing != Closing) return;
+            if (Mathf.Abs(TimeLeft - timeLeft) > 0.3f) TimeLeft = timeLeft;
+        }
+
         public static float GroundY(float x, float z)
         {
             var t = Terrain.activeTerrain;

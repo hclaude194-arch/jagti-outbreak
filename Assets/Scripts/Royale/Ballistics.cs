@@ -21,6 +21,14 @@ namespace Jagti.Royale
         /// <summary>The collider the last Trace stopped at (vehicles take damage through it).</summary>
         public static Collider LastHitCollider;
 
+        /// <summary>
+        /// Online: a shot fired by someone this machine owns (shooter, gun, origin, pellet ends, and a
+        /// bit per pellet that stopped at a wall or the ground rather than a person). NetMatch sends it
+        /// so other machines can show it with ReplayShot.
+        /// </summary>
+        public static System.Action<Combatant, GunItem, Vector3, List<Vector3>, int> Fired;
+
+        static readonly List<Vector3> shotEnds = new List<Vector3>();
         static readonly RaycastHit[] hitBuffer = new RaycastHit[24];
         static readonly Dictionary<Combatant, float> totals = new Dictionary<Combatant, float>();
         static readonly HashSet<Combatant> heads = new HashSet<Combatant>();
@@ -38,6 +46,8 @@ namespace Jagti.Royale
             heads.Clear();
             float tierDamage = RoyaleItems.TierDamage(gun.tier);
             bool anyHit = false;
+            shotEnds.Clear();
+            int worldMask = 0;
             for (int p = 0; p < def.pellets; p++)
             {
                 Vector3 d = Spread(dir, spreadDegrees);
@@ -62,8 +72,13 @@ namespace Jagti.Royale
                         if (head) heads.Add(victim);
                         anyHit = true;
                     }
-                    else Puff(end, d);
+                    else
+                    {
+                        Puff(end, d);
+                        if (p < 16) worldMask |= 1 << p;
+                    }
                 }
+                shotEnds.Add(end);
                 if ((p == 0 || p % 3 == 0) && !(gun.Suppressed && Random.value < 0.7f)) Tracer(origin + dir * 0.6f, end);
                 NearMiss(shooter, origin, end);
             }
@@ -78,7 +93,30 @@ namespace Jagti.Royale
 
             NoiseEvents.Emit(origin, gun.Noise);
             if (shooter != null && !shooter.isPlayer) SoundAt(origin, gun.Suppressed ? "suppressed" : def.sound, 1f);
+            if (Fired != null && shooter != null && shooter.owned) Fired(shooter, gun, origin, shotEnds, worldMask);
             return anyHit;
+        }
+
+        /// <summary>
+        /// Shows a shot another machine fired (online): tracers, dust where pellets hit walls, the sound,
+        /// and near misses (bots duck, the player hears the crack). Damage comes separately from the
+        /// shooter's machine.
+        /// </summary>
+        public static void ReplayShot(Combatant shooter, int gunId, bool suppressed, Vector3 origin, List<Vector3> ends, int worldMask)
+        {
+            if (gunId < 0 || gunId >= RoyaleItems.Guns.Length) return;
+            var def = RoyaleItems.Guns[gunId];
+            for (int p = 0; p < ends.Count; p++)
+            {
+                Vector3 d = ends[p] - origin;
+                if (d.sqrMagnitude < 1e-4f) continue;
+                Vector3 dir = d.normalized;
+                if (p < 16 && (worldMask & (1 << p)) != 0) Puff(ends[p], dir);
+                if ((p == 0 || p % 3 == 0) && !(suppressed && Random.value < 0.7f)) Tracer(origin + dir * 0.6f, ends[p]);
+                NearMiss(shooter, origin, ends[p]);
+            }
+            NoiseEvents.Emit(origin, suppressed ? def.noise * 0.35f : def.noise);
+            SoundAt(origin, suppressed ? "suppressed" : def.sound, 1f);
         }
 
         static Vector3 Spread(Vector3 dir, float degrees)

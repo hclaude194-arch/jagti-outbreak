@@ -6,7 +6,23 @@ An original battle royale (with the earlier zombie survival mode kept as a secon
 - Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 5E, map for battle (untested in Unity)
+## Current phase: 5F, online play (untested in Unity)
+
+Up to 8 people play one match together on the same network, with bots filling the rest of the 30 places. No account, package or server is needed: one player hosts and the others join.
+
+- **Front menu:** the game now opens on a menu. **Enter** (or *Play against bots*) starts a match against bots as before; *Play again* after a match goes straight into the next one.
+- **Hosting:** type a name and press *Host a game*. The lobby shows this computer's addresses and the port (UDP 7777). Windows may ask whether to let Unity (or the built game) through the firewall the first time: allow it on private networks.
+- **Joining:** *Find games on this network* lists games hosted on the same Wi-Fi; or type the host's address and press *Join*. The lobby shows who is in and who is still loading; the host picks the bot difficulty and starts the match when everyone is ready.
+- **Over the internet:** everyone joins the same virtual LAN (any VPN app that puts the computers on one network), or the host forwards UDP port 7777 on their router and friends join the router's public address. A relay service that needs neither is a later step.
+- **In the match:** everyone rides the same helicopter on the same line, finds the same loot, and sees the same haze circles and supply crates. Other players move, crouch, aim, glide and hang from zip lines as you see them; gunfire, tracers, grenades and smoke show on every screen; picked-up and dropped loot changes for everyone; the kill feed, placements and the winner are the same for all.
+- **Esc** opens the menu but the match carries on (you can't pause for everyone). After you are out, the results screen says how many are still in. The host's *Back to the lobby* takes everyone back for the next match; anyone can leave at any time (if the host leaves, the others return to the front menu; if a player drops, they count as out).
+- Scooters and carts are left out of online matches for now (zip lines work).
+
+How it works: `Assets/Scripts/Net` is a small UDP transport written for this game (`NetPeer`, with messages that are either sent once or resent until acknowledged and delivered in order) and `tools/net/net_test.cs` tests it on this computer with 30% of packets thrown away. `Assets/Scripts/Royale/Online` holds the rest: `NetSession` (connection and lobby; it survives the scene reload between matches), `NetLobbyMenu` (the front menu), `NetMatch` (keeps the match in step) and `NetPuppet` (draws someone whose machine is elsewhere, a tenth of a second behind, smoothed). Every machine runs the match from the host's seed; the host runs the bots; each player's own machine decides the hits they take (armour, health) and tells everyone the result.
+
+Known limits: two players grabbing the same item in the same instant can both get it; hits are trusted (it is a game among friends); the guns other players hold show without their attachments.
+
+## Phase 5E: map for battle
 
 - **Cover on open ground:** about 170 pieces of works-site cover across the campus lawns and open slopes: stacks of concrete drain pipes, pallets of bricks, black water tanks on a plinth, cable drums, cement bags and broken lengths of sandstone garden wall. `tools/royale/build_cover.py` measured how far every 4 m of open ground is from anything that stops a bullet (buildings, tree trunks, solid street furniture) and placed small sites at the most exposed spots until almost nothing is more than 20 m from cover (1,512 exposed spots before, 102 after, mostly on slopes too steep to build on). They are built before the NavMesh bake, so bots walk round them and use them in their cover search. The athletics field, courts and roads stay clear, and the main roads already have avenue trees.
 - **Landing spots:** every named place is rated by the loot around it (light, good or rich), shown as dots on the full map. Walking, gliding or driving into a place shows its name and rating.

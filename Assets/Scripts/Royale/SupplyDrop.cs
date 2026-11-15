@@ -13,18 +13,24 @@ namespace Jagti.Royale
         public Material smokeMaterial;
         public float fallSpeed = 7f;
         public Vector3 landing;
+        /// <summary>Picks the contents; the same on every machine online.</summary>
+        public int seed;
+        /// <summary>Which drop of the match this is (gives its items the same ids everywhere).</summary>
+        public int index;
 
         public bool Landed { get; private set; }
 
         Transform chute;
         ParticleSystem smoke;
 
-        public static SupplyDrop Create(Vector3 landing, float height, Material crate, Material chute, Material smoke)
+        public static SupplyDrop Create(Vector3 landing, float height, Material crate, Material chute, Material smoke, int seed, int index)
         {
             var go = new GameObject("Supply Drop");
             go.transform.position = landing + Vector3.up * height;
             var d = go.AddComponent<SupplyDrop>();
             d.landing = landing;
+            d.seed = seed;
+            d.index = index;
             d.crateMaterial = crate;
             d.chuteMaterial = chute;
             d.smokeMaterial = smoke;
@@ -121,7 +127,8 @@ namespace Jagti.Royale
             Ballistics.SoundAt(landing, "land", 1f);
             var loot = LootDirector.Instance;
             if (loot == null) return;
-            var rng = new System.Random(System.Environment.TickCount);
+            var rng = new System.Random(seed);
+            loot.BeginShared(LootDirector.SupplyIdBase + index * 16);
             // An epic gun with ammo (the crate is where the bolt-action rifle and LMG turn up most),
             // a scope or suppressor, plus epic armour or a pack.
             double roll = rng.NextDouble();
@@ -135,6 +142,7 @@ namespace Jagti.Royale
             loot.Add(LootDirector.Snap(landing + new Vector3(0.2f, 0f, -1.2f), landing.y), 0f, ItemKind.Medkit, 0, Tier.Rare, 2);
             int part = gunId == 9 || gunId == 4 ? (int)AttachmentType.Suppressor : (rng.NextDouble() < 0.5 ? (int)AttachmentType.Scope4x : (int)AttachmentType.Suppressor);
             loot.Add(LootDirector.Snap(landing + new Vector3(1.1f, 0f, -0.6f), landing.y), 45f, ItemKind.Attachment, part, Tier.Epic, 1);
+            loot.EndShared();
         }
     }
 }

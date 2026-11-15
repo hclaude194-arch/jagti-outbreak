@@ -10,8 +10,9 @@ namespace Jagti.Royale
     /// The match referee. At the start it lays out the loot, picks the helicopter's line over the
     /// campus, creates the bots and gives each a landing spot, and starts the haze. During the match
     /// it keeps the kill feed and placements, sends supply drops, and ends the match when one player
-    /// is left (or when the player falls). Everything that decides the outcome goes through here, so
-    /// online play can later run it on a host.
+    /// is left (or when the player falls). The match waits for the front menu (NetLobbyMenu): offline
+    /// it begins at once, online the host begins it and sends the seed and the list of players to the
+    /// others, whose machines lay out the same loot, flight and haze and show everyone else as puppets.
     /// </summary>
     public class MatchDirector : MonoBehaviour
     {
@@ -63,6 +64,14 @@ namespace Jagti.Royale
         public string Banner { get; private set; }
         public float BannerTime { get; private set; }
         public readonly List<Vector3> supplyDrops = new List<Vector3>();
+        /// <summary>False until the front menu starts the match.</summary>
+        public bool Begun { get; private set; }
+        /// <summary>Everyone in the match (filled at the start; online it is what the host sends).</summary>
+        public readonly List<Entrant> roster = new List<Entrant>();
+        /// <summary>The host sent a supply drop (position, seed); NetMatch passes it on.</summary>
+        public System.Action<Vector3, int> SupplyDropSent;
+        /// <summary>Set by Restart offline, so "Play again" goes straight into the next match.</summary>
+        public static bool SkipMenu;
 
         readonly List<BotBrain> bots = new List<BotBrain>();
         int dropsSent;
@@ -94,12 +103,69 @@ namespace Jagti.Royale
         void Start()
         {
             StartTime = Time.time;
+            GameState.Paused = true;   // until the menu starts the match
+            var menu = gameObject.AddComponent<NetLobbyMenu>();
+            menu.director = this;
+        }
+
+        /// <summary>A match against bots on this machine alone.</summary>
+        public void BeginOffline()
+        {
             int s = seed != 0 ? seed : System.Environment.TickCount;
+            Begin(s, null, 1, true, BotDifficulty.Current);
+        }
+
+        /// <summary>Online host: starts with these people (looks are filled in) plus bots; roster then lists everyone.</summary>
+        public void BeginHost(int s, List<Entrant> humans)
+        {
+            Begin(s, humans, 1, true, BotDifficulty.Current);
+        }
+
+        /// <summary>Online client: the host's seed and roster; everyone but this player is a puppet.</summary>
+        public void BeginClient(int s, List<Entrant> everyone, int myId, BotDifficulty.Level level)
+        {
+            Begin(s, everyone, myId, false, level);
+        }
+
+        void Begin(int s, List<Entrant> given, int myId, bool makeBots, BotDifficulty.Level level)
+        {
+            if (Begun) return;
+            Begun = true;
+            GameState.Paused = false;
+            GameState.SetCursorLocked(true);
+            StartTime = Time.time;
+            Difficulty = level;
             rng = new System.Random(s);
             if (loot != null) loot.SpawnAll(s);
+            PlanFlight();   // first use of rng, so every machine flies the same line
 
-            PlanFlight();
-            CreateBots();
+            roster.Clear();
+            if (given != null) roster.AddRange(given);
+            // Scooters and carts aren't kept in step online yet, so online matches go without them.
+            if (given != null)
+                foreach (var v in Vehicle.All.ToArray()) if (v != null) Destroy(v.gameObject);
+            if (player != null)
+            {
+                player.netId = myId;
+                player.owned = true;
+            }
+            var root = new GameObject("Bots").transform;
+            if (makeBots)
+            {
+                foreach (var e in roster) RollLook(e);
+                CreateBots(root, Mathf.Max(0, botCount + 1 - Mathf.Max(1, roster.Count)));
+            }
+            foreach (var e in roster)
+            {
+                if (e.id == myId)
+                {
+                    if (given != null && playerDiver != null)
+                        playerDiver.Redress(Look(skins, e.skin), Look(shirts, e.shirt), Look(pants, e.pants), Look(canopies, e.canopy));
+                    continue;
+                }
+                if (makeBots && !e.human) continue;   // made by CreateBots
+                MakePuppet(root, e);
+            }
             StartCount = Combatant.All.Count;
             if (playerDiver != null) playerDiver.Board();
             if (haze != null) haze.Begin(s + 7);
@@ -129,14 +195,31 @@ namespace Jagti.Royale
             helicopter.Fly(new Vector3(a.x, y, a.y), new Vector3(b.x, y, b.y), helicopterSpeed);
         }
 
-        void CreateBots()
+        void RollLook(Entrant e)
         {
-            Difficulty = BotDifficulty.Current;
+            e.skin = Roll(skins);
+            e.shirt = Roll(shirts);
+            e.pants = Roll(pants);
+            e.canopy = Roll(canopies);
+        }
+
+        int Roll(Material[] list)
+        {
+            return list != null && list.Length > 0 ? rng.Next(list.Length) : 0;
+        }
+
+        static Material Look(Material[] list, int i)
+        {
+            return list != null && list.Length > 0 ? list[Mathf.Clamp(i, 0, list.Length - 1)] : null;
+        }
+
+        void CreateBots(Transform root, int count)
+        {
             var tune = BotDifficulty.Get(Difficulty);
             var used = new HashSet<string>();
+            foreach (var e in roster) used.Add(e.name);
             var targets = new List<Vector3>();
-            var root = new GameObject("Bots").transform;
-            for (int i = 0; i < botCount; i++)
+            for (int i = 0; i < count; i++)
             {
                 string name;
                 int guard = 0;
@@ -148,7 +231,10 @@ namespace Jagti.Royale
 
                 Vector3 target = PickLanding(targets);
                 targets.Add(target);
-                var bot = MakeBot(root, name, i);
+                var e = new Entrant { id = 100 + i, name = name, human = false };
+                RollLook(e);
+                roster.Add(e);
+                var bot = MakeBot(root, e);
                 float jumpAt = helicopter != null ? Mathf.Max(3f, helicopter.TimeClosestTo(target) - (float)rng.NextDouble() * 6f) : 0f;
                 bot.tune = tune;
                 bot.skill = Mathf.Lerp(tune.skillMin, tune.skillMax, (float)rng.NextDouble());
@@ -187,15 +273,10 @@ namespace Jagti.Royale
             return fallback;
         }
 
-        BotBrain MakeBot(Transform parent, string name, int index)
+        BotBrain MakeBot(Transform parent, Entrant e)
         {
-            var go = new GameObject("Bot - " + name);
-            go.transform.SetParent(parent, false);
-            go.SetActive(false);   // finish setting up before Awake/OnEnable run
-            var health = go.AddComponent<Health>();
-            health.max = 100f;
-            var c = go.AddComponent<Combatant>();
-            c.displayName = name;
+            HumanBody body;
+            var go = MakeFigure(parent, "Bot - " + e.name, e, out body);
 
             var agent = go.AddComponent<NavMeshAgent>();
             agent.radius = 0.32f;
@@ -207,6 +288,35 @@ namespace Jagti.Royale
             agent.autoBraking = true;
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.LowQualityObstacleAvoidance;
             agent.enabled = false;
+
+            var brain = go.AddComponent<BotBrain>();
+            brain.body = body;
+            go.SetActive(true);
+            return brain;
+        }
+
+        /// <summary>Someone whose machine is elsewhere: moved and posed by what that machine sends.</summary>
+        void MakePuppet(Transform parent, Entrant e)
+        {
+            HumanBody body;
+            var go = MakeFigure(parent, (e.human ? "Player - " : "Bot - ") + e.name, e, out body);
+            go.GetComponent<Combatant>().owned = false;
+            var puppet = go.AddComponent<NetPuppet>();
+            puppet.body = body;
+            go.SetActive(true);
+        }
+
+        /// <summary>The parts bots and puppets share: health, name, eye, hit areas and a body. Left inactive.</summary>
+        GameObject MakeFigure(Transform parent, string objectName, Entrant e, out HumanBody body)
+        {
+            var go = new GameObject(objectName);
+            go.transform.SetParent(parent, false);
+            go.SetActive(false);   // finish setting up before Awake/OnEnable run
+            var health = go.AddComponent<Health>();
+            health.max = 100f;
+            var c = go.AddComponent<Combatant>();
+            c.displayName = e.name;
+            c.netId = e.id;
 
             var eye = new GameObject("Eye").transform;
             eye.SetParent(go.transform, false);
@@ -228,25 +338,18 @@ namespace Jagti.Royale
             hh.owner = health;
             hh.isHead = true;
 
-            var brain = go.AddComponent<BotBrain>();
-            brain.body = HumanBody.Build(go.transform, Pick(skins), Pick(shirts), Pick(pants), gearMaterial, gunMaterial, Pick(canopies));
-            go.SetActive(true);
-            return brain;
-        }
-
-        Material Pick(Material[] list)
-        {
-            return list != null && list.Length > 0 ? list[rng.Next(list.Length)] : null;
+            body = HumanBody.Build(go.transform, Look(skins, e.skin), Look(shirts, e.shirt), Look(pants, e.pants), gearMaterial, gunMaterial, Look(canopies, e.canopy));
+            return go;
         }
 
         // ------------------------------------------------------------------ during the match
 
         void Update()
         {
-            if (!GameState.Paused && !Over) MatchTime += Time.deltaTime;
+            if (Begun && !Over) MatchTime += Time.deltaTime;
 
-            // Supply drops at the start of the second and fourth rounds.
-            if (haze != null && haze.Running && !Over)
+            // Supply drops at the start of the second and fourth rounds (online the host sends them).
+            if (haze != null && haze.Running && !NetSession.IsClient && dropsSent < 2)
             {
                 if ((dropsSent == 0 && haze.RoundIndex >= 1) || (dropsSent == 1 && haze.RoundIndex >= 3))
                 {
@@ -272,12 +375,20 @@ namespace Jagti.Royale
                 if (!NavMesh.SamplePosition(p, out hit, 10f, NavMesh.AllAreas)) continue;
                 // Keep it out in the open, not inside a building.
                 if (Physics.Raycast(hit.position + Vector3.up * 0.5f, Vector3.up, 60f)) continue;
-                SupplyDrop.Create(hit.position, 230f, crateMaterial, chuteMaterial, smokeMaterial);
-                supplyDrops.Add(hit.position);
-                Announce("Supply drop incoming. Watch for red smoke.");
-                SynthAudio.Play2D("alert", 0.7f);
+                int dropSeed = Random.Range(1, int.MaxValue);
+                ArriveSupplyDrop(hit.position, dropSeed);
+                if (SupplyDropSent != null) SupplyDropSent(hit.position, dropSeed);
                 return;
             }
+        }
+
+        /// <summary>A supply drop on its way down here (the host's own, or one it sent).</summary>
+        public void ArriveSupplyDrop(Vector3 at, int dropSeed)
+        {
+            SupplyDrop.Create(at, 230f, crateMaterial, chuteMaterial, smokeMaterial, dropSeed, supplyDrops.Count);
+            supplyDrops.Add(at);
+            Announce("Supply drop incoming. Watch for red smoke.");
+            SynthAudio.Play2D("alert", 0.7f);
         }
 
         public void Announce(string text)
@@ -302,6 +413,7 @@ namespace Jagti.Royale
                 text = killer.displayName + "  [" + weapon + (head ? ", head" : "") + "]  " + victim.displayName;
             }
             else if (weapon == "the haze") text = victim.displayName + " was lost in the haze";
+            else if (weapon == NetMatch.LeftWeapon) text = victim.displayName + " left the match";
             else text = victim.displayName + " is out";
             bool mine = victim.isPlayer || (killer != null && killer.isPlayer);
             feed.Add(new FeedLine { text = text, time = Time.time, involvesPlayer = mine });
@@ -349,7 +461,31 @@ namespace Jagti.Royale
             if (hud != null) hud.ShowResults();
         }
 
+        /// <summary>
+        /// Play again. Offline: a new match straight away. Online only the host can, and it takes
+        /// everyone back to the lobby for the next match.
+        /// </summary>
         public void Restart()
+        {
+            if (NetSession.IsClient) return;
+            if (NetSession.IsHost)
+            {
+                NetSession.Instance.BackToLobby();
+                return;
+            }
+            SkipMenu = true;
+            Reload();
+        }
+
+        /// <summary>Back to the front menu (offline), or out of an online game.</summary>
+        public void ToMenu()
+        {
+            if (NetSession.Online) NetSession.Instance.Leave(null);
+            SkipMenu = false;
+            Reload();
+        }
+
+        public static void Reload()
         {
             Time.timeScale = 1f;
             Combatant.All.Clear();

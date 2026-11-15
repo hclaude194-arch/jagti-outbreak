@@ -23,6 +23,26 @@ namespace Jagti.Royale
         float t;
         float bounceCooldown;
 
+        /// <summary>Online: a grenade thrown by someone this machine owns (thrower, smoke, from, velocity).</summary>
+        public static System.Action<Combatant, bool, Vector3, Vector3> Launched;
+
+        /// <summary>
+        /// Throws a copy of an inactive template. Every throw goes through here so online play can show
+        /// it on the other machines (copies of someone else's grenade burst there too, but only the
+        /// thrower's machine deals the damage; see Combatant.ReceiveHit).
+        /// </summary>
+        public static Grenade Launch(GameObject template, Vector3 from, Vector3 velocity, Combatant thrower)
+        {
+            if (template == null) return null;
+            var go = Instantiate(template, from, Quaternion.identity);
+            go.SetActive(true);
+            var g = go.GetComponent<Grenade>();
+            g.thrower = thrower;
+            go.GetComponent<Rigidbody>().AddForce(velocity, ForceMode.VelocityChange);
+            if (Launched != null && thrower != null && thrower.owned) Launched(thrower, g.smoke, from, velocity);
+            return g;
+        }
+
         void Start()
         {
             if (thrower != null)
