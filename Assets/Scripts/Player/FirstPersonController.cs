@@ -40,6 +40,14 @@ namespace Jagti.Player
         [HideInInspector] public float speedScale = 1f;
         /// <summary>Sideways offset of the third-person camera (over the right shoulder).</summary>
         [HideInInspector] public float shoulderOffset;
+        /// <summary>Scales speed for the ground underfoot (wading in water).</summary>
+        [HideInInspector] public float wadeScale = 1f;
+        /// <summary>Asked first when Space is pressed on the ground; returning true takes the jump (a vault).</summary>
+        public System.Func<bool> jumpOverride;
+        /// <summary>Follows the head (standing or crouched), whatever the camera is doing; others aim at it.</summary>
+        public Transform headMarker;
+        /// <summary>Colliders under this are ignored when pulling the third-person camera in (the vehicle being ridden).</summary>
+        [HideInInspector] public Transform cameraIgnore;
         /// <summary>C or Left Ctrl toggles crouching (battle royale only).</summary>
         [HideInInspector] public bool crouchEnabled;
 
@@ -65,6 +73,7 @@ namespace Jagti.Player
         float bobPhase;
         float camDistance;
         float recoilYaw;
+        readonly RaycastHit[] camHits = new RaycastHit[12];
         float crouchT;
         float standHeight;
         Vector3 standCenter;
@@ -119,7 +128,7 @@ namespace Jagti.Player
             bool wantSprint = sprintAllowed && Input.GetKey(KeyCode.LeftShift) && input.z > 0.1f;
             if (wantSprint && Crouching) SetCrouch(false);   // sprinting stands you up
             IsSprinting = wantSprint && !Crouching;
-            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale * (Crouching ? 0.48f : 1f);
+            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale * wadeScale * (Crouching ? 0.48f : 1f);
             Vector3 move = transform.TransformDirection(input) * speed;
 
             if (controller.isGrounded)
@@ -127,7 +136,8 @@ namespace Jagti.Player
                 if (velocity.y < 0f) velocity.y = -2f;
                 if (Input.GetButtonDown("Jump"))
                 {
-                    if (Crouching) SetCrouch(false);
+                    if (jumpOverride != null && jumpOverride()) { }
+                    else if (Crouching) SetCrouch(false);
                     else velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 }
             }
@@ -197,11 +207,21 @@ namespace Jagti.Player
                 Vector3 to = transform.TransformPoint(head + back);
                 Vector3 d = to - from;
                 float len = d.magnitude;
-                if (len > 0.01f && Physics.SphereCast(from, 0.22f, d / len, out RaycastHit hit, len, ~0, QueryTriggerInteraction.Ignore)
-                    && !hit.collider.transform.IsChildOf(transform))
-                    back *= Mathf.Max(0.05f, (hit.distance - 0.05f) / len);
+                if (len > 0.01f)
+                {
+                    int n = Physics.SphereCastNonAlloc(from, 0.22f, d / len, camHits, len, ~0, QueryTriggerInteraction.Ignore);
+                    float nearest = len;
+                    for (int i = 0; i < n; i++)
+                    {
+                        var t = camHits[i].collider.transform;
+                        if (t.IsChildOf(transform) || (cameraIgnore != null && t.IsChildOf(cameraIgnore))) continue;
+                        if (camHits[i].distance < nearest) nearest = camHits[i].distance;
+                    }
+                    if (nearest < len) back *= Mathf.Max(0.05f, (nearest - 0.05f) / len);
+                }
             }
             cameraPivot.localPosition = head + new Vector3(0f, bob, 0f) + jitter + back;
+            if (headMarker != null) headMarker.localPosition = head;
             cameraPivot.localEulerAngles = new Vector3(pitch - recoilPitch, -recoilYaw, jitter.x * 20f);
         }
 

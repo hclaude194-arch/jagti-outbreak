@@ -6,7 +6,19 @@ An original battle royale (with the earlier zombie survival mode kept as a secon
 - Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 5C, arsenal and feel (untested in Unity)
+## Current phase: 5D, getting around (untested in Unity)
+
+- **Scooters and utility carts** parked along the campus roads and in the car park, a fresh random set each match (about nine scooters and five carts, in random colours). Press **E** beside one to ride: **W/S** throttle and reverse, **A/D** steer, **Space** brake, **E** to get off (below about 30 km/h). The scooter is quick (about 80 km/h) and leans into turns; the cart is slower (about 55 km/h) but tougher. You sit on them with your hands on the bars or wheel and your feet on the board or pedals.
+- **Vehicle damage:** bullets, grenades, hard landings and crashes wear them down; the panel at the bottom shows health and speed. A wrecked vehicle blows up (hurting anyone close), burns and smokes. Riding into people hurts them, and engines are loud enough for bots to hear. You can't shoot while riding, and your rider is still hittable.
+- **Zip lines:** steel towers on the steeper slopes (up to five lines, placed where the cable clears the ground, buildings and trees), shown as orange dotted lines on the map. Press **E** at either tower: downhill is fast, uphill a small motor pulls you; **S** slows you, **Space** lets go (you drop and take fall damage if high).
+- **Vaulting and climbing:** **Space** in front of a low wall, railing, sill or crate vaults over it if there is room beyond, or climbs on top of anything up to about 1.9 m.
+- **Water:** the campus has no ponds, only the water channels, the cascade basins and the fountain, so there is no swimming; you wade through them more slowly, and the splashing can be heard.
+- Vehicles show on the minimap and the full map within range.
+- Bots don't use vehicles, zip lines or vaulting yet (they walk the NavMesh); they do get out of the way of parked vehicles.
+
+`tools/royale/preview_vehicles.py` renders the scooter, cart and a zip line from the C# model code; `tools/royale/preview_getting_around.py` maps where the zip lines and parking spots should go.
+
+## Phase 5C: arsenal and feel
 
 - **Ten guns**, all original, named after places in Jammu: Ravi P9 and Basohli .45 (sidearms), Chenab SMG, Banihal 12 pump and Bhaderwah Double (shotguns), Tawi AR, the three-round-burst Ujh Carbine and the 75-round Udhampur LMG (rifles), Jhelum DMR and the bolt-action Pir Panjal (marksman). Each has its own model, sound, handling and aim-in time. The LMG, the DMR and the bolt-action rifle are rarer, and turn up more in better tiers and in supply crates.
 - **Recoil patterns:** each gun climbs and drifts the same way every spray, so you can learn it and pull against it. Crouching, aiming, a fore grip and a compensator all tame it.

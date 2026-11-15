@@ -94,6 +94,12 @@ namespace Jagti.Gameplay
                 case "armour_break": return Tones(name, new[] { 1500f, 1100f, 700f }, 0.05f);
                 case "smoke_pop": return Wind(name, 1.4f, 0.55f);
                 case "heartbeat": return Thud(name, 0.5f, 48f, 0.1f);
+                case "engine_scooter": return Engine(name, 31f, 0.55f, 41);
+                case "engine_cart": return Engine(name, 22f, 0.35f, 42);
+                case "crash": return Thud(name, 0.5f, 55f, 0.9f);
+                case "splash": return Wind(name, 0.45f, 0.8f);
+                case "zip": return Wind(name, 1.5f, 0.7f);
+                case "vault": return Swing(name);
                 case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
                 default: return Click(name, 0.02f, 1000f);
             }
@@ -279,6 +285,26 @@ namespace Jagti.Gameplay
                 float thump = lp * Mathf.Exp(-ph / 0.18f) * 2.2f + Mathf.Sin(2f * Mathf.PI * 2f * bladeRate * t) * Mathf.Exp(-ph / 0.1f) * 0.6f;
                 float whine = Mathf.Sin(2f * Mathf.PI * 1520f * t) * 0.05f;
                 d[i] = thump + whine;
+            }
+            return Clip(name, d);
+        }
+
+        // A small engine for looping: firing pulses at the base rate with a buzzy saw and exhaust noise.
+        // Played with pitch rising with speed. Exactly a whole number of firing cycles, so it loops cleanly.
+        static AudioClip Engine(string name, float fireHz, float buzz, int seed)
+        {
+            int cycles = Mathf.RoundToInt(fireHz * 1.0f);
+            var d = Buffer(cycles / fireHz);
+            var r = new System.Random(seed);
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float ph = (t * fireHz) % 1f;
+                lp += (White(r) - lp) * 0.12f;
+                float pulse = Mathf.Exp(-ph / 0.12f);
+                float saw = Saw(t * fireHz * 2f) * buzz + Saw(t * fireHz * 4f) * buzz * 0.4f;
+                d[i] = (saw * 0.5f + lp * 1.6f) * (0.35f + pulse) * 0.6f;
             }
             return Clip(name, d);
         }
