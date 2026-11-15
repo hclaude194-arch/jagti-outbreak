@@ -21,6 +21,21 @@ namespace Jagti.EditorTools
 
         const int Size = 512;
 
+        static Dictionary<string, Material> cache;
+
+        /// <summary>The building and interior materials, made once per scene build.</summary>
+        public static Dictionary<string, Material> Get()
+        {
+            if (cache != null)
+            {
+                bool ok = true;
+                foreach (var m in cache.Values) if (m == null) { ok = false; break; }
+                if (ok) return cache;
+            }
+            cache = Create();
+            return cache;
+        }
+
         public static Dictionary<string, Material> Create()
         {
             var mats = new Dictionary<string, Material>
@@ -41,6 +56,7 @@ namespace Jagti.EditorTools
                 ["Water"] = ProceduralAssets.LitMaterial("Bld_Water", Color.white, Water(), 0.92f),
                 ["Planter"] = ProceduralAssets.LitMaterial("Bld_Planter", Color.white, Planter(), 0.05f),
             };
+            InteriorMaterials.AddTo(mats);
             return mats;
         }
 

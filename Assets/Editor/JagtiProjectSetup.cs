@@ -55,6 +55,20 @@ namespace Jagti.EditorTools
             EnsurePipeline(true);
         }
 
+        /// <summary>
+        /// Forward+ lifts URP's limit of eight lights per object, which the interiors need: one
+        /// interior shell mesh is lit by every room light near the player.
+        /// </summary>
+        public static void EnsureForwardPlus()
+        {
+            var rendererData = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
+            if (rendererData == null || rendererData.renderingMode == RenderingMode.ForwardPlus) return;
+            rendererData.renderingMode = RenderingMode.ForwardPlus;
+            EditorUtility.SetDirty(rendererData);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Jagti] Renderer switched to Forward+ for the interior lights.");
+        }
+
         public static void EnsurePipeline(bool force)
         {
             if (!force && GraphicsSettings.defaultRenderPipeline != null) return;
@@ -65,6 +79,7 @@ namespace Jagti.EditorTools
             if (rendererData == null)
             {
                 rendererData = ScriptableObject.CreateInstance<UniversalRendererData>();
+                rendererData.renderingMode = RenderingMode.ForwardPlus;
                 AssetDatabase.CreateAsset(rendererData, RendererPath);
             }
 
