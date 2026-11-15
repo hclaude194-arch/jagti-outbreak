@@ -180,7 +180,7 @@ namespace Jagti.Royale
                 case State.Falling:
                 case State.Gliding: Fly(dt); return;
             }
-            if (GameState.Paused) return;
+            if (GameState.Paused && Time.timeScale == 0f) return;   // online the match goes on behind the menu
 
             thinkTimer -= dt;
             grenadeCooldown -= dt;
@@ -564,7 +564,7 @@ namespace Jagti.Royale
             int old;
             int left = l.Take(d.kind, d.value, d.tier, d.count, l.Wants(d.kind, d.value, d.tier), out swapped, out old);
             if (left == d.count) { goal = null; return; }
-            if (left > 0) d.count = left; else loot.Remove(d);
+            loot.SetCount(d, left);
             if (swapped != null) loot.DropGun(transform.position, swapped);
             if (old > 0) loot.DropReplaced(transform.position, d.kind, old);
             if (l.selected < 0 || l.Current == null) l.selected = Mathf.Max(0, l.BestSlot(20f));
@@ -797,10 +797,7 @@ namespace Jagti.Royale
             Vector3 toward = (enemy.transform.position - transform.position);
             toward.y = 0f;
             Vector3 from = transform.position + Vector3.up * 1.4f + transform.forward * 0.4f;
-            var go = Instantiate(director.smokeTemplate, from, Quaternion.identity);
-            go.SetActive(true);
-            go.GetComponent<Grenade>().thrower = me;
-            go.GetComponent<Rigidbody>().AddForce(toward.normalized * 5f + Vector3.up * 2.5f, ForceMode.VelocityChange);
+            Grenade.Launch(director.smokeTemplate, from, toward.normalized * 5f + Vector3.up * 2.5f, me);
             SynthAudio.Play3D(voice, "swing", 0.5f);
             wantCover = false;
             nextCoverTry = Time.time + 1.5f;
@@ -830,10 +827,7 @@ namespace Jagti.Royale
             if (!CoverFinder.Lob(from, aim, roof ? 14f : 40f, out v) && !CoverFinder.Lob(from, aim, roof ? 25f : 55f, out v)) return;
             l.grenades--;
             grenadeCooldown = Random.Range(8f, 14f);
-            var go = Instantiate(director.grenadeTemplate, from, Quaternion.identity);
-            go.SetActive(true);
-            go.GetComponent<Grenade>().thrower = me;
-            go.GetComponent<Rigidbody>().AddForce(v, ForceMode.VelocityChange);
+            Grenade.Launch(director.grenadeTemplate, from, v, me);
             SynthAudio.Play3D(voice, "swing", 0.5f);
             if (body != null) body.Kick();
         }

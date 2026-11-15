@@ -346,6 +346,9 @@ namespace Jagti.Royale
 
         // ------------------------------------------------------------------ outside control
 
+        /// <summary>The id of the gun in hand (-1 for none).</summary>
+        public int GunShown { get { return gunShown; } }
+
         /// <summary>Shows the gun with this id (-1 for none).</summary>
         public void ShowGun(int id)
         {

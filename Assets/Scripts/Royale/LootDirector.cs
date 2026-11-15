@@ -7,6 +7,8 @@ namespace Jagti.Royale
     /// <summary>One item lying on a floor or the ground.</summary>
     public class LootDrop
     {
+        /// <summary>The same number on every machine online: spawned loot counts up from 1 in roll order.</summary>
+        public int id;
         public Vector3 position;
         public float yaw;
         public ItemKind kind;
@@ -57,6 +59,20 @@ namespace Jagti.Royale
 
         public int Spawned { get; private set; }
 
+        /// <summary>
+        /// Online: loot made here (drops) and changes made here (pickups; count 0 = gone). NetMatch sends
+        /// them on. Not raised for the match's own roll, supply crates (every machine makes the same
+        /// ones), or changes that came over the network.
+        /// </summary>
+        public System.Action<LootDrop> Added, Changed;
+        /// <summary>Ids for drops made on this machine start here (NetMatch sets player number x 2^20).</summary>
+        public int idBase = 1 << 20;
+
+        readonly Dictionary<int, LootDrop> byId = new Dictionary<int, LootDrop>();
+        int nextOwn, nextShared;
+        bool quiet;
+        public const int SupplyIdBase = 15 << 20;
+
         const float CellSize = 16f;
         readonly Dictionary<long, List<LootDrop>> cells = new Dictionary<long, List<LootDrop>>();
         readonly List<LootDrop> visible = new List<LootDrop>();
@@ -88,9 +104,11 @@ namespace Jagti.Royale
         public void SpawnAll(int seed)
         {
             cells.Clear();
+            byId.Clear();
             Spawned = 0;
             if (points == null) return;
             var rng = new System.Random(seed);
+            BeginShared(1);
             for (int i = 0; i < points.Length; i++)
             {
                 float chance = pointChances != null && i < pointChances.Length ? pointChances[i] : 0.5f;
@@ -112,11 +130,37 @@ namespace Jagti.Royale
                     Add(Snap(p + off, p.y), (float)rng.NextDouble() * 360f, ItemKind.Ammo, a, Tier.Common, RoyaleItems.AmmoBox[a]).indoor = indoor;
                 }
             }
+            EndShared();
+        }
+
+        /// <summary>
+        /// Loot added until EndShared gets ids counted from firstId and is not announced: every machine
+        /// makes the same items in the same order (the match roll, supply crates).
+        /// </summary>
+        public void BeginShared(int firstId)
+        {
+            nextShared = firstId;
+            quiet = true;
+        }
+
+        public void EndShared()
+        {
+            nextShared = 0;
+            quiet = false;
         }
 
         public LootDrop Add(Vector3 p, float yaw, ItemKind kind, int value, Tier tier, int count)
         {
-            var d = new LootDrop { position = p, yaw = yaw, kind = kind, value = value, tier = tier, count = count };
+            int id = nextShared > 0 ? nextShared++ : idBase + ++nextOwn;
+            var d = Insert(id, p, yaw, kind, value, tier, count);
+            if (!quiet && Added != null) Added(d);
+            return d;
+        }
+
+        LootDrop Insert(int id, Vector3 p, float yaw, ItemKind kind, int value, Tier tier, int count)
+        {
+            var d = new LootDrop { id = id, position = p, yaw = yaw, kind = kind, value = value, tier = tier, count = count };
+            byId[id] = d;
             long key = CellKey(p.x, p.z);
             List<LootDrop> list;
             if (!cells.TryGetValue(key, out list))
@@ -135,8 +179,12 @@ namespace Jagti.Royale
         {
             Vector3 off = Random.insideUnitCircle * 0.7f;
             Vector3 p = Snap(near + new Vector3(off.x, 0f, off.y), near.y);
+            bool was = quiet;
+            quiet = true;
             var d = Add(p, Random.Range(0f, 360f), kind, value, tier, count);
+            quiet = was;
             d.indoor = UnderRoof(p);
+            if (!quiet && Added != null) Added(d);
             return d;
         }
 
@@ -194,7 +242,12 @@ namespace Jagti.Royale
                 float r = items.Count > 1 ? 0.55f + 0.1f * (i % 2) : 0f;
                 Vector3 p = Snap(at + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r), at.y);
                 var it = items[i];
-                Add(p, a * Mathf.Rad2Deg + 90f, it.kind, it.value, it.tier, it.count).indoor = UnderRoof(p);
+                bool was = quiet;
+                quiet = true;
+                var d = Add(p, a * Mathf.Rad2Deg + 90f, it.kind, it.value, it.tier, it.count);
+                quiet = was;
+                d.indoor = UnderRoof(p);
+                if (!quiet && Added != null) Added(d);
             }
         }
 
@@ -216,9 +269,46 @@ namespace Jagti.Royale
         {
             if (d == null || d.taken) return;
             d.taken = true;
+            d.count = 0;
+            byId.Remove(d.id);
             List<LootDrop> list;
             if (cells.TryGetValue(CellKey(d.position.x, d.position.z), out list)) list.Remove(d);
             refreshTimer = 0f;
+            if (!quiet && Changed != null) Changed(d);
+        }
+
+        /// <summary>Part of a stack was taken; the rest stays on the floor.</summary>
+        public void SetCount(LootDrop d, int count)
+        {
+            if (d == null || d.taken) return;
+            if (count <= 0) { Remove(d); return; }
+            d.count = count;
+            if (!quiet && Changed != null) Changed(d);
+        }
+
+        // ------------------------------------------------------------------ online
+
+        public LootDrop Find(int id)
+        {
+            LootDrop d;
+            return byId.TryGetValue(id, out d) ? d : null;
+        }
+
+        /// <summary>An item someone else's machine dropped.</summary>
+        public void AddRemote(int id, Vector3 p, float yaw, ItemKind kind, int value, Tier tier, int count, bool indoor)
+        {
+            if (byId.ContainsKey(id)) return;
+            Insert(id, p, yaw, kind, value, tier, count).indoor = indoor;
+        }
+
+        /// <summary>Someone else took some or all of an item.</summary>
+        public void SetRemote(int id, int count)
+        {
+            var d = Find(id);
+            if (d == null) return;
+            quiet = true;
+            SetCount(d, count);
+            quiet = false;
         }
 
         /// <summary>

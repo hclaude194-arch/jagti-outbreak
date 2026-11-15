@@ -373,11 +373,7 @@ namespace Jagti.Royale
             if (smoke) l.smokes--; else l.grenades--;
             Transform eye = fpc.cameraPivot;
             Vector3 from = InThirdPerson ? fpc.HeadPosition + eye.forward * 0.5f : eye.position + eye.forward * 0.6f;
-            var go = Instantiate(template, from, Quaternion.identity);
-            go.SetActive(true);
-            var g = go.GetComponent<Grenade>();
-            g.thrower = combatant;
-            go.GetComponent<Rigidbody>().AddForce(eye.forward * 17f + Vector3.up * 3.5f, ForceMode.VelocityChange);
+            Grenade.Launch(template, from, eye.forward * 17f + Vector3.up * 3.5f, combatant);
             SynthAudio.Play2D("swing", 0.5f);
         }
 
@@ -442,8 +438,7 @@ namespace Jagti.Royale
                 return;
             }
             string label = RoyaleItems.ItemName(d.kind, d.value, d.tier) + (d.count - left > 1 ? " x" + (d.count - left) : "");
-            if (left > 0) d.count = left;
-            else loot.Remove(d);
+            loot.SetCount(d, left);
             if (swapped != null)
             {
                 l.ammo[(int)swapped.def.ammo] += swapped.loaded;

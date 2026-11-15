@@ -158,10 +158,13 @@ namespace Jagti.Royale
                 fpsFrames = 0;
             }
             if (Input.GetKeyDown(KeyCode.F3)) showFps = !showFps;
+            if (director != null && !director.Begun) return;   // the front menu is up
 
             if (results)
             {
-                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) director.Restart();
+                // Online the host's Enter would end the match for everyone still playing; only when it's over.
+                bool enter = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+                if (enter && (!NetSession.IsHost || Combatant.AliveCount() <= 1)) director.Restart();
                 return;
             }
             if (Input.GetKeyDown(KeyCode.M)) SetMap(!fullMap);
@@ -233,7 +236,8 @@ namespace Jagti.Royale
         {
             paused = on;
             GameState.Paused = on;
-            Time.timeScale = on ? 0f : 1f;
+            // Online the match can't stop for one player: the menu opens over it.
+            Time.timeScale = on && !NetSession.Online ? 0f : 1f;
             GameState.SetCursorLocked(!on && !fullMap);
         }
 
@@ -253,7 +257,7 @@ namespace Jagti.Royale
         {
             Styles();
             float w = Screen.width, h = Screen.height;
-            if (player == null) return;
+            if (player == null || (director != null && !director.Begun)) return;
 
             // Full-screen tints: the haze, damage, and the scope.
             if (haze != null && haze.PlayerInHaze > 0.01f) Fill(new Rect(0, 0, w, h), new Color(0.45f, 0.33f, 0.2f, 0.35f * haze.PlayerInHaze));
@@ -864,10 +868,16 @@ namespace Jagti.Royale
         void DrawPause(float w, float h)
         {
             Fill(new Rect(0, 0, w, h), new Color(0f, 0f, 0f, 0.55f));
-            Label(new Rect(0, h * 0.25f, w, 60), "Paused", huge);
+            bool online = NetSession.Online;
+            Label(new Rect(0, h * 0.25f, w, 60), online ? "Menu" : "Paused", huge);
+            if (online) Label(new Rect(0, h * 0.25f + 60, w, 26), "Online: the match goes on while this menu is open. " + OnlineLine(), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter });
             float bw = 260;
             if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.42f, bw, 40), "Resume")) SetPaused(false);
-            if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.42f + 50, bw, 40), "New match")) { SetPaused(false); director.Restart(); }
+            if (online)
+            {
+                if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.42f + 50, bw, 40), NetSession.IsHost ? "Close the game for everyone" : "Leave the game")) { SetPaused(false); director.ToMenu(); }
+            }
+            else if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.42f + 50, bw, 40), "New match")) { SetPaused(false); director.Restart(); }
             if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.42f + 100, bw, 40), "Quit"))
             {
 #if UNITY_EDITOR
@@ -876,7 +886,7 @@ namespace Jagti.Royale
                 Application.Quit();
 #endif
             }
-            DifficultyPicker(w, h * 0.42f + 150);
+            if (!NetSession.IsClient) DifficultyPicker(w, h * 0.42f + 150);
             Label(new Rect(0, h * 0.42f + 230, w, 160),
                 "WASD move   Shift sprint   Space jump   C or Ctrl crouch   mouse aim   left click fire   right click aim down sights\n" +
                 "1-3 guns   R reload   E pick up   X drop gun   Q bandage or medkit   Z chai flask   G grenade   4 smoke\n" +
@@ -913,9 +923,19 @@ namespace Jagti.Royale
                 player.Kills, player.DamageDealt, Clock(won ? director.MatchTime : player.DiedAt - director.StartTime));
             Label(new Rect(0, h * 0.2f + 120, w, 30), stats, new GUIStyle(normal) { alignment = TextAnchor.MiddleCenter });
             float bw = 260;
-            if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f, bw, 44), "Play again (Enter)")) director.Restart();
+            if (NetSession.IsClient)
+            {
+                Label(new Rect(0, h * 0.55f - 34, w, 24), OnlineLine(), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter });
+                Label(new Rect(0, h * 0.55f, w, 44), "The host starts the next match.", new GUIStyle(normal) { alignment = TextAnchor.MiddleCenter });
+                if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f + 54, bw, 40), "Leave the game")) director.ToMenu();
+                return;
+            }
+            if (NetSession.IsHost) Label(new Rect(0, h * 0.55f - 34, w, 24), OnlineLine(), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter });
+            string again = !NetSession.IsHost ? "Play again (Enter)" : Combatant.AliveCount() > 1 ? "End it, back to the lobby" : "Back to the lobby (Enter)";
+            if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f, bw, 44), again)) director.Restart();
             DifficultyPicker(w, h * 0.55f + 104);
-            if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f + 54, bw, 40), "Quit"))
+            if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f + 54, bw, 40), NetSession.IsHost ? "Close the game" : "Main menu")) director.ToMenu();
+            if (GUI.Button(new Rect(w / 2 - bw / 2, h * 0.55f + 190, bw, 34), "Quit"))
             {
 #if UNITY_EDITOR
                 UnityEditor.EditorApplication.isPlaying = false;
@@ -926,6 +946,18 @@ namespace Jagti.Royale
         }
 
         // ------------------------------------------------------------------ helpers
+
+        /// <summary>Online: who is still in, and the link to the host.</summary>
+        static string OnlineLine()
+        {
+            var s = NetSession.Instance;
+            if (s == null || !NetSession.Online) return "";
+            int humans = 0;
+            foreach (var c in Combatant.All) if (c.Alive && c.netId > 0 && c.netId < 100) humans++;
+            string line = Combatant.AliveCount() + " still in (" + humans + (humans == 1 ? " player" : " players") + ")";
+            if (NetSession.IsClient && s.peer.Server != null) line += ", " + Mathf.RoundToInt(s.peer.Server.rtt * 1000f) + " ms to the host";
+            return line;
+        }
 
         static string Clock(float seconds)
         {

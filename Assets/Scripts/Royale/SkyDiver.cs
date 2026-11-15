@@ -131,7 +131,9 @@ namespace Jagti.Royale
 
         void Update()
         {
-            if (GameState.Paused) return;
+            // Offline the pause menu stops time; online the fall goes on behind it, without input.
+            if (GameState.Paused && Time.timeScale == 0f) return;
+            live = !GameState.Paused;
             float dt = Time.deltaTime;
             switch (Current)
             {
@@ -139,11 +141,11 @@ namespace Jagti.Royale
                     if (helicopter == null) { Land(); break; }
                     transform.position = helicopter.Door;
                     jumpLock -= dt;
-                    if ((jumpLock <= 0f && Input.GetKeyDown(KeyCode.Space)) || helicopter.Progress >= 0.985f) Jump();
+                    if ((jumpLock <= 0f && live && Input.GetKeyDown(KeyCode.Space)) || helicopter.Progress >= 0.985f) Jump();
                     break;
                 case State.FreeFall:
                     MeasureHeight();
-                    if (HeightAboveGround < autoOpenHeight || (HeightAboveGround < manualOpenBelow && Input.GetKeyDown(KeyCode.Space))) Open();
+                    if (HeightAboveGround < autoOpenHeight || (HeightAboveGround < manualOpenBelow && live && Input.GetKeyDown(KeyCode.Space))) Open();
                     else MoveFall(dt);
                     break;
                 case State.Glide:
@@ -158,6 +160,24 @@ namespace Jagti.Royale
             }
         }
 
+        bool live = true;
+
+        /// <summary>Rebuilds the body in other colours (online every player gets their own look).</summary>
+        public void Redress(Material newSkin, Material newShirt, Material newPants, Material newCanopy)
+        {
+            if (newSkin != null) skin = newSkin;
+            if (newShirt != null) shirt = newShirt;
+            if (newPants != null) pants = newPants;
+            if (newCanopy != null) canopy = newCanopy;
+            if (body == null) return;
+            bool on = body.gameObject.activeSelf;
+            var pose = body.pose;
+            Destroy(body.gameObject);
+            body = HumanBody.Build(transform, skin, shirt, pants, gear, gun, canopy);
+            body.pose = pose;
+            body.gameObject.SetActive(on);
+        }
+
         void MeasureHeight()
         {
             RaycastHit hit;
@@ -169,8 +189,8 @@ namespace Jagti.Royale
 
         void MoveFall(float dt)
         {
-            float v = Input.GetAxisRaw("Vertical");
-            float h = Input.GetAxisRaw("Horizontal");
+            float v = live ? Input.GetAxisRaw("Vertical") : 0f;
+            float h = live ? Input.GetAxisRaw("Horizontal") : 0f;
             float down = v > 0.1f ? diveSpeed : v < -0.1f ? fallSpeed * 0.8f : fallSpeed;
             Vector3 wish = transform.forward * (v > 0.1f ? fallForward * 0.6f : v < -0.1f ? fallForward * 1.2f : fallForward)
                          + transform.right * h * 8f;
@@ -182,8 +202,8 @@ namespace Jagti.Royale
 
         void MoveGlide(float dt)
         {
-            float v = Input.GetAxisRaw("Vertical");
-            float h = Input.GetAxisRaw("Horizontal");
+            float v = live ? Input.GetAxisRaw("Vertical") : 0f;
+            float h = live ? Input.GetAxisRaw("Horizontal") : 0f;
             float speed = v > 0.1f ? glideFast : v < -0.1f ? glideSlow : glideSpeed;
             float sink = v > 0.1f ? glideSinkFast : v < -0.1f ? glideSinkSlow : glideSink;
             Vector3 wish = transform.forward * speed + transform.right * h * 3f;
