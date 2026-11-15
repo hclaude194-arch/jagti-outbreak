@@ -44,6 +44,7 @@ namespace Jagti.Royale
         public Material gearMaterial;
         public Material gunMaterial;
         public Material[] canopies;
+        public GameObject grenadeTemplate;   // the player's inactive grenade template, shared with bots
 
         [Header("Supply drop looks")]
         public Material crateMaterial;
@@ -52,6 +53,8 @@ namespace Jagti.Royale
 
         public readonly List<FeedLine> feed = new List<FeedLine>();
         public bool Over { get; private set; }
+        /// <summary>The bot difficulty this match was started with.</summary>
+        public BotDifficulty.Level Difficulty { get; private set; }
         public bool PlayerWon { get; private set; }
         public float MatchTime { get; private set; }
         public float StartTime { get; private set; }
@@ -127,6 +130,8 @@ namespace Jagti.Royale
 
         void CreateBots()
         {
+            Difficulty = BotDifficulty.Current;
+            var tune = BotDifficulty.Get(Difficulty);
             var used = new HashSet<string>();
             var targets = new List<Vector3>();
             var root = new GameObject("Bots").transform;
@@ -144,7 +149,8 @@ namespace Jagti.Royale
                 targets.Add(target);
                 var bot = MakeBot(root, name, i);
                 float jumpAt = helicopter != null ? Mathf.Max(3f, helicopter.TimeClosestTo(target) - (float)rng.NextDouble() * 6f) : 0f;
-                bot.skill = Mathf.Lerp(0.2f, 0.85f, (float)rng.NextDouble());
+                bot.tune = tune;
+                bot.skill = Mathf.Lerp(tune.skillMin, tune.skillMax, (float)rng.NextDouble());
                 bot.Board(helicopter, haze, target, jumpAt);
                 bots.Add(bot);
             }

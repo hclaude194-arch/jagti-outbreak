@@ -32,6 +32,8 @@ namespace Jagti.Royale
         public Combatant LastAttacker { get; private set; }
         public float LastHitTime { get; private set; }
         public Vector3 LastHitFrom { get; private set; }
+        /// <summary>Called when a shot passes close by (bots use it to take cover).</summary>
+        public System.Action<Combatant> UnderFire;
 
         // Healing in progress.
         public ItemKind HealingKind { get; private set; }

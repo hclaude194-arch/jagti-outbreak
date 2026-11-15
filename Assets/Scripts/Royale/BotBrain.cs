@@ -24,7 +24,12 @@ namespace Jagti.Royale
         public Vector3 landingTarget;
         public float jumpTime;
 
+        public BotDifficulty.Settings tune = BotDifficulty.Get(BotDifficulty.Level.Regular);
+
         public State Current { get; private set; }
+        public bool Crouched { get { return crouch > 0.5f; } }
+
+        enum Cover { None, Moving, Hiding, Peeking }
 
         Combatant me;
         NavMeshAgent agent;
@@ -53,6 +58,20 @@ namespace Jagti.Royale
         readonly List<LootDrop> nearLoot = new List<LootDrop>();
         AudioSource voice;
 
+        // Cover and stance.
+        Cover cover;
+        CoverFinder.Spot spot;
+        float coverUntil, coverTimer, nextCoverTry;
+        bool wantCover;
+        float healthAtPeek, hideStart;
+        float crouch, crouchTarget, hitboxCrouch = -1f;
+        bool longShot;
+        float suppression;
+        float grenadeCooldown;
+        float lastVisibleTime = -99f;
+        BoxCollider bodyBox;
+        Transform headBox;
+
         void Awake()
         {
             me = GetComponent<Combatant>();
@@ -63,6 +82,8 @@ namespace Jagti.Royale
             voice.maxDistance = 60f;
             voice.rolloffMode = AudioRolloffMode.Linear;
             voice.playOnAwake = false;
+            bodyBox = GetComponent<BoxCollider>();
+            headBox = transform.Find("Head Hitbox");
         }
 
         void OnEnable()
@@ -70,6 +91,7 @@ namespace Jagti.Royale
             NoiseEvents.Heard += OnHeard;
             me.Health.Damaged += OnDamaged;
             me.Health.Died += OnDied;
+            me.UnderFire = OnUnderFire;
         }
 
         void OnDisable()
@@ -77,6 +99,7 @@ namespace Jagti.Royale
             NoiseEvents.Heard -= OnHeard;
             me.Health.Damaged -= OnDamaged;
             me.Health.Died -= OnDied;
+            me.UnderFire = null;
         }
 
         /// <summary>Sets the bot aboard the helicopter with its chosen landing spot.</summary>
@@ -95,6 +118,7 @@ namespace Jagti.Royale
         void OnHeard(Vector3 at, float radius)
         {
             if (Current == State.Dead || Current == State.Aboard || !me.Landed) return;
+            radius *= tune.hearing;
             if ((at - transform.position).sqrMagnitude > radius * radius) return;
             if ((at - transform.position).sqrMagnitude < 4f) return;   // its own shots
             heardAt = at;
@@ -112,6 +136,28 @@ namespace Jagti.Royale
                 lastSeenTime = Time.time;
             }
             me.CancelHeal();
+            suppression = Mathf.Min(2f, suppression + amount / 30f);
+            if (body != null) body.Flinch(from);
+            // A fight going badly: get behind something.
+            if (cover == Cover.None && me.Health.current < 75f && Random.value < tune.cover) wantCover = true;
+            if (cover == Cover.Peeking && healthAtPeek - me.Health.current > 20f) EndPeek();
+        }
+
+        /// <summary>A shot passed close by: duck, look that way, and maybe find cover.</summary>
+        void OnUnderFire(Combatant shooter)
+        {
+            if (Current == State.Dead || !me.Landed) return;
+            suppression = Mathf.Min(2f, suppression + 0.15f);
+            if (shooter == null || !shooter.Alive) return;
+            if (enemy == null || !enemy.Alive || Time.time - lastSeenTime > 2f)
+            {
+                enemy = shooter;
+                // Only a rough idea of where it came from.
+                lastSeen = shooter.transform.position + Random.insideUnitSphere * 6f;
+                lastSeenTime = Time.time - 0.5f;
+            }
+            if (cover == Cover.None && Time.time - lastVisibleTime > 0.5f && Random.value < tune.cover * 0.5f) wantCover = true;
+            if (cover == Cover.Peeking && Random.value < 0.3f) EndPeek();
         }
 
         void OnDied()
@@ -137,14 +183,19 @@ namespace Jagti.Royale
             if (GameState.Paused) return;
 
             thinkTimer -= dt;
-            if (thinkTimer <= 0f)
+            grenadeCooldown -= dt;
+            suppression = Mathf.MoveTowards(suppression, 0f, dt * 0.6f);
+            if (thinkTimer <= 0f && BotScheduler.TryThink())
             {
                 var cam = Camera.main;
                 bool nearPlayer = cam == null || (cam.transform.position - transform.position).sqrMagnitude < 200f * 200f;
-                thinkTimer = (nearPlayer ? 0.25f : 0.6f) * Random.Range(0.85f, 1.15f);
+                thinkTimer = (nearPlayer ? 0.25f : 0.7f) * Random.Range(0.85f, 1.15f);
+                var avoid = nearPlayer ? ObstacleAvoidanceType.LowQualityObstacleAvoidance : ObstacleAvoidanceType.NoObstacleAvoidance;
+                if (agent.obstacleAvoidanceType != avoid) agent.obstacleAvoidanceType = avoid;
                 Think();
             }
             Act(dt);
+            Stance(dt);
             Animate();
         }
 
@@ -232,12 +283,21 @@ namespace Jagti.Royale
                 return;
             }
 
-            if (enemyVisible && armed)
+            bool inCover = cover != Cover.None && Time.time < coverUntil;
+            if (armed && enemy != null && enemy.Alive && (enemyVisible || (inCover && Time.time - lastSeenTime < 6f)))
             {
-                if (Current != State.Fight) { trackTime = 0f; burstLeft = 0; }
+                if (Current != State.Fight)
+                {
+                    trackTime = 0f;
+                    burstLeft = 0;
+                    // Opening a fight: the careful ones head for cover first.
+                    if (Random.value < tune.cover * (0.4f + skill * 0.6f)) wantCover = true;
+                }
                 Current = State.Fight;
+                if (!enemyVisible) ConsiderGrenade();
                 return;
             }
+            if (cover != Cover.None) LeaveCover();
             if (enemyVisible && !armed)
             {
                 // Run away from an armed enemy while unarmed; keep looking for a gun.
@@ -250,7 +310,9 @@ namespace Jagti.Royale
             if (armed && enemy != null && enemy.Alive && Time.time - lastSeenTime < 6f + skill * 6f)
             {
                 Current = State.Chase;
-                GoTo(lastSeen, true);
+                ConsiderGrenade();
+                // Close in carefully: crouch-walk the last stretch.
+                GoTo(lastSeen, (lastSeen - transform.position).sqrMagnitude > 20f * 20f);
                 return;
             }
 
@@ -272,7 +334,7 @@ namespace Jagti.Royale
                 (heardAt - transform.position).sqrMagnitude < 140f * 140f)
             {
                 Current = State.Investigate;
-                GoTo(heardAt + Random.insideUnitSphere * 6f, false);
+                GoTo(heardAt + Random.insideUnitSphere * 6f, (heardAt - transform.position).sqrMagnitude > 50f * 50f);
                 heardTime = -99f;
                 return;
             }
@@ -296,7 +358,7 @@ namespace Jagti.Royale
         /// <summary>Looks for the nearest opponent it can actually see.</summary>
         void Look()
         {
-            float range = 70f + skill * 60f;
+            float range = (70f + skill * 60f) * tune.sight;
             var l = me.loadout;
             foreach (var g in l.guns)
                 if (g != null && (g.def.gunClass == GunClass.Marksman || g.def.gunClass == GunClass.Rifle)) range += 40f;
@@ -323,6 +385,7 @@ namespace Jagti.Royale
                 enemy = best;
                 lastSeen = best.transform.position;
                 lastSeenTime = Time.time;
+                lastVisibleTime = Time.time;
             }
         }
 
@@ -441,6 +504,11 @@ namespace Jagti.Royale
         {
             if (!agent.enabled || !agent.isOnNavMesh) return;
             agent.speed = hurry ? 6.2f : 4.2f;
+            // Creep near a fight or a noise.
+            bool careful = !hurry && (Current == State.Chase || Current == State.Investigate) &&
+                           ((Current == State.Chase ? lastSeen : heardAt) - transform.position).sqrMagnitude < 25f * 25f;
+            crouchTarget = careful ? 1f : 0f;
+            if (careful) agent.speed = 2.2f;
             if (!agent.hasPath || (agent.destination - p).sqrMagnitude > 1f) agent.SetDestination(p);
         }
 
@@ -512,14 +580,15 @@ namespace Jagti.Royale
 
         void Fight(float dt)
         {
-            if (enemy == null || !enemy.Alive) { Current = State.Wander; return; }
+            if (enemy == null || !enemy.Alive) { LeaveCover(); Current = State.Wander; return; }
             var l = me.loadout;
             Vector3 eye = me.eye != null ? me.eye.position : transform.position + Vector3.up * 1.6f;
             Vector3 target = enemy.AimPoint;
-            Vector3 to = target - eye;
+            bool visible = Time.time - lastSeenTime < 0.4f;
+            Vector3 to = (visible ? target : lastSeen + Vector3.up * 1.2f) - eye;
             float dist = to.magnitude;
 
-            // Face the enemy.
+            // Face the enemy (or where it was last seen).
             agent.updateRotation = false;
             Vector3 flat = new Vector3(to.x, 0f, to.z);
             if (flat.sqrMagnitude > 0.01f)
@@ -535,43 +604,88 @@ namespace Jagti.Royale
                     nextShot = Time.time + 0.4f;
                 }
             }
+            var gun = l.Current;
 
-            // Strafe sideways now and then; close in with a shotgun, keep distance with a rifle.
-            strafeTimer -= dt;
-            if (strafeTimer <= 0f)
+            // Look for cover when asked to (shared out between bots: a few searches per frame).
+            if (wantCover && cover == Cover.None && Time.time >= nextCoverTry && dist > 7f && BotScheduler.TrySearch())
             {
-                strafeTimer = Random.Range(0.8f, 2f);
-                var g = l.Current;
-                float ideal = g == null ? 10f : g.def.gunClass == GunClass.Shotgun ? 6f : g.def.gunClass == GunClass.Marksman ? 60f : 22f;
-                Vector3 side = Vector3.Cross(Vector3.up, flat.normalized) * (Random.value < 0.5f ? -1f : 1f) * Random.Range(2f, 5f);
-                Vector3 toward = flat.normalized * Mathf.Clamp(dist - ideal, -6f, 6f);
-                Vector3 dest = transform.position + side + toward;
-                NavMeshHit hit;
-                if (agent.isOnNavMesh && NavMesh.SamplePosition(dest, out hit, 3f, NavMesh.AllAreas))
+                wantCover = false;
+                Vector3 threatEye = enemy.eye != null ? enemy.eye.position : enemy.transform.position + Vector3.up * 1.6f;
+                CoverFinder.Spot found;
+                if (CoverFinder.Find(transform.position, threatEye, me, enemy, out found))
                 {
-                    agent.speed = 3.6f;
-                    agent.SetDestination(hit.position);
+                    spot = found;
+                    cover = Cover.Moving;
+                    coverUntil = Time.time + Random.Range(9f, 16f);
+                    longShot = false;
+                    nextCoverTry = Time.time + 5f;
                 }
+                else nextCoverTry = Time.time + 2.5f;
+            }
+            if (cover != Cover.None && (Time.time > coverUntil || dist < 6f)) LeaveCover();
+
+            switch (cover)
+            {
+                case Cover.None: Strafe(dt, flat, dist, gun); break;
+                case Cover.Moving:
+                    crouchTarget = 0f;
+                    if (agent.isOnNavMesh)
+                    {
+                        agent.speed = 6f;
+                        if ((agent.destination - spot.position).sqrMagnitude > 0.25f) agent.SetDestination(spot.position);
+                    }
+                    if ((transform.position - spot.position).sqrMagnitude < 0.7f * 0.7f) Hide(Random.Range(0.6f, 1.6f));
+                    else if (stuckTimer > 3f) LeaveCover();
+                    break;
+                case Cover.Hiding:
+                    crouchTarget = spot.low ? 1f : 0.55f;
+                    coverTimer -= dt;
+                    // Seen while hiding: the cover is no good from here.
+                    if (visible && Time.time - lastVisibleTime < 0.3f && Time.time - hideStart > 0.8f && (!spot.low || crouch > 0.8f))
+                    {
+                        LeaveCover();
+                        wantCover = true;
+                        nextCoverTry = 0f;
+                        break;
+                    }
+                    if (gun != null && gun.loaded < gun.def.magazine && reloadLeft <= 0f && l.CountFor(gun) > 0) StartReload();
+                    if (me.Health.current < 65f && !me.IsHealing && Time.time - me.LastHitTime > 1.2f)
+                        TryHeal();
+                    bool busy = reloadLeft > 0f || me.IsHealing;
+                    if (coverTimer <= 0f && !busy && spot.canShoot) Peek();
+                    break;
+                case Cover.Peeking:
+                    crouchTarget = 0f;
+                    coverTimer -= dt;
+                    if (!spot.low && agent.isOnNavMesh && (agent.destination - spot.peek).sqrMagnitude > 0.25f)
+                    {
+                        agent.speed = 3f;
+                        agent.SetDestination(spot.peek);
+                    }
+                    if (coverTimer <= 0f || gun == null || gun.loaded <= 0) EndPeek();
+                    break;
             }
 
-            var gun = l.Current;
             if (gun == null) return;
             if (gun.loaded <= 0)
             {
                 StartReload();
+                if (cover == Cover.None && Random.value < tune.cover * dt * 2f) wantCover = true;
                 return;
             }
-            if (reloadLeft > 0f) return;
-            bool visible = Time.time - lastSeenTime < 0.4f;
-            if (!visible) return;
+            if (reloadLeft > 0f || me.IsHealing || !visible || cover == Cover.Hiding) return;
 
             trackTime += dt;
-            float reaction = Mathf.Lerp(0.95f, 0.3f, skill);
+            float reaction = Mathf.Lerp(0.95f, 0.3f, skill) * tune.reaction;
             if (trackTime < reaction || Time.time < nextShot) return;
 
-            // Aim error shrinks as it keeps tracking; moving targets are harder.
+            // Aim error shrinks as it keeps tracking; being shot or shot at makes it worse,
+            // crouching steadies it, running wrecks it.
             float settle = Mathf.Clamp01((trackTime - reaction) / 2.5f);
-            float error = Mathf.Lerp(Mathf.Lerp(7f, 3f, skill), Mathf.Lerp(2.4f, 0.6f, skill), settle);
+            float error = Mathf.Lerp(Mathf.Lerp(7f, 3f, skill), Mathf.Lerp(2.4f, 0.6f, skill), settle) * tune.aim;
+            error *= 1f + suppression * 0.6f;
+            if (crouch > 0.7f) error *= 0.75f;
+            if (cover == Cover.Moving) error *= 1.8f;
             float spread = gun.def.hipSpread * 0.6f * RoyaleItems.TierSpread(gun.tier) + error;
             if (gun.def.gunClass == GunClass.Marksman) spread = gun.def.aimSpread + error * 0.6f;
             // Aim for the head now and then.
@@ -590,13 +704,135 @@ namespace Jagti.Royale
             else nextShot = Time.time + gun.def.interval * Random.Range(1.3f, 2.2f);
         }
 
+        /// <summary>The open-ground fight: strafe, keep the gun's range, crouch for long shots.</summary>
+        void Strafe(float dt, Vector3 flat, float dist, GunItem g)
+        {
+            strafeTimer -= dt;
+            if (strafeTimer > 0f) return;
+            strafeTimer = Random.Range(0.8f, 2f);
+            bool rifle = g != null && (g.def.gunClass == GunClass.Marksman || g.def.gunClass == GunClass.Rifle);
+            // At long range a steady crouched shot beats dancing about.
+            longShot = rifle && dist > 40f && Random.value < 0.4f + skill * 0.4f;
+            crouchTarget = longShot ? 1f : (Random.value < 0.15f * skill ? 1f : 0f);
+            if (longShot)
+            {
+                if (agent.isOnNavMesh) agent.ResetPath();
+                return;
+            }
+            float ideal = g == null ? 10f : g.def.gunClass == GunClass.Shotgun ? 6f : g.def.gunClass == GunClass.Marksman ? 60f : 22f;
+            Vector3 side = Vector3.Cross(Vector3.up, flat.normalized) * (Random.value < 0.5f ? -1f : 1f) * Random.Range(2f, 5f);
+            Vector3 toward = flat.normalized * Mathf.Clamp(dist - ideal, -6f, 6f);
+            Vector3 dest = transform.position + side + toward;
+            NavMeshHit hit;
+            if (agent.isOnNavMesh && NavMesh.SamplePosition(dest, out hit, 3f, NavMesh.AllAreas))
+            {
+                agent.speed = crouchTarget > 0.5f ? 2.2f : 3.6f;
+                agent.SetDestination(hit.position);
+            }
+        }
+
+        void Hide(float time)
+        {
+            cover = Cover.Hiding;
+            coverTimer = time;
+            hideStart = Time.time;
+            if (agent.isOnNavMesh)
+            {
+                if (spot.low || (transform.position - spot.position).sqrMagnitude < 0.5f) agent.ResetPath();
+                else agent.SetDestination(spot.position);
+            }
+        }
+
+        void Peek()
+        {
+            cover = Cover.Peeking;
+            coverTimer = Random.Range(1.1f, 2.6f) * Mathf.Lerp(1.2f, 0.8f, skill);
+            healthAtPeek = me.Health.current;
+            trackTime = Mathf.Min(trackTime, 0.2f);   // re-acquire after stepping out
+        }
+
+        void EndPeek()
+        {
+            if (cover != Cover.Peeking) return;
+            Hide(Random.Range(0.7f, 2f));
+        }
+
+        void LeaveCover()
+        {
+            cover = Cover.None;
+            crouchTarget = 0f;
+        }
+
+        void TryHeal()
+        {
+            var l = me.loadout;
+            float health = me.Health.current;
+            if (health < 45f && l.medkits > 0 && me.StartHeal(ItemKind.Medkit)) return;
+            if (health < RoyaleItems.BandageCap && me.StartHeal(ItemKind.Bandage)) return;
+            if (me.StartHeal(ItemKind.Medkit)) return;
+            me.StartHeal(ItemKind.ChaiFlask);
+        }
+
+        /// <summary>Lobs a grenade at an enemy hiding nearby, now and then.</summary>
+        void ConsiderGrenade()
+        {
+            var l = me.loadout;
+            if (l.grenades <= 0 || grenadeCooldown > 0f || enemy == null) return;
+            float hidden = Time.time - lastSeenTime;
+            if (hidden < 1.2f || hidden > 7f) return;
+            Vector3 eye = me.eye != null ? me.eye.position : transform.position + Vector3.up * 1.6f;
+            float d = (lastSeen - transform.position).magnitude;
+            if (d < 9f || d > 32f) return;
+            grenadeCooldown = 4f;
+            if (Random.value > tune.grenades * (0.5f + skill)) return;
+            var director = MatchDirector.Instance;
+            if (director == null || director.grenadeTemplate == null) return;
+
+            // Indoors there is no room for a high lob.
+            bool roof = Physics.Raycast(eye, Vector3.up, 5f, ~0, QueryTriggerInteraction.Ignore);
+            Vector3 aim = lastSeen + Random.insideUnitSphere * Mathf.Lerp(3.5f, 1f, skill) * tune.aim;
+            aim.y = lastSeen.y + 0.2f;
+            Vector3 from = eye + transform.forward * 0.5f;
+            Vector3 v;
+            if (!CoverFinder.Lob(from, aim, roof ? 14f : 40f, out v) && !CoverFinder.Lob(from, aim, roof ? 25f : 55f, out v)) return;
+            l.grenades--;
+            grenadeCooldown = Random.Range(8f, 14f);
+            var go = Instantiate(director.grenadeTemplate, from, Quaternion.identity);
+            go.SetActive(true);
+            go.GetComponent<Grenade>().thrower = me;
+            go.GetComponent<Rigidbody>().AddForce(v, ForceMode.VelocityChange);
+            SynthAudio.Play3D(voice, "swing", 0.5f);
+            if (body != null) body.Kick();
+        }
+
+        /// <summary>Crouching moves the eye and the hit areas down with the body.</summary>
+        void Stance(float dt)
+        {
+            if (Current == State.Heal) crouchTarget = 1f;
+            crouch = Mathf.MoveTowards(crouch, crouchTarget, dt * 4f);
+            if (Mathf.Abs(crouch - hitboxCrouch) < 0.04f) return;
+            hitboxCrouch = crouch;
+            float drop = crouch * 0.5f;
+            if (me.eye != null) me.eye.localPosition = new Vector3(0f, 1.62f - drop, 0f);
+            if (headBox != null) headBox.localPosition = new Vector3(0f, 1.72f - drop, 0.04f * crouch);
+            if (bodyBox != null)
+            {
+                bodyBox.center = new Vector3(0f, 0.8f - drop * 0.5f, 0f);
+                bodyBox.size = new Vector3(0.5f, 1.45f - drop, 0.32f + crouch * 0.12f);
+            }
+            if (agent.enabled && crouch > 0.5f && agent.speed > 2.4f) agent.speed = 2.4f;
+        }
+
         void Animate()
         {
             if (body == null) return;
             var l = me.loadout;
-            body.speed = agent.enabled ? agent.velocity.magnitude : 0f;
+            body.speed = agent.enabled ? new Vector3(agent.velocity.x, 0f, agent.velocity.z).magnitude : 0f;
             body.armed = l.Current != null;
-            body.aiming = Current == State.Fight;
+            body.ShowGun(l.Current != null ? l.Current.def.id : -1);
+            body.ShowGear(l.vest, l.helmet, l.backpack);
+            body.crouch = crouch;
+            body.aiming = Current == State.Fight && cover != Cover.Hiding && cover != Cover.Moving && reloadLeft <= 0f && !me.IsHealing;
             if (Current == State.Fight && enemy != null)
             {
                 Vector3 to = enemy.AimPoint - (me.eye != null ? me.eye.position : transform.position);

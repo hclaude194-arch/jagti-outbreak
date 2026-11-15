@@ -6,7 +6,19 @@ An original battle royale (with the earlier zombie survival mode kept as a secon
 - Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 5A, battle royale match core (untested in Unity)
+## Current phase: 5B, opponents (untested in Unity)
+
+The bots are now people worth fighting.
+
+- **Bodies:** each bot is a jointed person (16 bones, one skinned mesh, a few draw calls) with a face, hair, short sleeves, belt and shoes, and a mix of skin tones, shirts and hair. Feet are placed by leg IK as they walk, run, crouch and crouch-walk; both hands hold the real gun model (arm IK), low at the ready or up at the shoulder when aiming. They flinch when hit and fall when killed. Vests, helmets and backpacks show their level (khaki, olive, black; pouches, brims, visors, bigger packs). Far bodies update less often and stop casting shadows.
+- **Cover and corners:** in a fight a bot searches the walkable edges around it (walls, low walls, buses, furniture) for a spot the enemy can't see. Behind low cover it crouches to hide and stands to shoot; behind a corner it hides, then steps out to fire and back. It reloads and heals in cover, and moves on if it is flanked.
+- **Reacting to gunfire:** shots passing close make a bot duck, turn towards the shooter and spoil its aim. It hears fights from further away at higher difficulty, creeps in crouched when close, crouches for long rifle shots, and lobs grenades (with the right arc, flatter indoors) at anyone hiding from it.
+- **Difficulty:** Recruit, Regular or Veteran, chosen in the pause menu or on the results screen (applies from the next match). It sets skill spread, reaction time, aim, how often bots use cover and grenades, and how far they see and hear.
+- **Budget:** thinking is shared out (six bots think per frame, two cover searches per frame), bots far from you think less often and skip obstacle avoidance.
+
+`tools/royale/preview_bodies.py` renders the bodies in Blender (a port of the body code) to check them without Unity.
+
+## Phase 5A: battle royale match core
 
 The game is now a last-one-standing match on the whole campus, against 29 bots. Build it with **Jagti > Build Campus** (the layout version rose to 15, so the scene rebuilds); **Jagti > Game Mode** switches between Battle Royale (default) and Zombie Survival before a build.
 
