@@ -1,11 +1,26 @@
 # Jagti Outbreak
 
-An original zombie survival game set on the IIM Jammu campus at Jagti, built in Unity 6 (Universal Render Pipeline) and tuned to run on a laptop with Intel Iris Xe graphics.
+An original battle royale (with the earlier zombie survival mode kept as a second mode) set on the IIM Jammu campus at Jagti, built in Unity 6 (Universal Render Pipeline) and tuned to run on a laptop with Intel Iris Xe graphics.
 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
+- Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 4D, shops, medical centre, sports complex and outdoor detail
+## Current phase: 5A, battle royale match core (untested in Unity)
+
+The game is now a last-one-standing match on the whole campus, against 29 bots. Build it with **Jagti > Build Campus** (the layout version rose to 15, so the scene rebuilds); **Jagti > Game Mode** switches between Battle Royale (default) and Zombie Survival before a build.
+
+- **Drop:** a helicopter crosses the campus on a random line. Space jumps (you are pushed out at the far edge), W dives, S slows; the glider opens with Space below 500 m or by itself at 130 m. Steer with the mouse and W/S onto a roof, lawn or doorway. The camera follows from behind until you land.
+- **Loot:** 3,374 loot spots on free floor in every room (`tools/royale/build_loot_points.py`), about half filled each match. What a room holds depends on what it is: hostel rooms, classrooms, offices, the mess, the medical centre, the sports complex, stores and the bank strong room. Items come in four tiers (grey, green, blue, gold rings).
+- **Arsenal:** five original guns (Ravi P9 sidearm, Chenab SMG, Banihal 12 shotgun, Tawi AR, Jhelum DMR with a scope), four ammo types, vests and helmets at levels 1 to 3, backpacks, bandages, medkits, a chai flask that heals over time, and grenades. 1 to 3 or the wheel select, LMB fires, RMB aims, R reloads, E picks up, X drops, Q heals, Z drinks chai, G throws.
+- **The haze:** six rounds close a brown haze onto a random safe circle on walkable ground. Outside it you lose health every second, more each round, and armour does not help.
+- **Bots:** 29 bots drop with you, loot the nearest rooms, move with the haze, hear shots and fight with reaction time and aim error by skill.
+- **Supply drops:** two crates fall by parachute with red smoke during rounds 2 and 4, holding gold gear.
+- **HUD:** players left, kills, haze timer, kill feed, minimap and a full map (M) drawn from the terrain and layout, health and armour, slots, prompts, and a results screen with your placement.
+
+Everything is made in code (bodies, helicopter, guns, sounds), as before. Nothing in this phase has been run in Unity yet.
+
+## Phase 4D: shops, medical centre, sports complex and outdoor detail
 
 The last group of buildings can now be entered, and the campus outside has street furniture.
 
