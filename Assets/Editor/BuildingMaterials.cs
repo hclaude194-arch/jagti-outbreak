@@ -46,6 +46,8 @@ namespace Jagti.EditorTools
                 ["Jali"] = ProceduralAssets.LitMaterial("Bld_Jali", Color.white, Jali(), 0.08f),
                 ["Brick"] = ProceduralAssets.LitMaterial("Bld_Brick", Color.white, Brick(), 0.08f),
                 ["Plaster"] = ProceduralAssets.LitMaterial("Bld_Plaster", Color.white, PlainWall("Tex_Plaster", Plaster, 0.06f, 21), 0.08f),
+                ["Hostel_Plaster"] = ProceduralAssets.LitMaterial("Bld_Hostel_Plaster", Color.white, PlainWall("Tex_Hostel_Plaster", PlasterHostel, 0.05f, 24), 0.08f),
+                ["Solar"] = ProceduralAssets.LitMaterial("Bld_Solar", Color.white, Solar(), 0.75f),
                 ["Concrete"] = ProceduralAssets.LitMaterial("Bld_Concrete", Color.white, PlainWall("Tex_Concrete", Trim, 0.05f, 22), 0.12f),
                 ["Glass"] = ProceduralAssets.LitMaterial("Bld_Glass", Color.white, CurtainGlass(), 0.8f),
                 ["Roof"] = ProceduralAssets.LitMaterial("Bld_Roof", Color.white, PlainWall("Tex_Roof", new Color(0.80f, 0.76f, 0.70f), 0.10f, 23), 0.05f),
@@ -328,6 +330,27 @@ namespace Jagti.EditorTools
             var c = new Canvas();
             c.Fill(color, grain, seed);
             return c.Save(name);
+        }
+
+        // One solar module (tile 1 m x 2 m): 6 x 12 dark blue cells in a silver frame, as on the
+        // hostel roofs in the satellite view.
+        static Texture2D Solar()
+        {
+            var c = new Canvas();
+            var frame = new Color(0.72f, 0.74f, 0.76f);
+            var cellLow = new Color(0.07f, 0.10f, 0.20f);
+            var cellHigh = new Color(0.14f, 0.20f, 0.34f);
+            c.Fill(frame, 0.02f, 41);
+            const float edge = 0.03f;
+            const int cols = 6, rows = 12;
+            float cw = (1f - 2f * edge) / cols, ch = (1f - 2f * edge) / rows;
+            for (int i = 0; i < cols; i++)
+                for (int j = 0; j < rows; j++)
+                {
+                    float x0 = edge + i * cw, y0 = edge + j * ch;
+                    c.Rect(x0 + 0.006f, y0 + 0.004f, x0 + cw - 0.006f, y0 + ch - 0.004f, cellLow, cellHigh);
+                }
+            return c.Save("Tex_Solar");
         }
 
         // Corrugated dark metal for tanks and the clock tower cap.

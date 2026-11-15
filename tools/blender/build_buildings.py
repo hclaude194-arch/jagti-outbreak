@@ -44,6 +44,8 @@ MATERIALS = {
     "Facade_Ground": (4.0, FLOOR, (0.35, 0.42, 0.48)),
     "Brick": (2.0, 2.0, (0.60, 0.32, 0.23)),
     "Plaster": (4.0, 4.0, (0.90, 0.84, 0.76)),
+    "Hostel_Plaster": (4.0, 4.0, (0.92, 0.89, 0.81)),
+    "Solar": (1.0, 2.0, (0.10, 0.14, 0.24)),
     "Concrete": (3.0, 3.0, (0.86, 0.85, 0.82)),
     "Glass": (1.5, FLOOR, (0.25, 0.34, 0.42)),
     "Roof": (6.0, 6.0, (0.80, 0.76, 0.70)),
@@ -106,6 +108,7 @@ class Model:
         self.replaces = []
         self.solid = []  # world rects for the bounds check
         self.blocks = 0  # wings built so far; each later wing's roof sits a little higher
+        self.hostel_heads = []  # (run, s) of each hostel stair core, for the stair heads on the roof
 
     # world (X, Z) -> local Blender (x, y)
     def b(self, X, Z):
@@ -1216,6 +1219,18 @@ class SubRun(Run):
 HOSTEL_WALL = 0.3     # the interior shell's outer walls stand this far inside the facade
 HOSTEL_DOOR_TOP = 2.75
 HOSTEL_FL = 0.6       # hostel floors sit 0.6 m above each storey line, as in the academic block
+# The hostel walls, as in the owner's photos (2026-11) and the institute's scale model: plain
+# cream plaster with each window sunk in its own deep niche (a steep sloped sill below the
+# glass), the niches in pairs across the wall between two rooms, plain wall between pairs, and
+# stair cores as tall jali screens between sand-coloured fins that rise above the roof.
+HOSTEL_PROUD = 0.3    # the plain wall stands this far in front of the facade line
+HOSTEL_GLASS = 0.18   # glass this far behind the facade line (the interior reveals end here)
+HOSTEL_WIN_Z = (0.95, 2.6)    # glass sill and head above each storey line (interiors cut the same)
+HOSTEL_NICHE_Z = (0.7, 2.95)  # niche bottom (front edge of the sloped sill) and soffit
+HOSTEL_NICHE_W = 1.5          # niche width; the glass is 0.17 m in from each side
+HOSTEL_PIER = 0.18            # half the pier between the two niches of a pair
+HOSTEL_FIN = 0.55             # width of the sand-coloured fins either side of a stair core
+HOSTEL_HEAD = 3.0             # stair heads and fins rise this far above the roof
 
 
 def hostel_slots(L, slots=True):
@@ -1243,6 +1258,25 @@ def hostel_pieces(L, slot_at):
     return out
 
 
+def hostel_niche(s0, s1, i, bays):
+    """(n0, n1) of the window niche in bay i (s0..s1) of a stretch of `bays` bays. One room
+    stands behind each bay; the windows of rooms 0-1, 2-3, ... pair up across the wall between
+    them, and the odd last room has its window in the middle."""
+    w = min(HOSTEL_NICHE_W, (s1 - s0) * 0.47)
+    if i < bays - bays % 2:
+        if i % 2 == 0:
+            return (s1 - HOSTEL_PIER - w, s1 - HOSTEL_PIER)
+        return (s0 + HOSTEL_PIER, s0 + HOSTEL_PIER + w)
+    c = (s0 + s1) / 2
+    return (c - w / 2, c + w / 2)
+
+
+def hostel_glass(s0, s1, i, bays):
+    """(g0, g1) of the glass in bay i: the opening the interior walls cut too."""
+    n0, n1 = hostel_niche(s0, s1, i, bays)
+    return (n0 + 0.17, n1 - 0.17)
+
+
 def hostel_door_bay(L, slot_at):
     """(s0, s1) of the ground-floor entrance bay: the first bay after the first slot."""
     if not slot_at:
@@ -1256,78 +1290,238 @@ def hostel_door_bay(L, slot_at):
 def hostel_door(run, s0, s1):
     """A hostel entrance: a doorway through the wall, a concrete canopy and steps."""
     os0, os1 = s0 + 0.5, s1 - 0.5
-    t, fl = HOSTEL_WALL, HOSTEL_FL
-    run.rect(s0, os0, 0.5, FLOOR, 0, "Plaster")
-    run.rect(os1, s1, 0.5, FLOOR, 0, "Plaster")
-    run.rect(os0, os1, 0.5, fl, 0, "Concrete")
-    run.rect(os0, os1, HOSTEL_DOOR_TOP, FLOOR, 0, "Plaster")
-    run.side(os0, fl, HOSTEL_DOOR_TOP, 0, -t, "Concrete", 1)
-    run.side(os1, fl, HOSTEL_DOOR_TOP, 0, -t, "Concrete", -1)
-    run.hband(os0, os1, HOSTEL_DOOR_TOP, 0, -t, "Concrete", up=False)
-    run.hband(os0, os1, fl, 0.15, -t, "Concrete", up=True)
-    run.box(os0 - 0.6, os1 + 0.6, HOSTEL_DOOR_TOP + 0.15, HOSTEL_DOOR_TOP + 0.32, 0.0, 1.3, "Concrete", bottom=True)
+    t, fl, P = HOSTEL_WALL, HOSTEL_FL, HOSTEL_PROUD
+    mat = "Hostel_Plaster"
+    run.rect(s0, os0, 0.5, FLOOR, P, mat)
+    run.rect(os1, s1, 0.5, FLOOR, P, mat)
+    run.rect(os0, os1, 0.5, fl, P, "Concrete")
+    run.rect(os0, os1, HOSTEL_DOOR_TOP, FLOOR, P, mat)
+    run.side(os0, fl, HOSTEL_DOOR_TOP, P, -t, "Concrete", 1)
+    run.side(os1, fl, HOSTEL_DOOR_TOP, P, -t, "Concrete", -1)
+    run.hband(os0, os1, HOSTEL_DOOR_TOP, P, -t, "Concrete", up=False)
+    run.hband(os0, os1, fl, P + 0.15, -t, "Concrete", up=True)
+    run.box(os0 - 0.6, os1 + 0.6, HOSTEL_DOOR_TOP + 0.15, HOSTEL_DOOR_TOP + 0.32, P, 1.5, "Concrete", bottom=True)
     # Dark metal door frame inside the opening.
     run.box(os0, os0 + 0.08, fl, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
     run.box(os1 - 0.08, os1, fl, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
     run.box(os0, os1, HOSTEL_DOOR_TOP - 0.08, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal", top=False)
     for k in range(3):
-        run.box(os0 - 0.4, os1 + 0.4, -0.8, fl - 0.15 * k, 0.15, 0.15 + 0.35 * (k + 1), "Concrete", bottom=False)
+        run.box(os0 - 0.4, os1 + 0.4, -0.8, fl - 0.15 * k, P + 0.15, P + 0.15 + 0.35 * (k + 1), "Concrete", bottom=False)
 
 
-def hostel_facade(run, floors, top, slots=True, door=False):
-    """Off-white hostel walls as in the owner's photos: each pair of windows sits in a
-    projecting box frame, thin floor ledges, and jali-screened stair slots on long walls.
-    door=True puts the block's entrance in the bay beside the first stair slot."""
+def hostel_window(run, n0, n1, zf):
+    """One window niche of a storey: the plain wall's reveals back to the glass, a flat soffit,
+    a steep sloped sill, the glass in a white sliding frame."""
+    P, G = HOSTEL_PROUD, HOSTEL_GLASS
+    mat = "Hostel_Plaster"
+    nz0, nz1 = zf + HOSTEL_NICHE_Z[0], zf + HOSTEL_NICHE_Z[1]
+    gz0, gz1 = zf + HOSTEL_WIN_Z[0], zf + HOSTEL_WIN_Z[1]
+    g0, g1 = n0 + 0.17, n1 - 0.17
+    run.side(n0, nz0, nz1, P, -G, mat, 1)
+    run.side(n1, nz0, nz1, P, -G, mat, -1)
+    run.hband(n0, n1, nz1, P, -G, mat, up=False)
+    n = run.n
+    run.m.face([run.P(n0, P, nz0), run.P(n1, P, nz0), run.P(n1, -G, gz0), run.P(n0, -G, gz0)], mat,
+               (n[0] * 0.5, n[1] * 0.5, 1.0))
+    # The back of the niche round the glass.
+    run.rect(n0, g0, gz0, nz1, -G, mat)
+    run.rect(g1, n1, gz0, nz1, -G, mat)
+    run.rect(g0, g1, gz1, nz1, -G, mat)
+    run.rect(g0, g1, gz0, gz1, -G - 0.02, "Glass")
+    # White uPVC frame and the meeting rail of the two sliding sashes.
+    f = 0.06
+    run.rect(g0, g1, gz1 - f, gz1, -G + 0.03, "Concrete")
+    run.rect(g0, g1, gz0, gz0 + f, -G + 0.03, "Concrete")
+    run.rect(g0, g0 + f, gz0 + f, gz1 - f, -G + 0.03, "Concrete")
+    run.rect(g1 - f, g1, gz0 + f, gz1 - f, -G + 0.03, "Concrete")
+    mid = (g0 + g1) / 2
+    run.rect(mid - 0.04, mid + 0.04, gz0 + f, gz1 - f, -G + 0.04, "Concrete")
+
+
+def hostel_end_shift(run, rects):
+    """How far the proud wall runs on past each end of a run (negative: stops short), so it
+    wraps an outside corner, meets the next wing's wall in an inside corner and runs straight on
+    where a flush wing continues the wall."""
+    m = run.m
+
+    def inside(s, d):
+        x, y, _ = run.P(s, d, 0)
+        X, Z = m.px - x, m.pz - y
+        return any(X0 + 1e-3 < X < X1 - 1e-3 and Z0 + 1e-3 < Z < Z1 - 1e-3 for X0, X1, Z0, Z1 in rects)
+
+    out = []
+    for s, sgn in ((0.0, -1.0), (run.L, 1.0)):
+        if inside(s + sgn * 0.1, 0.1):
+            out.append(-HOSTEL_PROUD)       # another wing stands in front: inside corner
+        elif inside(s + sgn * 0.1, -0.1):
+            out.append(0.0)                 # a flush wing carries the wall on
+        else:
+            out.append(HOSTEL_PROUD)        # outside corner
+    return out
+
+
+def hostel_facade(run, floors, top, slots=True, door=False, rects=()):
+    """Off-white hostel walls as in the owner's photos: windows sunk in paired niches in a plain
+    wall that stands proud of the facade line, and jali-screened stair cores on long walls, each
+    between two sand-coloured fins that rise above the roof with a stair head behind them.
+    door=True puts the block's entrance in the bay beside the first stair slot. rects are the
+    model's wing footprints (world), used to finish the wall at corners."""
     L = run.L
-    run.box(0, L, -0.8, 0.5, 0.0, 0.15, "Concrete", bottom=False)
-    # Jali stair slots: one every ~24 m on long walls, 3 m wide, recessed.
+    P = HOSTEL_PROUD
+    mat = "Hostel_Plaster"
+    e0, e1 = hostel_end_shift(run, rects) if rects else (0.0, 0.0)
+    run.box(-e0, L + e1, -0.8, 0.5, 0.0, P + 0.12, "Concrete", bottom=False)
     slot_at = hostel_slots(L, slots)
     door_bay = hostel_door_bay(L, slot_at) if door else None
-    pieces = []
-    last = 0.0
-    for c in slot_at:
-        pieces.append((last, c - 1.6))
-        last = c + 1.6
-    pieces.append((last, L))
     for c in slot_at:
         s0, s1 = c - 1.6, c + 1.6
         run.rect(s0, s1, 0.5, top, -0.6, "Jali")
-        run.side(s0, 0.5, top, 0, -0.6, "Concrete", 1)
-        run.side(s1, 0.5, top, 0, -0.6, "Concrete", -1)
-        run.hband(s0, s1, top, 0, -0.6, "Concrete", up=False)
-    for (p0, p1) in pieces:
-        if p1 - p0 < 0.5:
-            continue
-        bays = max(1, round((p1 - p0) / 3.2))
-        bw = (p1 - p0) / bays
-        for i in range(bays):
-            s0, s1 = p0 + i * bw, p0 + (i + 1) * bw
-            for f in range(floors):
-                zf = f * FLOOR
-                zb = 0.5 if f == 0 else zf
+        run.side(s0, 0.5, top, P, -0.6, "Concrete", 1)
+        run.side(s1, 0.5, top, P, -0.6, "Concrete", -1)
+        run.hband(s0, s1, top, P, -0.6, "Concrete", up=False)
+        # A slab edge across the screen at every floor, so it reads as stacked panels.
+        for f in range(1, floors):
+            run.box(s0, s1, f * FLOOR - 0.12, f * FLOOR + 0.22, -0.6, -0.05, "Hostel_Plaster")
+        # Fins either side, up past the parapet to the stair head.
+        for a0, a1 in ((s0 - HOSTEL_FIN, s0), (s1, s1 + HOSTEL_FIN)):
+            run.box(a0, a1, -0.8, top + HOSTEL_HEAD + 0.3, P, P + 0.45, "Stone", bottom=False)
+        run.m.hostel_heads.append((run, c))
+    edges = [-e0] + [v for c in slot_at for v in (c - 1.6, c + 1.6)] + [L + e1]
+    for p0, p1, bays, bw in hostel_pieces(L, slot_at):
+        lo = -e0 if p0 < 1e-6 else p0
+        hi = L + e1 if p1 > L - 1e-6 else p1
+        for f in range(floors):
+            zf = f * FLOOR
+            zb = 0.5 if f == 0 else zf
+            niches = []
+            for i in range(bays):
+                s0, s1 = p0 + i * bw, p0 + (i + 1) * bw
                 if bw < 2.0:
-                    run.rect(s0, s1, zb, zf + FLOOR, 0, "Plaster")
                     continue
                 if f == 0 and door_bay and abs(s0 - door_bay[0]) < 1e-6:
-                    hostel_door(run, s0, s1)
+                    niches.append((s0, s1, None))
                     continue
-                ws0, ws1 = s0 + 0.55, s1 - 0.55
-                wz0, wz1 = zf + 0.9, zf + FLOOR - 0.55
-                run.window(s0, s1, zb, zf + FLOOR, ws0, ws1, wz0, wz1, 0.18, wall="Plaster", reveal="Concrete", frame=False)
-                # Box frame standing proud of the wall.
-                fo, fd = 0.16, 0.32
-                run.box(ws0 - fo, ws1 + fo, wz1, wz1 + fo, 0.0, fd, "Concrete")
-                run.box(ws0 - fo, ws1 + fo, wz0 - fo, wz0, 0.0, fd, "Concrete")
-                run.box(ws0 - fo, ws0, wz0, wz1, 0.0, fd, "Concrete", top=False, bottom=False)
-                run.box(ws1, ws1 + fo, wz0, wz1, 0.0, fd, "Concrete", top=False, bottom=False)
-                mid = (ws0 + ws1) / 2
-                run.box(mid - 0.05, mid + 0.05, wz0, wz1, -0.18, -0.08, "Concrete", top=False, bottom=False)
-        for f in range(1, floors):
-            run.box(p0, p1, f * FLOOR - 0.08, f * FLOOR + 0.08, 0.0, 0.12, "Concrete")
+                niches.append(hostel_niche(s0, s1, i, bays) + (zf,))
+            # Plain wall round the niches (and the doorway bay), as strips between them.
+            cuts = [lo]
+            for n0, n1, z in niches:
+                cuts += [n0, n1]
+            cuts.append(hi)
+            nz0, nz1 = zf + HOSTEL_NICHE_Z[0], zf + HOSTEL_NICHE_Z[1]
+            for k in range(0, len(cuts), 2):
+                run.rect(cuts[k], cuts[k + 1], zb, zf + FLOOR, P, mat)
+            for n0, n1, z in niches:
+                if z is None:
+                    hostel_door(run, n0, n1)
+                    continue
+                run.rect(n0, n1, zb, nz0, P, mat)
+                run.rect(n0, n1, nz1, zf + FLOOR, P, mat)
+                hostel_window(run, n0, n1, zf)
     # Parapet with coping.
-    run.rect(0, L, top, top + 1.1, 0, "Plaster")
-    run.rect(0, L, top, top + 1.1, -0.25, "Plaster", facing=-1)
-    run.box(-0.05, L + 0.05, top + 1.1, top + 1.28, -0.3, 0.1, "Concrete")
+    run.rect(-e0, L + e1, top, top + 1.1, P, mat)
+    run.rect(-e0, L + e1, top, top + 1.1, -0.25, mat, facing=-1)
+    run.box(-e0 - 0.05, L + e1 + 0.05, top + 1.1, top + 1.28, -0.3, P + 0.1, "Concrete")
+
+
+def hostel_roof(m, wing, top, rects):
+    """Roof of one hostel wing: stair heads behind the cores, water tanks, a white steel canopy on
+    the biggest wings and rows of solar panels over the rest, as on the satellite view."""
+    X0, X1, Z0, Z1 = wing
+    x0, x1, y0, y1 = m.rect(X0, X1, Z0, Z1)
+    keep_out = []     # local rects with something on them already
+    for run, c in m.hostel_heads:
+        # Only heads whose wall belongs to this wing.
+        p = run.P(c, -1.0, 0)
+        if not (x0 - 1e-3 < p[0] < x1 + 1e-3 and y0 - 1e-3 < p[1] < y1 + 1e-3):
+            continue
+        hw = 1.6 + HOSTEL_FIN
+        d = min(5.0, max(3.0, (min(x1 - x0, y1 - y0)) * 0.3))
+        P = HOSTEL_PROUD
+        run.box(c - hw, c + hw, top, top + HOSTEL_HEAD, -d, P, "Hostel_Plaster", bottom=False)
+        run.rect(c - hw, c + hw, top, top + HOSTEL_HEAD, -d, "Hostel_Plaster", facing=-1)
+        run.rect(c - 1.6, c + 1.6, top + 0.3, top + HOSTEL_HEAD - 0.4, P + 0.01, "Jali")
+        run.box(c - hw - 0.1, c + hw + 0.1, top + HOSTEL_HEAD, top + HOSTEL_HEAD + 0.2, -d - 0.1, P + 0.5, "Concrete")
+        pts = [run.P(c - hw, -d, 0), run.P(c + hw, -d, 0), run.P(c - hw, P, 0), run.P(c + hw, P, 0)]
+        keep_out.append((min(q[0] for q in pts) - 1.0, max(q[0] for q in pts) + 1.0,
+                         min(q[1] for q in pts) - 1.0, max(q[1] for q in pts) + 1.0))
+    w, d = x1 - x0, y1 - y0
+    if not keep_out:
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        rooftop_box(m, cx, cy, min(6.0, w * 0.4), min(4.5, d * 0.4), top, 3.0, "Hostel_Plaster")
+        keep_out.append((cx - 4.0, cx + 4.0, cy - 3.3, cy + 3.3))
+    # Two black water tanks on a plinth near one corner.
+    tx, ty = x0 + 3.2, y1 - 3.2
+    m.box_local(tx - 2.4, tx + 2.4, ty - 1.2, ty + 1.2, top, top + 0.5, "Concrete", "Concrete")
+    for k in (-1, 1):
+        m.cylinder_local(tx + k * 1.15, ty, 1.0, top + 0.5, top + 2.2, "Metal", "Metal", segments=10)
+    keep_out.append((tx - 3.4, tx + 3.4, ty - 2.2, ty + 2.2))
+    if w > 14 and d > 12 and len(rects) > 0 and wing == max(rects, key=lambda r: (r[1] - r[0]) * (r[3] - r[2])):
+        cx0, cx1 = x1 - min(12.0, w * 0.45), x1 - 1.8
+        cy0, cy1 = y0 + 1.8, y0 + min(9.0, d * 0.5)
+        steel_canopy(m, cx0, cx1, cy0, cy1, top)
+        keep_out.append((cx0 - 0.8, cx1 + 0.8, cy0 - 0.8, cy1 + 0.8))
+    solar_rows(m, x0 + 1.8, x1 - 1.8, y0 + 1.8, y1 - 1.8, top, keep_out)
+
+
+def steel_canopy(m, x0, x1, y0, y1, z):
+    """The white steel roof canopy of the hostels (owner's photo): posts, a shallow gable of
+    rafters and a light sheet roof, open on all sides."""
+    h, ridge, eave = 3.0, 1.1, 0.4
+    ym = (y0 + y1) / 2
+    n = max(2, int((x1 - x0) / 3.0))
+    for k in range(n + 1):
+        px = x0 + (x1 - x0 - 0.2) * k / n
+        for py in (y0, y1 - 0.2):
+            m.box_local(px, px + 0.2, py, py + 0.2, z, z + h, "Steel", None)
+        for ya in (y0, y1):
+            m.face([(px, ya, z + h), (px + 0.2, ya, z + h), (px + 0.2, ym, z + h + ridge), (px, ym, z + h + ridge)],
+                   "Steel", (0, 0, -1))
+    slope = ridge / (ym - y0)
+    for ya in (y0 - eave, y1 + eave):
+        ze = z + h - eave * slope
+        for dz, mat, up in ((0.12, "Concrete", 1), (0.08, "Steel", -1)):
+            m.face([(x0 - 0.3, ya, ze + dz), (x1 + 0.3, ya, ze + dz), (x1 + 0.3, ym, z + h + ridge + dz),
+                    (x0 - 0.3, ym, z + h + ridge + dz)], mat, (0, 0, up))
+    m.box_local(x0, x1, y0, y0 + 0.2, z + h - 0.3, z + h, "Steel", "Steel", bottom=True)
+    m.box_local(x0, x1, y1 - 0.2, y1, z + h - 0.3, z + h, "Steel", "Steel", bottom=True)
+
+
+def solar_rows(m, x0, x1, y0, y1, z, keep_out, depth=2.0, gap=1.3, tilt=15.0):
+    """Rows of solar panels tilted to the south (world -Z, local +y) over the free roof."""
+    if x1 - x0 < 3 or y1 - y0 < 3:
+        return
+    rise = depth * math.sin(math.radians(tilt))
+    run_y = depth * math.cos(math.radians(tilt))
+    y = y1 - run_y
+    while y >= y0 - 1e-6:
+        ya, yb = y, y + run_y     # ya: low front edge (south), yb: high back edge
+        # Split the row where it crosses something on the roof.
+        spans = [(x0, x1)]
+        for kx0, kx1, ky0, ky1 in keep_out:
+            if ky1 <= ya or ky0 >= yb:
+                continue
+            nxt = []
+            for a, b_ in spans:
+                if kx1 <= a or kx0 >= b_:
+                    nxt.append((a, b_))
+                    continue
+                if kx0 - a > 1.0:
+                    nxt.append((a, kx0))
+                if b_ - kx1 > 1.0:
+                    nxt.append((kx1, b_))
+            spans = nxt
+        for a, b_ in spans:
+            if b_ - a < 2.0:
+                continue
+            z0, z1 = z + 0.5, z + 0.5 + rise
+            # Panel top, underside, and the edges.
+            m.face([(a, yb, z1), (b_, yb, z1), (b_, ya, z0), (a, ya, z0)], "Solar", (0, 0.27, 1))
+            m.face([(a, yb, z1 - 0.05), (b_, yb, z1 - 0.05), (b_, ya, z0 - 0.05), (a, ya, z0 - 0.05)], "Metal", (0, -0.27, -1))
+            m.face([(a, ya, z0 - 0.05), (b_, ya, z0 - 0.05), (b_, ya, z0), (a, ya, z0)], "Metal", (0, 1, 0))
+            # Legs: a low front rail and a taller back rail.
+            m.box_local(a, b_, ya + 0.1, ya + 0.2, z, z0 - 0.05, "Metal", None)
+            m.box_local(a, b_, yb - 0.2, yb - 0.1, z, z1 - 0.05, "Metal", None)
+        y -= run_y + gap
 
 
 def residential_facade(run, floors, top):
@@ -1529,7 +1723,7 @@ def detailed_model(model_name, parts, style, doors=(), shops=()):
                 if style == "hostel":
                     door = not door_done and hostel_door_bay(sub.L, hostel_slots(sub.L)) is not None
                     door_done = door_done or door
-                    hostel_facade(sub, floors, top, door=door)
+                    hostel_facade(sub, floors, top, door=door, rects=rects)
                 elif style == "residential":
                     residential_facade(sub, floors, top)
                 elif style == "utility":
@@ -1539,19 +1733,19 @@ def detailed_model(model_name, parts, style, doors=(), shops=()):
                     shop_bays = {bay_at(sub, X, Z): d for X, Z, d in shops if run_has(sub, X, Z)}
                     academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True, doors=door_bays,
                                     shops=shop_bays)
-        # Roof: a stair and lift room, water tanks on hostels and housing.
+        if style == "hostel":
+            hostel_roof(m, rects[k], top, rects)
+            continue
+        # Roof: a stair and lift room, water tanks on housing.
         cx, cy = m.b((X0 + X1) / 2, (Z0 + Z1) / 2)
         w, d = abs(X1 - X0), abs(Z1 - Z0)
         if style != "utility" and floors >= 2:
             rooftop_box(m, cx, cy, min(6.0, w * 0.4), min(4.5, d * 0.4), top, 3.0,
                         "Stone" if style == "civic" else "Plaster")
-        if style in ("hostel", "residential") and w > 10 and d > 10:
+        if style == "residential" and w > 10 and d > 10:
             for sx in (-1, 1):
                 tx = cx + sx * min(w, d) * 0.28
                 m.cylinder_local(tx, cy + d * 0.25, 0.9, top, top + 1.6, "Plaster", "Plaster", segments=10)
-        if style == "hostel" and floors >= 6 and w > 14 and d > 12:
-            x0, x1, y0, y1 = m.rect(X0, X1, Z0, Z1)
-            m.pergola(x0 + 2.0, x0 + min(10.0, w * 0.45), y0 + 2.0, y1 - 2.0, top)
     return m
 
 
@@ -1788,9 +1982,8 @@ MODELS = [
     lambda: detailed_model("Sindhu_Hostel", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
                                              "Sindhu Hostel - Step 2", "Sindhu Hostel - South"], "hostel"),
     lambda: detailed_model("Hostel_U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"], "hostel"),
-    lambda: detailed_model("Hostel_Chain_1", ["Hostel Chain 1"], "hostel"),
-    lambda: detailed_model("Hostel_Chain_2", ["Hostel Chain 2"], "hostel"),
-    lambda: detailed_model("Hostel_Chain_3", ["Hostel Chain 3"], "hostel"),
+    # The three chain blocks are one stepped building on the satellite view, joined corner to corner.
+    lambda: detailed_model("Hostel_Chain", ["Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3"], "hostel"),
 ]
 MODELS += [(lambda mn=mn, n=n: detailed_model(mn, [n], "civic", doors=door_points(n), shops=shop_points(n)))
            for mn, n in CIVIC_4D]
