@@ -6,7 +6,17 @@ An original battle royale (with the earlier zombie survival mode kept as a secon
 - Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 5D, getting around (untested in Unity)
+## Current phase: 5E, map for battle (untested in Unity)
+
+- **Cover on open ground:** about 170 pieces of works-site cover across the campus lawns and open slopes: stacks of concrete drain pipes, pallets of bricks, black water tanks on a plinth, cable drums, cement bags and broken lengths of sandstone garden wall. `tools/royale/build_cover.py` measured how far every 4 m of open ground is from anything that stops a bullet (buildings, tree trunks, solid street furniture) and placed small sites at the most exposed spots until almost nothing is more than 20 m from cover (1,512 exposed spots before, 102 after, mostly on slopes too steep to build on). They are built before the NavMesh bake, so bots walk round them and use them in their cover search. The athletics field, courts and roads stay clear, and the main roads already have avenue trees.
+- **Landing spots:** every named place is rated by the loot around it (light, good or rich), shown as dots on the full map. Walking, gliding or driving into a place shows its name and rating.
+- **Full map (M):** bold place names, a 100 m grid with lettered columns and numbered rows for calling out positions, and a marker you place with a click (right-click clears it). The marker shows on the minimap, on a compass strip under the top bar with its distance, and over the world where it stands. The mouse is free while the map is open; you can still move.
+- **Compass:** a heading strip under the top bar (N, E, S, W and every 15 degrees).
+- **Performance:** small outdoor things are hidden past a set distance (bollards 90 m, bins and benches about 110 to 120 m, signs and railings 140 to 200 m, lamp posts 260 m, sign text 60 m, cover 450 m), checked a slice at a time each frame, with a few metres of give so nothing flickers. This cuts the draw calls when looking across the campus. Loot was already drawn only within 55 m and far bots already update less often.
+
+`tools/royale/build_cover.py --preview` draws the open-ground map before and after; `--render` renders the cover models.
+
+## Phase 5D: getting around
 
 - **Scooters and utility carts** parked along the campus roads and in the car park, a fresh random set each match (about nine scooters and five carts, in random colours). Press **E** beside one to ride: **W/S** throttle and reverse, **A/D** steer, **Space** brake, **E** to get off (below about 30 km/h). The scooter is quick (about 80 km/h) and leans into turns; the cart is slower (about 55 km/h) but tougher. You sit on them with your hands on the bars or wheel and your feet on the board or pedals.
 - **Vehicle damage:** bullets, grenades, hard landings and crashes wear them down; the panel at the bottom shows health and speed. A wrecked vehicle blows up (hurting anyone close), burns and smokes. Riding into people hurts them, and engines are loud enough for bots to hear. You can't shoot while riding, and your rider is still hittable.

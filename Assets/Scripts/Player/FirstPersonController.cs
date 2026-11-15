@@ -102,7 +102,7 @@ namespace Jagti.Player
         {
             if (!GameState.HudActive && Input.GetKeyDown(KeyCode.Escape)) GameState.SetCursorLocked(false);
             if (GameState.Paused || GameState.PlayerDead) return;
-            if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) GameState.SetCursorLocked(true);
+            if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked && !GameState.MapOpen) GameState.SetCursorLocked(true);
 
             if (Cursor.lockState == CursorLockMode.Locked)
             {

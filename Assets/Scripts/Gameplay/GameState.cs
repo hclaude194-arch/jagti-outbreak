@@ -7,6 +7,7 @@ namespace Jagti.Gameplay
     {
         public static bool HudActive;   // a GameHud owns Esc and the pause menu
         public static bool Paused;
+        public static bool MapOpen;     // the full-screen map is up: the mouse is free to click on it
         public static bool PlayerDead;
         public static int Kills;
         public static float TimeSurvived;
@@ -14,6 +15,7 @@ namespace Jagti.Gameplay
         public static void Reset()
         {
             Paused = false;
+            MapOpen = false;
             PlayerDead = false;
             Kills = 0;
             TimeSurvived = 0f;
