@@ -53,6 +53,44 @@ MATERIALS = {
     "Water": (4.0, 4.0, (0.20, 0.58, 0.60)),
     "Stone": (3.0, 3.0, (0.87, 0.80, 0.71)),
     "Planter": (2.0, 2.0, (0.28, 0.46, 0.18)),
+    # Interiors (tools/blender/build_interiors.py).
+    "Floor_Tile": (1.2, 1.2, (0.84, 0.82, 0.78)),
+    "Floor_Wood": (2.4, 2.4, (0.58, 0.40, 0.25)),
+    "Carpet": (2.0, 2.0, (0.28, 0.31, 0.40)),
+    "Wall_Paint": (3.0, FLOOR, (0.93, 0.91, 0.86)),
+    "Ceiling": (1.2, 1.2, (0.94, 0.94, 0.92)),
+    "Wood": (1.0, 1.0, (0.55, 0.37, 0.22)),
+    "Laminate": (1.2, 1.2, (0.82, 0.73, 0.60)),
+    "Fabric": (0.5, 0.5, (0.16, 0.24, 0.42)),
+    "Velvet": (0.5, 0.5, (0.42, 0.07, 0.09)),
+    "Leather": (0.6, 0.6, (0.36, 0.21, 0.13)),
+    "Plastic": (1.0, 1.0, (0.13, 0.13, 0.14)),
+    "Steel": (1.0, 1.0, (0.70, 0.71, 0.72)),
+    "Whiteboard": (1.0, 1.0, (0.96, 0.96, 0.96)),
+    "Screen": (1.0, 1.0, (0.04, 0.05, 0.07)),
+    "Ceramic": (1.0, 1.0, (0.95, 0.95, 0.94)),
+    "LightPanel": (0.6, 0.6, (1.0, 1.0, 0.96)),
+    "Books": (0.6, 0.3, (0.50, 0.30, 0.25)),
+    "Notice": (1.2, 0.9, (0.70, 0.55, 0.38)),
+    "Foliage": (0.5, 0.5, (0.22, 0.42, 0.16)),
+    "Mirror": (1.0, 1.0, (0.78, 0.82, 0.84)),
+    "Door": (1.0, 2.1, (0.52, 0.34, 0.20)),
+    "Glass_Clear": (1.0, 1.0, (0.70, 0.82, 0.86)),
+    "Red_Paint": (1.0, 1.0, (0.72, 0.08, 0.06)),
+    "Cardboard": (0.6, 0.6, (0.62, 0.48, 0.32)),
+    "Bedsheet": (0.6, 0.6, (0.42, 0.52, 0.72)),
+    "Linen": (0.5, 0.5, (0.92, 0.91, 0.87)),
+    "Wall_Tile": (1.2, 1.2, (0.93, 0.94, 0.94)),
+    # Phase 4D: shops, the medical centre, the sports complex and outdoor props.
+    "Sign_Board": (1.0, 1.0, (0.10, 0.22, 0.42)),
+    "Sports_Floor": (2.4, 2.4, (0.80, 0.62, 0.40)),
+    "Court_Line": (1.0, 1.0, (0.96, 0.96, 0.94)),
+    "Rubber": (1.0, 1.0, (0.13, 0.13, 0.14)),
+    "Goods": (0.6, 0.3, (0.70, 0.45, 0.30)),
+    "Produce": (0.5, 0.5, (0.75, 0.45, 0.15)),
+    "Net": (0.2, 0.2, (0.92, 0.92, 0.90)),
+    "Lamp_Glow": (1.0, 1.0, (1.0, 0.92, 0.75)),
+    "Paint_Yellow": (1.0, 1.0, (0.92, 0.72, 0.10)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 
@@ -441,22 +479,111 @@ class Run:
             self.hband(s0, s1, z0, d0, d1, mat, up=False)
 
 
-def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True):
-    """Sandstone facade from the campus model: tall recessed windows between pilasters,
-    a blue glass ribbon on the top floor, string courses and a parapet with coping."""
-    L = run.L
+# Interior wall thickness behind each facade kind (the interior shell's walls stand this far in).
+WALL = {"outer": 0.45, "court": 0.3}
+DOOR_TOP = 3.0   # ground-floor doorways: plinth top (0.6 m) to 3.0 m
+
+
+def facade_bays(L):
     bays = max(1, round(L / BAY))
-    bw = L / bays
+    return bays, L / bays
+
+
+def facade_openings(L, kind, doors=()):
+    """Ground-floor openings of academic_facade as (s0, s1, z0, z1, is_door), for the interior shell."""
+    bays, bw = facade_bays(L)
+    out = []
+    for i in range(bays):
+        s0, s1 = i * bw, (i + 1) * bw
+        if i in doors:
+            out.append((s0 + 0.5, s1 - 0.5, 0.6, DOOR_TOP, True))
+        elif kind == "outer":
+            mid = (s0 + s1) / 2
+            out.append((s0 + 0.42, mid - 0.14, 0.95, FLOOR - 0.4, False))
+            out.append((mid + 0.14, s1 - 0.42, 0.95, FLOOR - 0.4, False))
+        else:
+            out.append((s0 + 0.8, s1 - 0.8, 1.1, FLOOR - 0.4, False))
+    return out
+
+
+def facade_door(run, s0, s1, kind, steps=True):
+    """A ground-floor doorway filling bay s0..s1: stone around the opening, reveals through the
+    whole wall to the interior shell, a threshold, and steps down to the ground outside."""
+    os0, os1 = s0 + 0.5, s1 - 0.5
+    t = WALL[kind]
+    run.rect(s0, os0, 0.6, FLOOR, 0, "Stone")
+    run.rect(os1, s1, 0.6, FLOOR, 0, "Stone")
+    run.rect(os0, os1, DOOR_TOP, FLOOR, 0, "Stone")
+    run.side(os0, 0.6, DOOR_TOP, 0, -t, "Stone", 1)
+    run.side(os1, 0.6, DOOR_TOP, 0, -t, "Stone", -1)
+    run.hband(os0, os1, DOOR_TOP, 0, -t, "Stone", up=False)
+    run.hband(os0, os1, 0.6, 0.18, -t, "Concrete", up=True)
+    # Dark metal door frame inside the opening.
+    run.box(os0, os0 + 0.08, 0.6, DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os1 - 0.08, os1, 0.6, DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os0, os1, DOOR_TOP - 0.08, DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal", top=False)
+    if steps:
+        for k in range(3):
+            run.box(os0 - 0.6, os1 + 0.6, -0.8, 0.45 - 0.15 * k, 0.18, 0.18 + 0.35 * (k + 1), "Concrete", bottom=False)
+
+
+def open_spans(bays, bw, skip):
+    """The stretches of a run (s0, s1) not covered by skipped bays."""
+    out, s = [], None
+    for i in range(bays):
+        if i in skip:
+            if s is not None:
+                out.append((s, i * bw))
+                s = None
+        elif s is None:
+            s = i * bw
+    if s is not None:
+        out.append((s, bays * bw))
+    return out
+
+
+def hall_bays(A, B_):
+    """Bays of an academic outer run (world X/Z endpoints) that lie inside the Mandapam
+    auditorium hall, which is built against the west wing: the hall's interior opens there."""
+    nw = BUILDINGS["Academic Block - North Wing"]
+    ox0 = nw["x"] - nw["width"] / 2
+    if abs(A[0] - ox0) > 1e-6 or abs(B_[0] - ox0) > 1e-6:
+        return []
+    au = BUILDINGS["Mandapam Auditorium (west drum)"]
+    z0, z1 = au["z"] - au["depth"] / 2, au["z"] + au["depth"] / 2
+    L = math.dist(A, B_)
+    bays, bw = facade_bays(L)
+    sgn = 1 if B_[1] > A[1] else -1
+    return [i for i in range(bays) if z0 < A[1] + sgn * (i + 0.5) * bw < z1]
+
+
+def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True, skip=(), shops=None):
+    """Sandstone facade from the campus model: tall recessed windows between pilasters,
+    a blue glass ribbon on the top floor, string courses and a parapet with coping.
+    Bays listed in doors get a ground-floor doorway instead of windows; bays listed in skip
+    are left open (where another part of the building covers the facade, and the interior
+    shell supplies the wall). shops maps bay index -> is_door for ground-floor shop fronts."""
+    L = run.L
+    shops = shops or {}
+    bays, bw = facade_bays(L)
     top = z0 + floors * FLOOR
     lower = floors - 1 if ribbon else floors
     depth = 0.35 if kind == "outer" else 0.22
     # Plinth.
     run.box(0, L, -0.8, z0 + 0.6, 0.0, 0.18, "Concrete", bottom=False)
     for i in range(bays):
+        if i in skip:
+            continue
         s0, s1 = i * bw, (i + 1) * bw
         for f in range(lower):
             zf = z0 + f * FLOOR
             zb = z0 + 0.6 if f == 0 else zf
+            if f == 0 and i in doors:
+                facade_door(run, s0, s1, kind, steps)
+                continue
+            if f == 0 and i in shops:
+                shop_front(run, s0, s1, shops[i])
+                continue
             wz0 = zf + (0.75 if f else 0.95)
             wz1 = zf + FLOOR - 0.4
             if kind == "outer":
@@ -481,11 +608,16 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
     if pilasters:
         zp = z0 + lower * FLOOR
         for i in range(bays + 1):
+            if i in skip and i - 1 in skip:
+                continue
             s = i * bw
             run.box(max(0, s - 0.28), min(L, s + 0.28), z0 + 0.6, zp, 0.0, 0.32, "Stone", bottom=False)
     if ribbon:
         zc = z0 + lower * FLOOR
-        run.box(0, L, zc - 0.1, zc + 0.15, 0.0, 0.42, "Concrete")
+        for c0, c1 in open_spans(bays, bw, skip):
+            run.box(c0, c1, zc - 0.1, zc + 0.15, 0.0, 0.42, "Concrete")
+    if shops:
+        shop_canopy(run, bw, shops)
     # Parapet with coping.
     run.rect(0, L, top, top + 1.1, 0, "Stone")
     if inner:
@@ -493,24 +625,36 @@ def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, 
     run.box(-0.05, L + 0.05, top + 1.1, top + 1.3, -0.35, 0.12, "Concrete")
 
 
-def fluted_facade(run, z0, floors, glass_top=True):
-    """The corner pavilions: closely spaced stone fins on the lower floors, a band of
-    windows, and a glazed top floor under a deep cornice."""
+def fluted_lower(run, z0, fin_top, windows=True):
+    """Plinth, stone fins and the row of square windows of a pavilion face."""
     L = run.L
-    top = z0 + floors * FLOOR
-    fin_top = z0 + (floors - 2) * FLOOR
     run.box(0, L, -0.8, z0 + 0.6, 0.0, 0.2, "Concrete", bottom=False)
     run.rect(0, L, z0 + 0.6, fin_top, 0, "Stone")
     n = max(2, int(L / 1.15))
     for i in range(n + 1):
         s = L * i / n
         run.box(max(0, s - 0.2), min(L, s + 0.2), z0 + 0.6, fin_top, 0.0, 0.45, "Stone", bottom=False)
+    if not windows:
+        run.rect(0, L, fin_top, fin_top + FLOOR, 0, "Stone")
+        return
     # A row of square windows.
     bays = max(1, round(L / 3.0))
     bw = L / bays
     for i in range(bays):
         s0 = i * bw
         run.window(s0, s0 + bw, fin_top, fin_top + FLOOR, s0 + 0.7, s0 + bw - 0.7, fin_top + 0.9, fin_top + FLOOR - 0.6, 0.3)
+
+
+def fluted_facade(run, z0, floors, glass_top=True, low=True, windows=True):
+    """The corner pavilions: closely spaced stone fins on the lower floors, a band of
+    windows, and a glazed top floor under a deep cornice. low=False draws only the glazed
+    top floor and cornice (for faces that are inside the wings below that); windows=False
+    leaves out the window row (for narrow slivers)."""
+    L = run.L
+    top = z0 + floors * FLOOR
+    fin_top = z0 + (floors - 2) * FLOOR
+    if low:
+        fluted_lower(run, z0, fin_top, windows)
     zg = fin_top + FLOOR
     if glass_top:
         run.rect(0, L, zg, zg + 0.3, 0, "Stone")
@@ -581,6 +725,45 @@ def arc_points(cx, cy, r, a0, a1, segs):
     return [(cx + r * math.cos(a0 + (a1 - a0) * k / segs), cy + r * math.sin(a0 + (a1 - a0) * k / segs)) for k in range(segs + 1)]
 
 
+# Doorways in the outer facade (world X, Z on the facade line): into the entrance lobby from the
+# glass bay under the porch, and from the east wing into "block 1" on the east front.
+OUTER_DOORS = [(73.5, 350.0), (129.0, 283.0)]
+BAY_DOOR_SEGMENTS = (6, 7)   # of the 14 panes of the curved glass bay, the two facing the porch
+EAST_DOOR_Z = 283.0          # the doors in block 1's curved front straddle this line
+
+
+def east_door_side(blk, k, m):
+    """For block 1's curved front: 1 if edge k is the pane just before the door axis, 2 if just after, else 0.
+    The two door panes share the arc vertex nearest the axis (EAST_DOOR_Z)."""
+    n = len(blk)
+
+    def on_arc(i):  # both edges at vertex i are short arc panes
+        return math.dist(blk[i], blk[(i + 1) % n]) < 6.0 and math.dist(blk[i - 1], blk[i]) < 6.0
+
+    best = min((i for i in range(n) if on_arc(i)), key=lambda i: abs(m.pz - blk[i][1] - EAST_DOOR_Z))
+    if (k + 1) % n == best:
+        return 1
+    if k == best:
+        return 2
+    return 0
+
+
+def run_has(run, X, Z):
+    """True if world point (X, Z) lies on this run's line, within its length."""
+    p = run.m.b(X, Z)
+    dx, dy = p[0] - run.a[0], p[1] - run.a[1]
+    s = dx * run.t[0] + dy * run.t[1]
+    off = abs(dx * run.n[0] + dy * run.n[1])
+    return off < 0.6 and 0 <= s <= run.L
+
+
+def bay_at(run, X, Z):
+    p = run.m.b(X, Z)
+    s = (p[0] - run.a[0]) * run.t[0] + (p[1] - run.a[1]) * run.t[1]
+    bays, bw = facade_bays(run.L)
+    return min(bays - 1, max(0, int(s / bw)))
+
+
 def academic_block():
     """The academic block as on the institute's campus model: four sandstone wings round a
     formal courtyard garden, fluted corner pavilions, a porte-cochere and curved glass bay on
@@ -624,7 +807,8 @@ def academic_block():
         c = m.b((OX0 + OX1) / 2, (OZ0 + OZ1) / 2)
         if r.n[0] * (mid[0] - c[0]) + r.n[1] * (mid[1] - c[1]) < 0:
             r.n = (-r.n[0], -r.n[1])
-        academic_facade(r, 0.0, floors, "outer")
+        doors = [bay_at(r, *d) for d in OUTER_DOORS if run_has(r, *d)]
+        academic_facade(r, 0.0, floors, "outer", doors=doors, steps=False, skip=hall_bays(A, Bp))
     court = [((IX0, IZ0), (IX1, IZ0)), ((IX1, IZ0), (IX1, IZ1)), ((IX1, IZ1), (IX0, IZ1)), ((IX0, IZ1), (IX0, IZ0))]
     cc = m.b((IX0 + IX1) / 2, (IZ0 + IZ1) / 2)
     for (A, Bp) in court:
@@ -632,7 +816,8 @@ def academic_block():
         mid = m.b((A[0] + Bp[0]) / 2, (A[1] + Bp[1]) / 2)
         if r.n[0] * (cc[0] - mid[0]) + r.n[1] * (cc[1] - mid[1]) < 0:
             r.n = (-r.n[0], -r.n[1])   # courtyard walls face into the courtyard
-        academic_facade(r, 0.0, floors, "court", ribbon=False, pilasters=False)
+        # A doorway out to the garden in the middle of each courtyard side, on the path axes.
+        academic_facade(r, 0.0, floors, "court", ribbon=False, pilasters=False, doors=[facade_bays(r.L)[0] // 2])
     # Stair and lift heads on the roof.
     for (X, Z) in (((OX0 + OX1) / 2 - 22, (IZ1 + OZ1) / 2), ((OX0 + OX1) / 2 + 22, (IZ1 + OZ1) / 2),
                    ((OX0 + OX1) / 2, (OZ0 + IZ0) / 2), ((OX0 + IX0) / 2, (IZ0 + IZ1) / 2), ((IX1 + OX1) / 2, (IZ0 + IZ1) / 2)):
@@ -646,8 +831,27 @@ def academic_block():
         poly = rect_poly(m, X0, X0 + P, Z0, Z0 + P)
         top = PH_FLOORS * FLOOR
         m.face([(p[0], p[1], top + 0.4) for p in poly], "Roof", (0, 0, 1))
+        # The two inner faces run inside the wings below the wing roof: there only the
+        # proud strip gets the full facade, the rest just the glazed top floor.
+        inner_x = X0 + P if sx == OX0 else X0
+        inner_z = Z0 + P if sz == OZ0 else Z0
         for run in outline_runs(m, poly):
-            fluted_facade(run, 0.0, PH_FLOORS)
+            wa = (m.px - run.a[0], m.pz - run.a[1])
+            wb = (m.px - run.b[0], m.pz - run.b[1])
+            if abs(wa[0] - inner_x) < 0.01 and abs(wb[0] - inner_x) < 0.01:
+                cut, axis = sz, 1
+            elif abs(wa[1] - inner_z) < 0.01 and abs(wb[1] - inner_z) < 0.01:
+                cut, axis = sx, 0
+            else:
+                fluted_facade(run, 0.0, PH_FLOORS)
+                continue
+            fluted_facade(run, 0.0, PH_FLOORS, low=False)
+            s_cut = abs(cut - wa[axis])
+            lo, hi = (OZ0, OZ1) if axis == 1 else (OX0, OX1)
+            proud = (0.0, s_cut) if (wa[axis] < lo or wa[axis] > hi) else (s_cut, run.L)
+            pa, pb = run.P(proud[0], 0, 0), run.P(proud[1], 0, 0)
+            sub = Run(m, (pa[0], pa[1]), (pb[0], pb[1]), run.n)
+            fluted_lower(sub, 0.0, (PH_FLOORS - 2) * FLOOR, windows=False)
         c = m.b(X0 + P / 2, Z0 + P / 2)
         rooftop_box(m, c[0], c[1], 4.0, 4.0, top + 0.4, 2.6)
 
@@ -664,10 +868,18 @@ def academic_block():
         mid = ((a[0] + b_[0]) / 2 - bc[0], (a[1] + b_[1]) / 2 - bc[1])
         L = math.hypot(*mid)
         r.n = (mid[0] / L, mid[1] / L)
-        r.rect(0, r.L, 0.45, 0.9, 0.0, "Stone")
-        r.rect(0, r.L, 0.9, 2 * FLOOR - 0.3, -0.05, "Glass")
+        door = k in BAY_DOOR_SEGMENTS
+        if door:
+            # Glass entrance doors in the two middle panes; glass continues above them.
+            r.rect(0, r.L, DOOR_TOP, 2 * FLOOR - 0.3, -0.05, "Glass")
+            r.box(0, r.L, DOOR_TOP - 0.1, DOOR_TOP, -0.1, 0.15, "Metal")
+            r.hband(0, r.L, 0.6, 0.3, -0.3, "Concrete", up=True)
+        else:
+            r.rect(0, r.L, 0.45, 0.9, 0.0, "Stone")
+            r.rect(0, r.L, 0.9, 2 * FLOOR - 0.3, -0.05, "Glass")
         r.rect(0, r.L, 2 * FLOOR - 0.3, 3 * FLOOR + 0.6, 0.0, "Stone")
-        r.box(0, 0.25, 0.9, 2 * FLOOR - 0.3, -0.05, 0.25, "Metal")
+        if k != BAY_DOOR_SEGMENTS[1]:
+            r.box(0, 0.25, 0.9 if not door else 0.6, 2 * FLOOR - 0.3, -0.05, 0.25, "Metal")
         r.box(0, r.L, FLOOR - 0.12, FLOOR + 0.12, -0.05, 0.3, "Concrete")
         r.box(0, r.L, 2 * FLOOR + 0.6, 2 * FLOOR + 2.3, 0.0, 0.05, "Glass", top=False, bottom=False)
     m.face([(bc[0], bc[1], 3 * FLOOR + 0.6)] + [(p[0], p[1], 3 * FLOOR + 0.6) for p in pts], "Roof", (0, 0, 1))
@@ -801,8 +1013,24 @@ def academic_block():
         if r.L < 6.0:
             # Curved front: stone piers framing two storeys of tall windows and a glass ribbon.
             r.rect(0, r.L, -0.8, 0.6, 0.15, "Concrete")
-            r.window(0, r.L, 0.6, 2 * FLOOR, 0.35, r.L - 0.35, 1.0, 2 * FLOOR - 0.4, 0.35, frame=False)
-            r.box(0, 0.35, 0.6, 2 * FLOOR, 0.0, 0.4, "Stone", bottom=False)
+            dk = east_door_side(blk, k, m)
+            if dk:
+                # Entrance doors in the two panes either side of the axis, glass above them.
+                os0, os1 = (0.35, r.L) if dk == 1 else (0.0, r.L - 0.35)
+                r.rect(0, os0, 0.6, DOOR_TOP, 0, "Stone")
+                r.rect(os1, r.L, 0.6, DOOR_TOP, 0, "Stone")
+                r.side(os0, 0.6, DOOR_TOP, 0, -WALL["outer"], "Stone", 1)
+                r.side(os1, 0.6, DOOR_TOP, 0, -WALL["outer"], "Stone", -1)
+                r.hband(os0, os1, DOOR_TOP, 0, -WALL["outer"], "Stone", up=False)
+                r.hband(os0, os1, 0.6, 0.15, -WALL["outer"], "Concrete", up=True)
+                r.window(0, r.L, DOOR_TOP, 2 * FLOOR, 0.35, r.L - 0.35, DOOR_TOP + 0.1, 2 * FLOOR - 0.4, 0.35, frame=False)
+                for st in range(3):
+                    r.box(os0 - (0.3 if dk == 1 else 0), os1 + (0.3 if dk == 2 else 0), -0.8, 0.45 - 0.15 * st,
+                          0.15, 0.15 + 0.35 * (st + 1), "Concrete", bottom=False)
+            else:
+                r.window(0, r.L, 0.6, 2 * FLOOR, 0.35, r.L - 0.35, 1.0, 2 * FLOOR - 0.4, 0.35, frame=False)
+            if dk != 2:
+                r.box(0, 0.35, 0.6, 2 * FLOOR, 0.0, 0.4, "Stone", bottom=False)
             r.rect(0, r.L, 2 * FLOOR, 2 * FLOOR + 0.5, 0, "Stone")
             r.rect(0, r.L, 2 * FLOOR + 0.5, eh - 0.3, -0.35, "Glass")
             r.hband(0, r.L, 2 * FLOOR + 0.5, 0, -0.35, "Stone", up=True)
@@ -985,16 +1213,76 @@ class SubRun(Run):
         Run.__init__(self, run.m, a, b_, run.n)
 
 
-def hostel_facade(run, floors, top, slots=True):
+HOSTEL_WALL = 0.3     # the interior shell's outer walls stand this far inside the facade
+HOSTEL_DOOR_TOP = 2.75
+HOSTEL_FL = 0.6       # hostel floors sit 0.6 m above each storey line, as in the academic block
+
+
+def hostel_slots(L, slots=True):
+    """Centres of the jali stair slots on a hostel wall of length L: one every ~24 m on long walls."""
+    if not slots or L <= 20:
+        return []
+    n = int(L // 24) or 1
+    return [L * (k + 0.5) / n for k in range(n)]
+
+
+def hostel_pieces(L, slot_at):
+    """The stretches of wall between the slots, each split into window bays: [(p0, p1, bays, bw)]."""
+    pieces = []
+    last = 0.0
+    for c in slot_at:
+        pieces.append((last, c - 1.6))
+        last = c + 1.6
+    pieces.append((last, L))
+    out = []
+    for p0, p1 in pieces:
+        if p1 - p0 < 0.5:
+            continue
+        bays = max(1, round((p1 - p0) / 3.2))
+        out.append((p0, p1, bays, (p1 - p0) / bays))
+    return out
+
+
+def hostel_door_bay(L, slot_at):
+    """(s0, s1) of the ground-floor entrance bay: the first bay after the first slot."""
+    if not slot_at:
+        return None
+    for p0, p1, bays, bw in hostel_pieces(L, slot_at):
+        if p0 > slot_at[0] - 1e-6 and bw >= 2.0:
+            return (p0, p0 + bw)
+    return None
+
+
+def hostel_door(run, s0, s1):
+    """A hostel entrance: a doorway through the wall, a concrete canopy and steps."""
+    os0, os1 = s0 + 0.5, s1 - 0.5
+    t, fl = HOSTEL_WALL, HOSTEL_FL
+    run.rect(s0, os0, 0.5, FLOOR, 0, "Plaster")
+    run.rect(os1, s1, 0.5, FLOOR, 0, "Plaster")
+    run.rect(os0, os1, 0.5, fl, 0, "Concrete")
+    run.rect(os0, os1, HOSTEL_DOOR_TOP, FLOOR, 0, "Plaster")
+    run.side(os0, fl, HOSTEL_DOOR_TOP, 0, -t, "Concrete", 1)
+    run.side(os1, fl, HOSTEL_DOOR_TOP, 0, -t, "Concrete", -1)
+    run.hband(os0, os1, HOSTEL_DOOR_TOP, 0, -t, "Concrete", up=False)
+    run.hband(os0, os1, fl, 0.15, -t, "Concrete", up=True)
+    run.box(os0 - 0.6, os1 + 0.6, HOSTEL_DOOR_TOP + 0.15, HOSTEL_DOOR_TOP + 0.32, 0.0, 1.3, "Concrete", bottom=True)
+    # Dark metal door frame inside the opening.
+    run.box(os0, os0 + 0.08, fl, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os1 - 0.08, os1, fl, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal")
+    run.box(os0, os1, HOSTEL_DOOR_TOP - 0.08, HOSTEL_DOOR_TOP, -t * 0.5 - 0.04, -t * 0.5 + 0.04, "Metal", top=False)
+    for k in range(3):
+        run.box(os0 - 0.4, os1 + 0.4, -0.8, fl - 0.15 * k, 0.15, 0.15 + 0.35 * (k + 1), "Concrete", bottom=False)
+
+
+def hostel_facade(run, floors, top, slots=True, door=False):
     """Off-white hostel walls as in the owner's photos: each pair of windows sits in a
-    projecting box frame, thin floor ledges, and jali-screened stair slots on long walls."""
+    projecting box frame, thin floor ledges, and jali-screened stair slots on long walls.
+    door=True puts the block's entrance in the bay beside the first stair slot."""
     L = run.L
     run.box(0, L, -0.8, 0.5, 0.0, 0.15, "Concrete", bottom=False)
     # Jali stair slots: one every ~24 m on long walls, 3 m wide, recessed.
-    slot_at = []
-    if slots and L > 20:
-        n = int(L // 24) or 1
-        slot_at = [L * (k + 0.5) / n for k in range(n)]
+    slot_at = hostel_slots(L, slots)
+    door_bay = hostel_door_bay(L, slot_at) if door else None
     pieces = []
     last = 0.0
     for c in slot_at:
@@ -1019,6 +1307,9 @@ def hostel_facade(run, floors, top, slots=True):
                 zb = 0.5 if f == 0 else zf
                 if bw < 2.0:
                     run.rect(s0, s1, zb, zf + FLOOR, 0, "Plaster")
+                    continue
+                if f == 0 and door_bay and abs(s0 - door_bay[0]) < 1e-6:
+                    hostel_door(run, s0, s1)
                     continue
                 ws0, ws1 = s0 + 0.55, s1 - 0.55
                 wz0, wz1 = zf + 0.9, zf + FLOOR - 0.55
@@ -1088,8 +1379,133 @@ def utility_facade(run, floors, top):
     run.box(-0.05, L + 0.05, top + 0.6, top + 0.75, -0.25, 0.1, "Concrete")
 
 
-def detailed_model(model_name, parts, style):
-    """One model from layout footprints; each part is a wing in the given style."""
+# ------------------------------------------------------------------ Phase 4D: shops, medical, sports
+# Shop units on the ground floor of the shopping and medical blocks. Their east fronts face the
+# plaza by Annapurna Mess. Each unit is a run of east-facade bays counted from the south end,
+# (name, first bay, last bay, door bay). build_civic_interiors.py reads the same table, and
+# build_outdoor.py puts each name on the fascia board over the unit.
+SHOP_UNITS = {
+    "Shopping & Medical 1 (ATM)": [("ATM", 7, 7, 7), ("Pharmacy", 5, 6, 5)],
+    "Shopping & Medical 2": [("Stationery & Photocopy", 0, 1, 1), ("Mobile Repair", 2, 2, 2), ("General Store", 3, 5, 4)],
+    "Shopping & Medical 3": [("Barber", 0, 1, 0), ("Fruit & Juice", 2, 2, 2), ("Cafe", 3, 5, 4)],
+}
+SHOP_TOP = 2.75     # head of the shop front openings
+SHOP_SILL = 1.05    # top of the stall riser under the shop windows
+SHOP_INSET = 0.3    # stone either side of a shop front, inside its bay
+FASCIA = (2.85, 3.3, 0.33, 0.43)   # sign board over each unit: z0, z1, d0, d1 (in front of the pilasters)
+# Ordinary doorways (facade_door) per side, as bay indices from the south or west end.
+CIVIC_DOORS = {
+    "Shopping & Medical 1 (ATM)": [("E", 2), ("W", 2)],     # clinic entrance; back door by the stair
+    "Shopping & Medical 2": [("W", 3)],                     # back door into the stair hall
+    "Shopping & Medical 3": [("W", 3)],
+    "Sports Complex": [("W", 2), ("W", 13), ("E", 10)],    # lobby; hall exits
+}
+
+
+def box_rect(name):
+    bd = BUILDINGS[name]
+    return (bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] - bd["depth"] / 2, bd["z"] + bd["depth"] / 2)
+
+
+def side_bays(name, side):
+    """(bays, bay width, world coordinate of bay 0's low end) along one side of a box building:
+    bays run from the south end on east and west sides, from the west end on north and south."""
+    X0, X1, Z0, Z1 = box_rect(name)
+    L, lo = (Z1 - Z0, Z0) if side in "EW" else (X1 - X0, X0)
+    bays, bw = facade_bays(L)
+    return bays, bw, lo
+
+
+def side_point(name, side, i):
+    """World point (X, Z) on the facade line at the middle of bay i of a side."""
+    X0, X1, Z0, Z1 = box_rect(name)
+    bays, bw, lo = side_bays(name, side)
+    a = lo + (i + 0.5) * bw
+    return {"E": (X1, a), "W": (X0, a), "N": (a, Z1), "S": (a, Z0)}[side]
+
+
+def shop_points(name):
+    """[(X, Z, is_door)] at the middle of every shop-front bay of a building."""
+    out = []
+    for unit, b0, b1, door in SHOP_UNITS.get(name, ()):
+        for i in range(b0, b1 + 1):
+            out.append((*side_point(name, "E", i), i == door))
+    return out
+
+
+def door_points(name):
+    return [side_point(name, sd, i) for sd, i in CIVIC_DOORS.get(name, ())]
+
+
+def shop_front(run, s0, s1, door):
+    """A shop front filling bay s0..s1 on the ground floor: a wide opening with stone either
+    side, a stall riser and glass for a window, an open doorway with a steel frame and a
+    rolled-up shutter for a door, reveals through the wall to the interior shell."""
+    os0, os1 = s0 + SHOP_INSET, s1 - SHOP_INSET
+    t = WALL["outer"]
+    z_lo = 0.6 if door else SHOP_SILL
+    run.rect(s0, os0, 0.6, FLOOR, 0, "Stone")
+    run.rect(os1, s1, 0.6, FLOOR, 0, "Stone")
+    run.rect(os0, os1, SHOP_TOP, FLOOR, 0, "Stone")
+    run.side(os0, z_lo, SHOP_TOP, 0, -t, "Stone", 1)
+    run.side(os1, z_lo, SHOP_TOP, 0, -t, "Stone", -1)
+    run.hband(os0, os1, SHOP_TOP, 0, -t, "Stone", up=False)
+    # Rolled-up shutter in its box under the head, guide channels down the jambs.
+    run.box(os0, os1, SHOP_TOP - 0.28, SHOP_TOP, -0.06, -0.3, "Metal", top=False)
+    for a, b_ in ((os0, os0 + 0.06), (os1 - 0.06, os1)):
+        run.box(a, b_, z_lo, SHOP_TOP - 0.28, -0.06, -0.12, "Metal", top=False, bottom=False)
+    if door:
+        run.hband(os0, os1, 0.6, 0.18, -t, "Concrete", up=True)
+        for k in range(3):
+            run.box(os0 - 0.3, os1 + 0.3, -0.8, 0.45 - 0.15 * k, 0.18, 0.18 + 0.35 * (k + 1), "Concrete", bottom=False)
+        return
+    run.rect(os0, os1, 0.6, SHOP_SILL, 0, "Stone")
+    run.hband(os0 - 0.05, os1 + 0.05, SHOP_SILL, 0.06, -t * 0.4, "Concrete", up=True)
+    run.rect(os0, os1, SHOP_SILL, SHOP_TOP - 0.28, -0.2, "Glass")
+    # Steel glazing frame: a transom and two mullions.
+    run.box(os0, os1, SHOP_TOP - 0.62, SHOP_TOP - 0.56, -0.2, -0.15, "Metal")
+    for k in (1, 2):
+        sx = os0 + (os1 - os0) * k / 3
+        run.box(sx - 0.03, sx + 0.03, SHOP_SILL, SHOP_TOP - 0.28, -0.2, -0.15, "Metal", top=False, bottom=False)
+
+
+def shop_canopy(run, bw, shops):
+    """A concrete canopy over the shop fronts and a sign board over each unit (the unit's name
+    is set on the board in Unity, from outdoor_props.json)."""
+    idx = sorted(shops)
+    spans, cur = [], [idx[0], idx[0]]
+    for i in idx[1:]:
+        if i == cur[1] + 1:
+            cur[1] = i
+        else:
+            spans.append(cur)
+            cur = [i, i]
+    spans.append(cur)
+    for a, b_ in spans:
+        s0, s1 = a * bw - 0.3, (b_ + 1) * bw + 0.3
+        run.box(max(0.0, s0), min(run.L, s1), FLOOR - 0.1, FLOOR + 0.04, 0.0, 1.35, "Concrete")
+    z0, z1, d0, d1 = FASCIA
+    for (s0, s1) in shop_board_spans(run, bw, shops):
+        run.box(s0, s1, z0, z1, d0, d1, "Sign_Board")
+
+
+def shop_board_spans(run, bw, shops):
+    """Run s-ranges of the fascia boards: one per shop unit (units are told apart by their door)."""
+    idx = sorted(shops)
+    groups, cur = [], [idx[0]]
+    for i in idx[1:]:
+        if i == cur[-1] + 1 and not (shops[i] and any(shops[j] for j in cur)):
+            cur.append(i)
+        else:
+            groups.append(cur)
+            cur = [i]
+    groups.append(cur)
+    return [(g[0] * bw + SHOP_INSET, (g[-1] + 1) * bw - SHOP_INSET) for g in groups]
+
+
+def detailed_model(model_name, parts, style, doors=(), shops=()):
+    """One model from layout footprints; each part is a wing in the given style. doors lists
+    world points (X, Z) on civic facades where a ground-floor doorway replaces the windows."""
     m = Model(model_name, *centre(parts[0]))
     rects = []
     for name in parts:
@@ -1106,17 +1522,23 @@ def detailed_model(model_name, parts, style):
         poly = rect_poly(m, X0, X1, Z0, Z1)
         m.face([(p[0], p[1], top) for p in poly], "Roof", (0, 0, 1))
         others = rects[:k] + rects[k + 1:]
+        door_done = False
         for run in outline_runs(m, poly):
             for (s0, s1) in hidden_intervals(m, run, others):
                 sub = SubRun(run, s0, s1)
                 if style == "hostel":
-                    hostel_facade(sub, floors, top)
+                    door = not door_done and hostel_door_bay(sub.L, hostel_slots(sub.L)) is not None
+                    door_done = door_done or door
+                    hostel_facade(sub, floors, top, door=door)
                 elif style == "residential":
                     residential_facade(sub, floors, top)
                 elif style == "utility":
                     utility_facade(sub, floors, top)
                 else:
-                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True)
+                    door_bays = [bay_at(sub, X, Z) for X, Z in doors if run_has(sub, X, Z)]
+                    shop_bays = {bay_at(sub, X, Z): d for X, Z, d in shops if run_has(sub, X, Z)}
+                    academic_facade(sub, 0.0, floors, "outer", ribbon=floors >= 3, pilasters=True, doors=door_bays,
+                                    shops=shop_bays)
         # Roof: a stair and lift room, water tanks on hostels and housing.
         cx, cy = m.b((X0 + X1) / 2, (Z0 + Z1) / 2)
         w, d = abs(X1 - X0), abs(Z1 - Z0)
@@ -1133,9 +1555,21 @@ def detailed_model(model_name, parts, style):
     return m
 
 
+def mess_doors():
+    """Entrances of Annapurna Mess: the middle of the hall's west front and of the open stretch
+    of its south front, and a service door in the kitchen's east wall."""
+    h, k = BUILDINGS["Annapurna Mess"], BUILDINGS["Annapurna Mess - Kitchen"]
+    hx0, hz0 = h["x"] - h["width"] / 2, h["z"] - h["depth"] / 2
+    kx0, kx1 = k["x"] - k["width"] / 2, k["x"] + k["width"] / 2
+    return [(hx0, h["z"]), ((hx0 + kx0) / 2, hz0), (kx1, k["z"] - 6.0)]
+
+
+MESS_DOORS = mess_doors()
+
+
 def mess():
     """Annapurna Mess (the model's dining block 5): sandstone hall with tall glazed bays."""
-    m = detailed_model("Annapurna_Mess", ["Annapurna Mess", "Annapurna Mess - Kitchen"], "civic")
+    m = detailed_model("Annapurna_Mess", ["Annapurna Mess", "Annapurna Mess - Kitchen"], "civic", doors=MESS_DOORS)
     # Double-height glazed bays on the hall's north front (the model's tall windows).
     bd = BUILDINGS["Annapurna Mess"]
     X0, X1, Z1 = bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] + bd["depth"] / 2
@@ -1337,7 +1771,10 @@ HAND_COVERED = {
     "Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West", "Sindhu Hostel - Step 2", "Sindhu Hostel - South",
     "Hostel U - West", "Hostel U - North", "Hostel U - East",
     "Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3",
+    "Shopping & Medical 1 (ATM)", "Shopping & Medical 2", "Shopping & Medical 3", "Sports Complex",
 }
+CIVIC_4D = [("Shopping_Medical_1_ATM", "Shopping & Medical 1 (ATM)"), ("Shopping_Medical_2", "Shopping & Medical 2"),
+            ("Shopping_Medical_3", "Shopping & Medical 3"), ("Sports_Complex", "Sports Complex")]
 
 
 MODELS = [
@@ -1355,6 +1792,8 @@ MODELS = [
     lambda: detailed_model("Hostel_Chain_2", ["Hostel Chain 2"], "hostel"),
     lambda: detailed_model("Hostel_Chain_3", ["Hostel Chain 3"], "hostel"),
 ]
+MODELS += [(lambda mn=mn, n=n: detailed_model(mn, [n], "civic", doors=door_points(n), shops=shop_points(n)))
+           for mn, n in CIVIC_4D]
 MODELS += [(lambda g=g: detailed_model(*g)) for g in auto_models()]
 
 

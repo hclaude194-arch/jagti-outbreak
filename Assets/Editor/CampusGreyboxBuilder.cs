@@ -106,6 +106,10 @@ namespace Jagti.EditorTools
 
             var buildingRoot = Child(root.transform, "Buildings");
             BuildingModels.Place(models, Child(buildingRoot, "Landmarks"), Ground);
+            Progress("Building interiors and furniture", 0.6f);
+            InteriorBuilder.Build(Child(buildingRoot, "Interiors"), Ground);
+            Progress("Street lamps, benches, signs and railings", 0.65f);
+            OutdoorBuilder.Build(Child(root.transform, "Outdoor"), Ground);
             var zones = new Dictionary<string, Transform>();
             foreach (var b in layout.buildings)
             {
@@ -282,7 +286,7 @@ namespace Jagti.EditorTools
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
 
-            if (road.name != "Highway" && road.name != "Clock Tower Walkway" && road.width >= 4f)
+            if (road.name != "Highway" && road.name != "Clock Tower Walkway" && !road.name.StartsWith("Plaza ") && road.width >= 4f)
                 MakeKerbs(road, points, allRoads, go.transform);
         }
 
@@ -291,7 +295,7 @@ namespace Jagti.EditorTools
         // Cream stone paving on the academic ring drive, the plazas and the garden paths, as on the campus model.
         static bool IsPaved(string name)
         {
-            return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ");
+            return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ") || name.StartsWith("Plaza ");
         }
 
         // Grey asphalt elsewhere (campus model); two-lane roads (6 m and wider) get a dashed white centre line.

@@ -5,7 +5,55 @@ An original zombie survival game set on the IIM Jammu campus at Jagti, built in 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 3, survival gameplay
+## Current phase: 4D, shops, medical centre, sports complex and outdoor detail
+
+The last group of buildings can now be entered, and the campus outside has street furniture.
+
+- **Shopping and medical blocks:** the plaza fronts of the three blocks by Annapurna Mess now have shop fronts: wide glazed openings with rolled-up shutters, a concrete canopy and a blue fascia board with each shop's name. A paved walk with planters and garden lights runs along them to the mess. Each block has a stair in a back corner (with a back door) up to two more floors.
+- **Medical centre (block 1):** a waiting hall with a reception counter, rows of steel waiting chairs and a TV; two consulting rooms (doctor's desk, examination couch behind a folding screen, eye chart, medicine cabinet), a dressing room and toilets. Upstairs a seven-bed ward and an observation room with hospital beds, lockers, drips and screens, the duty doctor's room, the nurses' station and a linen store; on top medical records, physiotherapy, the medical officer's room and a staff room. On the plaza front: a pharmacy (counters, shelves of medicines, a vaccine fridge) and an ATM vestibule with two cash machines.
+- **Shops (blocks 2 and 3):** stationery and photocopy shop, mobile repair counter, general store (stocked shelving, drinks coolers, checkout), barber (mirror stations and barber chairs), fruit and juice bar, and a cafe with tables. Upstairs: a bank branch with tellers' counters and a strong room, a bookshop, a laundry and press with a tailor's shop, and a computer and reading room.
+- **Sports complex:** a full-height hall with four marked badminton courts, nets, benches, a scoreboard and high-bay lamps; a lobby with reception and a trophy cabinet, men's and women's changing rooms (lockers, benches, showers, WCs), an equipment store and first aid. Upstairs a gym (treadmills, bikes, power racks, benches, dumbbells) that looks down into the hall through a long window, and on top an indoor games room (table tennis, carrom, chess) and a yoga room.
+- **Outdoors:** lamp posts along the roads, benches and twin bins along the paths, round the lawns and outside the hostels, cycle stands, a name board for every named place, finger signposts at the main junctions, steel railings where the ground drops steeply beside a road, chain-link fences round the hostel courts with basketball hoops and volleyball nets.
+
+## Phase 4C: walk-in hostels and Annapurna Mess
+
+Every hostel can now be entered and explored on all seven floors: Brahmaputra, Hostel U, the three chain blocks and Sindhu.
+
+- **Entrances:** each wing has a front door with a concrete canopy and steps, in the bay beside a jali stair slot. Glass doors stand open inside it, and the security desk and notice board are in the entrance lobby. The warden's office is next door.
+- **Floors:** one room behind every window pair, so each room has its window and curtains. Wide wings have a corridor running round a central core of washrooms, bathing areas, a pantry and a common room; narrow wings have a corridor down the middle. A dog-leg stair rises behind the jali screens (you can see the lattice from the landings) to the top floor. Where two wings meet, a passage joins their corridors, so you can walk right through Sindhu or round Hostel U without going outside.
+- **Rooms:** a single room has a cot with a checked sheet, a pillow and folded blanket and a steel trunk underneath, a study table with a shelf of books, a lamp and a laptop, a chair, a steel almirah with a suitcase on top, a bookshelf or pinboard, a ceiling fan and a tube light. The corner rooms are double rooms, study rooms or common rooms, and on the ground floor the common room (TV, sofas, carrom), the games room (table tennis) and the reading room.
+- **Washrooms and services:** WC cubicles and basin counters, shower stalls with a geyser, bucket and mug, white wall tiles; pantries with a kitchenette, fridge and water cooler; laundries with washing machines and clothes horses hung with washing; stores; jali sit-outs with benches and plants.
+- **Annapurna Mess:** a double-height dining hall with rows of long steel tables and benches laid with thalis, hand-wash troughs by the west door, water coolers, a plate return, and serving counters (rice, dal, sabzi, curry) under hatches through the kitchen wall. Doors on the west and south fronts. Behind, the kitchen has cooking ranges with big vessels under steel hoods, prep tables, double sinks, racks and fridges, and a service door at the back.
+
+As in the academic block, only your storey and the ones just above and below are drawn, and only nearby room lights are on.
+
+## Phase 4B: upper floors, stairs and the Mandapam auditorium
+
+The whole academic block can now be explored, not just the ground floor.
+
+- **Stairs and lifts:** a dog-leg stair in each of the four corner pavilions climbs from the ground to the pavilion's glazed top floor (level 4), with lift doors beside it on every floor. The pavilions' walls are solid stone below the window row, as on the model, so they make natural stair cores.
+- **Floors 1 to 3:** the same ring corridor and partitions as the ground floor, with each floor's own windows (two slender windows per bay, the blue glass ribbon right round the top floor). The rooms change from floor to floor: more case rooms, classrooms and seminar rooms, a library reading hall and library stacks, a finance lab, a board room, the faculty lounge, programme, accounts, placement, alumni and dean's offices, a club room, a music room, an exhibition hall and an archive. Toilets stack on every floor. Over 200 rooms in all.
+- **Top floor of the pavilions:** a glass-walled lounge in each, looking out over the roofs.
+- **The Mandapam auditorium:** 474 maroon upholstered seats in a fan of curved rows round a curved stage, raked up to a balcony at first-floor level. Ground-floor doors from the gallery lead to the side aisles; first-floor doors from the auditorium foyer open onto the balcony. The stage has a dais table, a lectern, speakers, a big projection screen and velvet drapes; timber acoustic panels line the walls, and a clerestory glass band runs round the curved wall under the ceiling.
+
+Only the floor you are on and the floors just above and below it are drawn, so being inside the building costs about as much as it did with one floor.
+
+## Phase 4A: walk-in academic block
+
+The academic block's ground floor is now a real building you can walk into. Doors open at the glass bay under the porch (into a double-height vestibule and the entrance lobby), in the middle of each courtyard side (out to the garden paths), and in the curved east front (into the double-height "block 1" foyer facing the amphitheatre).
+
+Inside, a 3 m corridor rings the courtyard, with a second corridor in the deep south wing. There are 55 furnished rooms:
+
+- **Teaching:** six tiered horseshoe case rooms with curved desk rows, three classrooms, two seminar rooms and eight syndicate rooms.
+- **Offices and labs:** faculty cabins, the admin office, a meeting room, two computer labs, a server room and a research room.
+- **Shared spaces:** the reading room lined with bookshelves, the cafeteria, student lounges in the corner pavilions, the activity room, a gallery, toilets and stores.
+
+Each room has its own furniture, about 4,100 pieces in all: desks, office chairs, lecterns, whiteboards, projectors and screens, ceiling fans, AC units, bookshelves, sofas, plants, notice boards, doors and toilet cubicles. Windows have clear glass on the inside and sills.
+
+Room lights switch on around you as you walk (within about 24 m), and the furniture is only drawn when you are in or near the building, so the rest of the campus runs as before. The renderer switches to Forward+ so a room can have more than eight lights. Zombies can follow you in: the navigation mesh now covers the corridors and rooms.
+
+
+## Phase 3: survival gameplay
 
 The campus is now a game. Zombies roam it: 18 at the start, rising to 30 the longer you survive, kept in a ring around you and spawned out of sight. They wander, come to investigate noise (footsteps carry 7 m, sprinting 18 m, a pistol shot 65 m, the shotgun 95 m), chase you when they see you (further when your torch is on), and claw at you up close. About one in seven is a runner. Headshots do 2.5x damage.
 
@@ -77,6 +125,8 @@ The overlay in the top-left shows your frame rate and the nearest place. Please 
 - `tools/layout/generate_terrain.py` shapes the hilltop, flattens roads and building plots into it, paints the ground, and places grass and trees. It writes `Assets/Data/terrain_*.bytes` and `campus_terrain.json`.
 - `Assets/Editor/CampusGreyboxBuilder.cs` turns that data into the scene; `CampusTerrainBuilder.cs` makes the Unity Terrain; `ProceduralAssets.cs` makes the ground textures and tree models from code, saved under `Assets/Generated` (rebuilt each time, not stored in Git).
 - `tools/blender/build_buildings.py` builds the landmark buildings in headless Blender from the same layout data and exports `Assets/Models/Buildings/*.fbx` (small files, kept in plain Git) plus `Assets/Data/building_models.json`. `BuildingModels.cs` places them and `BuildingMaterials.cs` paints their facade textures in code.
+- `tools/blender/build_interiors.py` (run after `build_buildings.py`) builds the walk-in interiors: the interior shell (floors, ceilings, walls with window openings, partitions with doorways, tiered case rooms) as `Assets/Models/Buildings/*_Interior.fbx`, one small FBX per kind of furniture in `Assets/Models/Props/`, and `Assets/Data/interiors.json`, which lists every room, piece of furniture and light. `InteriorBuilder.cs` places them and `InteriorMaterials.cs` paints floors, walls and furniture in code; `InteriorZone.cs` hides the interior and switches off its lights when you're away.
+- `tools/blender/build_outdoor.py` (run after `build_buildings.py` and the terrain) makes the street furniture models and `Assets/Data/outdoor_props.json`, which says where each lamp post, bench, sign and railing stands and what each sign says. `OutdoorBuilder.cs` sets them out on the terrain and writes the sign text.
 - `Assets/Editor/JagtiProjectSetup.cs` sets up URP for integrated graphics and rebuilds the scene whenever the layout data is newer than the last build.
 - `Assets/Scripts/` holds runtime code: the first-person controller, labels and the test overlay, and `Gameplay/` (zombie AI and spawner, weapons, health and stamina, inventory, loot crates, HUD, synthesized sounds). `Assets/Editor/GameplayBuilder.cs` adds these to the scene and places the supply crates.
 - Models, textures and audio are stored with Git LFS (see `.gitattributes`).
