@@ -19,7 +19,7 @@ import preview_vehicles as pv  # noqa: E402
 import preview_guns as pg  # noqa: E402
 
 SRC = os.path.join(pv.SRC, "StashModel.cs")
-NAMES = ["Metal", "Black", "Wood", "Olive", "Red", "White", "Brass", "Khaki", "Blue"]
+NAMES = ["Metal", "Black", "Wood", "Olive", "Red", "White", "Brass", "Khaki", "Blue", "Yellow", "Green"]
 HINGE = np.array([0.0, 0.42, -0.275])
 
 
@@ -28,7 +28,7 @@ def kits():
     env = dict(vars(pv))
     for i, n in enumerate(NAMES):
         env[n] = i
-    env["PaletteSize"] = 9
+    env["PaletteSize"] = 11
     out = {}
     for fn in ("BuildBody", "BuildLid"):
         code = "def %s():\n" % fn + pv.translate(pv.body_of(src, "static Mesh %s()" % fn)) + "\n    return k"

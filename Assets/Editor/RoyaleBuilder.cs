@@ -59,6 +59,8 @@ namespace Jagti.EditorTools
             palette[LootVisuals.Brass] = ProceduralAssets.LitMaterial("Loot_Brass", new Color(0.75f, 0.6f, 0.25f), null, 0.6f);
             palette[LootVisuals.Khaki] = ProceduralAssets.LitMaterial("Loot_Khaki", new Color(0.6f, 0.53f, 0.36f), null, 0.1f);
             palette[LootVisuals.Blue] = ProceduralAssets.LitMaterial("Loot_Blue", new Color(0.15f, 0.25f, 0.5f), null, 0.15f);
+            palette[LootVisuals.Yellow] = ProceduralAssets.LitMaterial("Loot_Yellow", new Color(0.95f, 0.75f, 0.12f), null, 0.3f);
+            palette[LootVisuals.Green] = ProceduralAssets.LitMaterial("Loot_Green", new Color(0.12f, 0.42f, 0.2f), null, 0.3f);
 
             var rings = new Material[4];
             for (int i = 0; i < 4; i++)
@@ -324,7 +326,7 @@ namespace Jagti.EditorTools
         }
 
         /// <summary>
-        /// Candidate parking spots for scooters and carts: along the kerb of every road at least 4 m wide
+        /// Candidate parking spots for every kind of vehicle: along the kerb of every road at least 4 m wide
         /// (about one per 90 m) and a few bays in each car park, each on solid ground with nothing in the
         /// way. VehicleSpawner picks a random spread of them each match.
         /// </summary>
@@ -333,7 +335,7 @@ namespace Jagti.EditorTools
             Physics.SyncTransforms();
             var spots = new List<Vector4>();
             var parking = new List<bool>();
-            var half = new Vector3(1.0f, 0.65f, 1.7f);
+            var half = new Vector3(1.0f, 0.65f, 1.95f);   // room for the jeep, the biggest
             Func<float, float, float, bool, bool> tryAdd = (x, z, yaw, park) =>
             {
                 if (!InsidePolygon(layout.boundary, x, z)) return false;
@@ -348,7 +350,7 @@ namespace Jagti.EditorTools
                 // Level enough to park on.
                 var rot = Quaternion.Euler(0f, yaw, 0f);
                 Vector3 f = rot * Vector3.forward, r = rot * Vector3.right;
-                float gf = ground(x + f.x * 1.6f, z + f.z * 1.6f), gb = ground(x - f.x * 1.6f, z - f.z * 1.6f);
+                float gf = ground(x + f.x * 1.8f, z + f.z * 1.8f), gb = ground(x - f.x * 1.8f, z - f.z * 1.8f);
                 float gl = ground(x - r.x, z - r.z), gr = ground(x + r.x, z + r.z);
                 if (Mathf.Abs(gf - gb) > 0.9f || Mathf.Abs(gl - gr) > 0.5f) return false;
                 float top = Mathf.Max(Mathf.Max(gf, gb), Mathf.Max(gl, gr), y);

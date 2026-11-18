@@ -102,6 +102,10 @@ namespace Jagti.Gameplay
                 case "skybus_props": return Engine(name, 24f, 0.25f, 44);
                 case "burner": return Wind(name, 1.1f, 0.5f);
                 case "stash_open": return StashOpen(name);
+                case "engine_auto": return Engine(name, 27f, 0.75f, 45);
+                case "engine_jeep": return Engine(name, 15f, 0.3f, 46);
+                case "horn_high": return Horn(name, 520f, 0.38f);
+                case "horn_low": return Horn(name, 330f, 0.5f);
                 case "stash_hum": return Shimmer(name);
                 case "vault": return Swing(name);
                 case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
@@ -374,6 +378,21 @@ namespace Jagti.Gameplay
                     v += Mathf.Sin(2f * Mathf.PI * notes[n] * l) * Mathf.Exp(-l / 0.25f) * 0.35f;
                 }
                 d[i] = v;
+            }
+            return Clip(name, d);
+        }
+
+        // A horn: two detuned buzzy tones, held, with a quick swell and release.
+        static AudioClip Horn(string name, float hz, float seconds)
+        {
+            var d = Buffer(seconds);
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float env = Mathf.Clamp01(t / 0.02f) * Mathf.Clamp01((seconds - t) / 0.05f);
+                float v = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * hz * t)) * 0.5f + Mathf.Sin(2f * Mathf.PI * hz * 1.26f * t) * 0.5f
+                        + Mathf.Sin(4f * Mathf.PI * hz * t) * 0.2f;
+                d[i] = v * env;
             }
             return Clip(name, d);
         }

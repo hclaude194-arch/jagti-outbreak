@@ -419,7 +419,12 @@ namespace Jagti.Royale
             HudKit.Label(x + 254f, y + 14f, 40f, 22f, "KM/H", 13f, HudKit.TextDim, TextAnchor.MiddleLeft, true);
             float f = Mathf.Clamp01(v.Health / v.maxHealth);
             Color c = f > 0.5f ? HudKit.Health : f > 0.25f ? new Color(1f, 0.7f, 0.2f) : HudKit.Danger;
-            HudKit.Bar(x + 50f, y + 44f, pw - 62f, 8f, f, c, 0, 2f);
+            HudKit.Bar(x + 50f, y + 40f, pw - 62f, 7f, f, c, 0, 2f);
+            // The boost tank: saffron while it can be used, dim while it refills after running dry.
+            Color bc = v.Boosting ? HudKit.Text : v.Boost < 0.25f ? HudKit.WithAlpha(HudKit.Accent, 0.45f) : HudKit.Accent;
+            HudKit.Bar(x + 50f, y + 51f, pw - 62f, 5f, v.Boost, bc, 0, 2f);
+            HudKit.Label(x + 8f, y + 44f, 40f, 16f, "BOOST", 10f, HudKit.TextDim, TextAnchor.MiddleLeft, true);
+            HudKit.Hints(w / 2f, y - 24f, 22f, "SHIFT", "Boost", "H", "Horn", "SPACE", "Brake");
         }
 
         // ------------------------------------------------------------------ the drop

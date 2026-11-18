@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// Parks scooters and utility carts at the start of each match. RoyaleBuilder fills the
+    /// Parks scooters, auto-rickshaws, utility carts and patrol 4x4s at the start of each match. RoyaleBuilder fills the
     /// candidate spots at build time (road edges and car parks, already cleared of buildings
     /// and props); each match picks a fresh random set, spread apart, with random paint.
     /// </summary>
@@ -14,13 +14,17 @@ namespace Jagti.Royale
         public Vector4[] spots;
         /// <summary>True where a spot is in a car park (carts are likelier there).</summary>
         public bool[] parking;
-        public int scooters = 9;
-        public int carts = 5;
+        public int scooters = 8;
+        public int autos = 5;
+        public int carts = 4;
+        public int jeeps = 3;
         public float minGap = 25f;
         public Material[] palette;
         public Material smokeMaterial;
 
         static readonly int[] Paints = { LootVisuals.Blue, LootVisuals.Red, LootVisuals.Olive, LootVisuals.Khaki, LootVisuals.White };
+        static readonly int[] AutoPaints = { LootVisuals.Green, LootVisuals.Green, LootVisuals.Black, LootVisuals.Yellow };
+        static readonly int[] JeepPaints = { LootVisuals.Olive, LootVisuals.White, LootVisuals.Black, LootVisuals.Red, LootVisuals.Blue };
 
         void Start()
         {
@@ -34,20 +38,22 @@ namespace Jagti.Royale
                 int t = order[i]; order[i] = order[j]; order[j] = t;
             }
             var used = new List<Vector3>();
-            int wantCarts = carts, wantScooters = scooters;
-            // Carts first, preferring car parks; then scooters anywhere.
-            for (int pass = 0; pass < 2 && wantCarts > 0; pass++)
+            // The big ones first, preferring car parks; then the small ones anywhere.
+            PlaceSome(Vehicle.Kind.Jeep, jeeps, true, order, used, rng);
+            PlaceSome(Vehicle.Kind.Cart, carts, true, order, used, rng);
+            PlaceSome(Vehicle.Kind.Auto, autos, false, order, used, rng);
+            PlaceSome(Vehicle.Kind.Scooter, scooters, false, order, used, rng);
+        }
+
+        void PlaceSome(Vehicle.Kind kind, int want, bool parkingFirst, List<int> order, List<Vector3> used, System.Random rng)
+        {
+            for (int pass = parkingFirst ? 0 : 1; pass < 2 && want > 0; pass++)
                 foreach (int i in order)
                 {
-                    if (wantCarts == 0) break;
+                    if (want == 0) break;
                     if (pass == 0 && (parking == null || i >= parking.Length || !parking[i])) continue;
-                    if (Place(i, Vehicle.Kind.Cart, used, rng)) wantCarts--;
+                    if (Place(i, kind, used, rng)) want--;
                 }
-            foreach (int i in order)
-            {
-                if (wantScooters == 0) break;
-                if (Place(i, Vehicle.Kind.Scooter, used, rng)) wantScooters--;
-            }
         }
 
         bool Place(int i, Vehicle.Kind kind, List<Vector3> used, System.Random rng)
@@ -56,7 +62,7 @@ namespace Jagti.Royale
             foreach (var u in used)
                 if ((u - p).sqrMagnitude < minGap * minGap) return false;
             used.Add(p);
-            var go = new GameObject(kind == Vehicle.Kind.Scooter ? "Scooter" : "Utility Cart");
+            var go = new GameObject(kind.ToString());
             go.transform.SetParent(transform, false);
             go.transform.position = p;
             go.transform.rotation = Quaternion.Euler(0f, spots[i].w, 0f);
@@ -64,7 +70,8 @@ namespace Jagti.Royale
             v.kind = kind;
             v.palette = palette;
             v.smokeMaterial = smokeMaterial;
-            v.paint = Paints[rng.Next(Paints.Length)];
+            var paints = kind == Vehicle.Kind.Auto ? AutoPaints : kind == Vehicle.Kind.Jeep ? JeepPaints : Paints;
+            v.paint = paints[rng.Next(paints.Length)];
             return true;
         }
     }
