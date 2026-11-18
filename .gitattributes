@@ -32,3 +32,5 @@
 # Small generated building models stay in plain Git: the cloud container cannot upload to Git LFS.
 Assets/Models/Buildings/*.fbx -filter -diff -merge binary
 Assets/Models/Props/*.fbx -filter -diff -merge binary
+# The two small HUD fonts stay in plain Git too.
+Assets/Resources/Fonts/*.ttf -filter -diff -merge binary
