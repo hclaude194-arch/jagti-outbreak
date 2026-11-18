@@ -64,7 +64,7 @@ namespace Jagti.Royale
 
         void Start()
         {
-            // Aboard the helicopter until told otherwise.
+            // Aboard the sky bus until told otherwise.
             SetHidden(true);
             me.Landed = false;
         }
@@ -146,7 +146,7 @@ namespace Jagti.Royale
             {
                 float span = samples[b].t - samples[a].t;
                 float k = span > 0.0001f ? Mathf.Clamp01((t - samples[a].t) / span) : 1f;
-                // A jump of more than 25 m (out of the helicopter door) is a cut, not a slide.
+                // A jump of more than 25 m (out of the sky bus door) is a cut, not a slide.
                 if ((samples[b].p - samples[a].p).sqrMagnitude > 25f * 25f) k = k < 0.5f ? 0f : 1f;
                 p = Vector3.Lerp(samples[a].p, samples[b].p, k);
                 yaw = Mathf.LerpAngle(samples[a].yaw, samples[b].yaw, k);

@@ -175,7 +175,7 @@ namespace Jagti.EditorTools
 
             if (Mode == ModeRoyale)
             {
-                Progress("Battle royale: haze, helicopter, loot and map", 0.9f);
+                Progress("Battle royale: haze, sky bus, loot and map", 0.9f);
                 RoyaleBuilder.Build(layout, player, root.transform, Ground);
             }
             else

@@ -429,7 +429,7 @@ namespace Jagti.Royale
             string title, sub = null;
             switch (diver.Current)
             {
-                case SkyDiver.State.InHelicopter: title = "ON THE HELICOPTER"; sub = "PICK A SPOT ON THE MAP, THEN JUMP"; break;
+                case SkyDiver.State.Aboard: title = "ON THE SKY BUS"; sub = "PICK A SPOT ON THE MAP, THEN JUMP"; break;
                 case SkyDiver.State.FreeFall: title = "FREE FALL"; break;
                 case SkyDiver.State.Glide: title = "GLIDING"; break;
                 default: title = "GET READY"; break;
@@ -438,9 +438,9 @@ namespace Jagti.Royale
             HudKit.Label(0, y, w, 40f, title, 32f, HudKit.Text, TextAnchor.MiddleCenter, true);
             if (sub != null) HudKit.Label(0, y + 36f, w, 20f, sub, 15f, HudKit.TextDim, TextAnchor.MiddleCenter, true);
 
-            if (diver.Current == SkyDiver.State.InHelicopter && director != null && director.helicopter != null)
+            if (diver.Current == SkyDiver.State.Aboard && director != null && director.helicopter != null)
             {
-                // How far along its line the helicopter is: everyone is out by the end.
+                // How far along its line the sky bus is: everyone is out by the end.
                 float bw = 360f, bx = w / 2f - bw / 2f, by = y + 62f;
                 HudKit.Bar(bx, by, bw, 6f, director.helicopter.Progress, HudKit.Accent, 0, 3f);
                 HudKit.Label(bx, by + 8f, bw, 18f, "LAST CALL AT THE EDGE OF CAMPUS", 12f, HudKit.TextDim, TextAnchor.MiddleCenter, true);
