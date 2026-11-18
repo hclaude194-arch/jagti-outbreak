@@ -444,6 +444,17 @@ namespace Jagti.Royale
                 float bw = 360f, bx = w / 2f - bw / 2f, by = y + 62f;
                 HudKit.Bar(bx, by, bw, 6f, director.helicopter.Progress, HudKit.Accent, 0, 3f);
                 HudKit.Label(bx, by + 8f, bw, 18f, "LAST CALL AT THE EDGE OF CAMPUS", 12f, HudKit.TextDim, TextAnchor.MiddleCenter, true);
+                string rich = RichPickingsLine();
+                if (rich != null)
+                {
+                    // Where the loot is best this match.
+                    string line = "RICH PICKINGS:  " + rich;
+                    float tw = HudKit.TextWidth(line, 15f, true) + 56f;
+                    float ry = y - 52f;
+                    HudKit.Panel(w / 2f - tw / 2f, ry, tw, 32f, new Color(0f, 0f, 0f, 0.55f), 6f);
+                    HudKit.IconAt("star", w / 2f - tw / 2f + 20f, ry + 16f, 16f, HudKit.Accent);
+                    HudKit.Label(w / 2f - tw / 2f + 34f, ry, tw - 44f, 32f, line, 15f, HudKit.Accent, TextAnchor.MiddleCenter, true);
+                }
                 HudKit.Hints(w / 2f, h - M - 30f, 26f, "SPACE", "Jump", "M", "Map", "MOUSE", "Look around");
                 return;
             }

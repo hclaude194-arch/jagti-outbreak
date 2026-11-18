@@ -36,6 +36,7 @@ namespace Jagti.Royale
         public const byte Supply = 18;      // host -> all: a supply drop
         public const byte Haze = 19;        // host -> all: the haze timer
         public const byte Left = 20;        // host -> all: someone left mid-match
+        public const byte Stash = 21;       // opener's machine -> everyone: a stash opened (index)
 
         public const float Extent = 2500f;
 

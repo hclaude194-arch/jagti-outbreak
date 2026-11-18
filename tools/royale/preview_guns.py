@@ -212,4 +212,5 @@ def main():
     print("wrote", sc.render.filepath, [NAMES[i] for i in range(10)])
 
 
-main()
+if __name__ == "__main__":
+    main()

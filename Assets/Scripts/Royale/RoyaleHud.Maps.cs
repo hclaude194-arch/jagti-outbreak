@@ -32,6 +32,7 @@ namespace Jagti.Royale
             GUI.BeginClip(HudKit.R(rx, ry, size, size));
             if (HudKit.Repaint)
                 GUI.DrawTextureWithTexCoords(new Rect(0, 0, size * HudKit.S, size * HudKit.S), mapTexture, new Rect(uv.x - su / 2f, uv.y - sv / 2f, su, sv));
+            DrawRichPickings(toLocal, ppm, false);
             DrawWorldCircles(toLocal, ppm);
             foreach (var s in director.supplyDrops)
             {
@@ -39,6 +40,7 @@ namespace Jagti.Royale
                 HudKit.IconAt("drop", d.x, d.y, 16f, new Color(1f, 0.32f, 0.22f));
             }
             DrawGettingAround(toLocal, false);
+            DrawNearStashes(toLocal);
             if (hasWaypoint)
             {
                 Vector2 wp = toLocal(waypoint);
@@ -118,6 +120,7 @@ namespace Jagti.Royale
             float scale = mw / mapWorld.width;
             string gridRef = MapGrid(mx, my, mw, mh, toScreen);
 
+            DrawRichPickings(toScreen, scale, true);
             if (places != null)
             {
                 for (int i = 0; i < places.Length; i++)
@@ -210,6 +213,7 @@ namespace Jagti.Royale
             LegendRow(px, ref cy, pw, "zip", new Color(1f, 0.6f, 0.15f), "Zip line");
             LegendRow(px, ref cy, pw, "car", new Color(0.55f, 0.85f, 1f), "Vehicle (near you)");
             LegendRow(px, ref cy, pw, "loot", HudKit.Accent, "Loot: one to three dots");
+            LegendRow(px, ref cy, pw, "star", HudKit.Accent, "Rich pickings this match");
 
             float hy = y + lh - 104f;
             HudKit.Fill(px, hy - 14f, pw, 1f, HudKit.Line);
@@ -300,6 +304,53 @@ namespace Jagti.Royale
                 HudKit.Fill(s.x - 5f, s.y - 4f, 10f, 8f, new Color(0.08f, 0.08f, 0.08f, 0.9f));
                 HudKit.Fill(s.x - 4f, s.y - 3f, 8f, 6f, new Color(0.55f, 0.85f, 1f));
             }
+        }
+
+        /// <summary>This match's rich-pickings places: a saffron ring and a star (with a label on the big map).</summary>
+        void DrawRichPickings(System.Func<Vector3, Vector2> toScreen, float pixelsPerMetre, bool label)
+        {
+            var loot = LootDirector.Instance;
+            if (loot == null || loot.places == null) return;
+            foreach (int i in loot.HotPlaces)
+            {
+                var pl = loot.places[i];
+                Vector2 c = toScreen(new Vector3(pl.x, 0f, pl.z));
+                float r = loot.hotRadius * pixelsPerMetre;
+                HudKit.GlowAt(c.x, c.y, r * 2.2f, HudKit.WithAlpha(HudKit.Accent, 0.22f));
+                HudKit.Circle(c.x, c.y, r, HudKit.WithAlpha(HudKit.Accent, 0.9f));
+                HudKit.IconAt("star", c.x, c.y - (label ? 30f : 0f), label ? 22f : 14f, HudKit.Accent);
+                if (label) HudKit.Label(c.x - 80f, c.y - 58f, 160f, 16f, "RICH PICKINGS", 11f, HudKit.Accent, TextAnchor.MiddleCenter, true);
+            }
+        }
+
+        /// <summary>Closed trunks within 50 m, on the minimap (you can hear them hum when close).</summary>
+        void DrawNearStashes(System.Func<Vector3, Vector2> toLocal)
+        {
+            var loot = LootDirector.Instance;
+            if (loot == null) return;
+            Vector3 p = player.transform.position;
+            foreach (var s in loot.Stashes)
+            {
+                if (s.open) continue;
+                float dx = s.position.x - p.x, dz = s.position.z - p.z;
+                if (dx * dx + dz * dz > 50f * 50f) continue;
+                Vector2 d = toLocal(s.position);
+                HudKit.IconAt("trunk", d.x, d.y, 13f, HudKit.Accent);
+            }
+        }
+
+        /// <summary>The rich-pickings places as one line, e.g. "MESS AND LIBRARY".</summary>
+        string RichPickingsLine()
+        {
+            var loot = LootDirector.Instance;
+            if (loot == null || loot.places == null || loot.HotPlaces.Count == 0) return null;
+            string line = "";
+            for (int k = 0; k < loot.HotPlaces.Count; k++)
+            {
+                if (k > 0) line += k == loot.HotPlaces.Count - 1 ? " AND " : ", ";
+                line += CleanName(loot.places[loot.HotPlaces[k]].name).ToUpper();
+            }
+            return line;
         }
 
         void DrawWorldCircles(System.Func<Vector3, Vector2> toScreen, float pixelsPerMetre)
