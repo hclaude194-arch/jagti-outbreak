@@ -185,6 +185,7 @@ namespace Jagti.EditorTools
             diver.canopy = canopies[0];
             var arsenal = pgo.AddComponent<PlayerArsenal>();
             arsenal.palette = palette;
+            arsenal.flashMaterial = UnlitMaterial("Muzzle_Flash", new Color(1f, 0.78f, 0.42f), FlashTexture(), Blend.Additive, 1f, true);
             arsenal.grenadeTemplate = GrenadeTemplate(br, palette, ParticleMaterial("Blast_Smoke", puffTex));
             arsenal.smokeTemplate = SmokeTemplate(br, palette, ParticleMaterial("Smoke_Screen", puffTex));
 
@@ -722,6 +723,28 @@ namespace Jagti.EditorTools
                     px[y * size + x] = new Color(1f, 1f, 1f, a);
                 }
             return ProceduralAssets.SaveTexture("Tex_Soft_Puff", size, px, true);
+        }
+
+        // A muzzle flash: a hot core with four spikes and a softer glow, white in the middle.
+        static Texture2D FlashTexture()
+        {
+            const int size = 64;
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                    float r = Mathf.Sqrt(u * u + v * v);
+                    float spikes = Mathf.Max(Mathf.Clamp01(1f - Mathf.Abs(u) * 9f) * Mathf.Clamp01(1f - Mathf.Abs(v)),
+                                             Mathf.Clamp01(1f - Mathf.Abs(v) * 9f) * Mathf.Clamp01(1f - Mathf.Abs(u)));
+                    float core = Mathf.Clamp01(1f - r * 2.2f);
+                    float glow = Mathf.Clamp01(1f - r) * Mathf.Clamp01(1f - r) * 0.5f;
+                    float a = Mathf.Clamp01(core + spikes * 0.8f + glow);
+                    float white = Mathf.Clamp01(core * 1.5f);
+                    // Premultiplied: the additive blend (One, One) ignores alpha.
+                    px[y * size + x] = new Color(a, Mathf.Lerp(0.85f, 1f, white) * a, Mathf.Lerp(0.6f, 1f, white) * a, a);
+                }
+            return ProceduralAssets.SaveTexture("Tex_Muzzle_Flash", size, px, true);
         }
 
         // Vertical streaks of thicker and thinner haze; tiles around the wall.

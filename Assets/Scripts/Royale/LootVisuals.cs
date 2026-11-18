@@ -260,14 +260,14 @@ namespace Jagti.Royale
             switch (id)
             {
                 case 0: return new Mounts { sight = new Vector3(0.03f, 0f, 0.028f), muzzle = new Vector3(0.125f, 0f, 0.012f), grip = None, mag = new Vector3(-0.05f, 0f, -0.06f) };
-                case 1: return new Mounts { sight = new Vector3(0.05f, 0f, 0.056f), muzzle = new Vector3(0.34f, 0f, 0.015f), grip = new Vector3(0.17f, 0f, -0.015f), mag = new Vector3(0.08f, 0f, -0.02f) };
+                case 1: return new Mounts { sight = new Vector3(0.05f, 0f, 0.061f), muzzle = new Vector3(0.34f, 0f, 0.015f), grip = new Vector3(0.17f, 0f, -0.015f), mag = new Vector3(0.08f, 0f, -0.02f) };
                 case 2: return new Mounts { sight = new Vector3(-0.07f, 0f, 0.053f), muzzle = new Vector3(0.55f, 0f, 0.03f), grip = None, mag = None };
-                case 3: return new Mounts { sight = new Vector3(0.02f, 0f, 0.066f), muzzle = new Vector3(0.59f, 0f, 0.025f), grip = new Vector3(0.27f, 0f, -0.008f), mag = new Vector3(0.06f, 0f, -0.015f) };
-                case 4: return new Mounts { sight = new Vector3(0f, 0f, 0.066f), muzzle = new Vector3(0.7f, 0f, 0.025f), grip = new Vector3(0.32f, 0f, -0.01f), mag = new Vector3(0.06f, 0f, -0.02f), builtInScope = true };
+                case 3: return new Mounts { sight = new Vector3(0.02f, 0f, 0.074f), muzzle = new Vector3(0.61f, 0f, 0.025f), grip = new Vector3(0.27f, 0f, -0.008f), mag = new Vector3(0.06f, 0f, -0.015f) };
+                case 4: return new Mounts { sight = new Vector3(0f, 0f, 0.066f), muzzle = new Vector3(0.715f, 0f, 0.025f), grip = new Vector3(0.32f, 0f, -0.01f), mag = new Vector3(0.06f, 0f, -0.02f), builtInScope = true };
                 case 5: return new Mounts { sight = new Vector3(0.06f, 0f, 0.036f), muzzle = new Vector3(0.17f, 0f, 0.015f), grip = None, mag = None };
-                case 6: return new Mounts { sight = new Vector3(0f, 0f, 0.083f), muzzle = new Vector3(0.44f, 0f, 0.025f), grip = new Vector3(0.22f, 0f, -0.008f), mag = new Vector3(0.05f, 0f, -0.015f) };
+                case 6: return new Mounts { sight = new Vector3(0f, 0f, 0.091f), muzzle = new Vector3(0.455f, 0f, 0.025f), grip = new Vector3(0.22f, 0f, -0.008f), mag = new Vector3(0.05f, 0f, -0.015f) };
                 case 7: return new Mounts { sight = None, muzzle = None, grip = None, mag = None };
-                case 8: return new Mounts { sight = new Vector3(0f, 0f, 0.083f), muzzle = new Vector3(0.73f, 0f, 0.03f), grip = new Vector3(0.32f, 0f, 0.005f), mag = None };
+                case 8: return new Mounts { sight = new Vector3(0f, 0f, 0.09f), muzzle = new Vector3(0.745f, 0f, 0.03f), grip = new Vector3(0.32f, 0f, 0.005f), mag = None };
                 default: return new Mounts { sight = new Vector3(0f, 0f, 0.045f), muzzle = new Vector3(0.85f, 0f, 0.025f), grip = None, mag = new Vector3(0.02f, 0f, -0.03f), builtInScope = true };
             }
         }
@@ -276,110 +276,241 @@ namespace Jagti.Royale
         {
             switch (id)
             {
-                case 0: // Ravi P9: a compact pistol.
-                    P(b, 0.03f, 0.012f, 0.19f, 0.032f, 0.03f, Metal);
-                    P(b, 0.02f, -0.01f, 0.17f, 0.02f, 0.028f, Black);
+                case 0: // Ravi P9: a compact pistol with a serrated slide.
+                    P(b, 0.03f, 0.014f, 0.19f, 0.03f, 0.028f, Metal);
+                    for (int i = 0; i < 5; i++) P(b, -0.055f + i * 0.008f, 0.014f, 0.003f, 0.026f, 0.03f, Black);
+                    P(b, 0.045f, 0.024f, 0.04f, 0.012f, 0.029f, Black);
+                    Barrel(b, 0.126f, 0.014f, 0.012f, 0.004f, Black);
+                    P(b, 0.025f, -0.008f, 0.17f, 0.016f, 0.026f, Black);
+                    P(b, 0.085f, -0.019f, 0.06f, 0.006f, 0.024f, Black);
+                    P(b, 0.0f, -0.003f, 0.02f, 0.005f, 0.031f, Black);
                     P(b, -0.045f, -0.055f, 0.045f, 0.085f, 0.03f, Black, 12f);
-                    P(b, 0.0f, -0.032f, 0.045f, 0.006f, 0.012f, Black);
-                    P(b, 0.11f, 0.03f, 0.008f, 0.006f, 0.006f, Black);
+                    P(b, -0.045f, -0.06f, 0.032f, 0.05f, 0.032f, Metal, 12f);
+                    P(b, -0.056f, -0.1f, 0.05f, 0.01f, 0.032f, Black, 12f);
+                    P(b, -0.065f, -0.006f, 0.022f, 0.01f, 0.026f, Black, 30f);
+                    P(b, 0.008f, -0.033f, 0.05f, 0.005f, 0.012f, Black);
+                    P(b, 0.032f, -0.024f, 0.005f, 0.02f, 0.012f, Black);
+                    P(b, 0.002f, -0.024f, 0.006f, 0.016f, 0.006f, Metal, -15f);
+                    P(b, 0.11f, 0.032f, 0.008f, 0.007f, 0.006f, Black);
+                    P(b, -0.05f, 0.032f, 0.01f, 0.008f, 0.02f, Black);
                     break;
-                case 1: // Chenab SMG: boxy, folding stock.
+                case 1: // Chenab SMG: boxy, folding stock, ribbed top rail.
                     P(b, 0.05f, 0.015f, 0.3f, 0.06f, 0.05f, Black);
-                    P(b, 0.05f, 0.05f, 0.16f, 0.012f, 0.025f, Black);
+                    P(b, 0.06f, 0.03f, 0.05f, 0.018f, 0.052f, Metal);
+                    P(b, 0.05f, 0.051f, 0.17f, 0.01f, 0.024f, Black);
+                    for (int i = 0; i < 8; i++) P(b, -0.02f + i * 0.02f, 0.058f, 0.008f, 0.006f, 0.026f, Black);
+                    P(b, 0.16f, 0.03f, 0.012f, 0.012f, 0.012f, Metal, 0f, 0.031f);
+                    P(b, 0.2f, 0.0f, 0.06f, 0.04f, 0.048f, Black);
                     Barrel(b, 0.27f, 0.015f, 0.025f, 0.14f, Metal);
+                    Barrel(b, 0.335f, 0.015f, 0.03f, 0.012f, Black);
+                    P(b, 0.19f, 0.06f, 0.01f, 0.025f, 0.006f, Black);
+                    P(b, -0.07f, 0.058f, 0.012f, 0.02f, 0.02f, Black);
+                    P(b, 0.08f, -0.025f, 0.045f, 0.03f, 0.038f, Black);
                     P(b, 0.08f, -0.09f, 0.035f, 0.14f, 0.03f, Metal);
+                    P(b, 0.08f, -0.163f, 0.042f, 0.01f, 0.034f, Black);
                     P(b, -0.04f, -0.055f, 0.04f, 0.08f, 0.035f, Black, 12f);
-                    P(b, -0.2f, 0.01f, 0.14f, 0.035f, 0.03f, Black);
-                    P(b, -0.27f, -0.005f, 0.02f, 0.07f, 0.035f, Black);
+                    P(b, 0.01f, -0.04f, 0.05f, 0.005f, 0.012f, Black);
+                    P(b, 0.005f, -0.025f, 0.006f, 0.016f, 0.006f, Metal, -15f);
+                    P(b, -0.085f, 0.01f, 0.012f, 0.05f, 0.054f, Metal);
+                    P(b, -0.17f, 0.03f, 0.2f, 0.01f, 0.008f, Metal, 0f, 0.02f);
+                    P(b, -0.17f, 0.03f, 0.2f, 0.01f, 0.008f, Metal, 0f, -0.02f);
+                    P(b, -0.17f, -0.01f, 0.2f, 0.01f, 0.008f, Metal, 0f, 0.02f);
+                    P(b, -0.17f, -0.01f, 0.2f, 0.01f, 0.008f, Metal, 0f, -0.02f);
+                    P(b, -0.27f, 0.005f, 0.015f, 0.075f, 0.05f, Black);
                     break;
-                case 2: // Banihal 12: pump shotgun with a wooden stock and pump.
+                case 2: // Banihal 12: pump shotgun with a vent rib, wooden stock and grooved pump.
                     Barrel(b, 0.25f, 0.03f, 0.035f, 0.6f, Metal);
+                    P(b, 0.25f, 0.05f, 0.56f, 0.006f, 0.012f, Metal);
+                    b.Ball(new Vector3(0.54f, Yc, 0.056f), new Vector3(0.008f, 0.008f, 0.008f), Brass);
                     Barrel(b, 0.2f, -0.005f, 0.035f, 0.42f, Metal);
+                    Barrel(b, 0.415f, -0.005f, 0.038f, 0.02f, Black);
+                    P(b, 0.38f, 0.013f, 0.02f, 0.05f, 0.03f, Black);
                     P(b, 0.17f, -0.005f, 0.16f, 0.055f, 0.055f, Wood);
+                    for (int i = 0; i < 5; i++) P(b, 0.11f + i * 0.03f, -0.005f, 0.006f, 0.057f, 0.057f, Black);
                     P(b, -0.07f, 0.015f, 0.2f, 0.075f, 0.05f, Metal);
+                    P(b, -0.05f, 0.025f, 0.06f, 0.022f, 0.052f, Black);
+                    P(b, -0.05f, -0.024f, 0.07f, 0.004f, 0.03f, Black);
+                    P(b, -0.11f, -0.04f, 0.06f, 0.006f, 0.012f, Black);
+                    P(b, -0.08f, -0.032f, 0.006f, 0.02f, 0.012f, Black);
+                    P(b, -0.115f, -0.03f, 0.006f, 0.016f, 0.006f, Metal, -15f);
                     P(b, -0.36f, -0.01f, 0.36f, 0.08f, 0.045f, Wood, -6f);
-                    P(b, -0.12f, -0.035f, 0.05f, 0.01f, 0.012f, Black);
+                    P(b, -0.2f, -0.03f, 0.08f, 0.06f, 0.042f, Wood, -20f);
+                    P(b, -0.545f, -0.03f, 0.025f, 0.09f, 0.048f, Black, -6f);
+                    P(b, -0.45f, -0.06f, 0.01f, 0.012f, 0.012f, Metal);
                     break;
-                case 3: // Tawi AR: olive furniture, rail on top.
-                    P(b, 0f, 0.02f, 0.34f, 0.07f, 0.055f, Black);
-                    P(b, 0.02f, 0.06f, 0.22f, 0.012f, 0.03f, Black);
-                    P(b, 0.27f, 0.02f, 0.22f, 0.055f, 0.055f, Olive);
+                case 3: // Tawi AR: olive furniture, ribbed rails, curved magazine.
+                    P(b, 0f, 0.03f, 0.3f, 0.05f, 0.05f, Black);
+                    P(b, -0.01f, -0.005f, 0.22f, 0.035f, 0.048f, Black);
+                    P(b, 0.02f, 0.06f, 0.26f, 0.012f, 0.028f, Black);
+                    for (int i = 0; i < 12; i++) P(b, -0.1f + i * 0.021f, 0.068f, 0.009f, 0.006f, 0.03f, Black);
+                    P(b, 0.02f, 0.033f, 0.05f, 0.016f, 0.052f, Metal);
+                    P(b, -0.06f, 0.04f, 0.02f, 0.016f, 0.016f, Black, 0f, 0.03f);
+                    P(b, -0.15f, 0.055f, 0.03f, 0.012f, 0.04f, Black);
+                    P(b, 0.27f, 0.025f, 0.24f, 0.055f, 0.055f, Olive);
+                    for (int i = 0; i < 5; i++) P(b, 0.19f + i * 0.04f, 0.025f, 0.018f, 0.012f, 0.057f, Black);
+                    P(b, 0.27f, 0.057f, 0.22f, 0.008f, 0.024f, Black);
                     Barrel(b, 0.48f, 0.025f, 0.02f, 0.22f, Metal);
-                    P(b, 0.36f, 0.06f, 0.015f, 0.04f, 0.01f, Black);
-                    P(b, 0.06f, -0.08f, 0.045f, 0.14f, 0.028f, Black, -10f);
+                    P(b, 0.43f, 0.04f, 0.02f, 0.03f, 0.03f, Black);
+                    P(b, 0.43f, 0.07f, 0.012f, 0.035f, 0.006f, Black);
+                    Barrel(b, 0.59f, 0.025f, 0.026f, 0.04f, Black);
+                    P(b, 0.055f, -0.02f, 0.055f, 0.03f, 0.05f, Black);
+                    P(b, 0.06f, -0.065f, 0.045f, 0.08f, 0.028f, Black, -6f);
+                    P(b, 0.075f, -0.13f, 0.045f, 0.07f, 0.028f, Black, -18f);
+                    P(b, 0.087f, -0.168f, 0.05f, 0.008f, 0.032f, Black, -18f);
                     P(b, -0.09f, -0.05f, 0.035f, 0.08f, 0.035f, Black, 15f);
+                    P(b, -0.04f, -0.032f, 0.05f, 0.005f, 0.014f, Black);
+                    P(b, -0.045f, -0.024f, 0.006f, 0.016f, 0.006f, Metal, -15f);
                     b.Tube(new Vector3(-0.2f, Yc, 0.02f), 0.03f, 0.12f, Black, AlongX);
-                    P(b, -0.3f, 0f, 0.24f, 0.07f, 0.045f, Olive);
+                    P(b, -0.3f, 0.01f, 0.2f, 0.05f, 0.045f, Olive);
+                    P(b, -0.3f, 0.04f, 0.16f, 0.015f, 0.04f, Olive);
+                    P(b, -0.33f, -0.025f, 0.14f, 0.03f, 0.04f, Olive, -12f);
+                    P(b, -0.41f, 0f, 0.02f, 0.09f, 0.047f, Black);
+                    P(b, -0.1f, 0.082f, 0.015f, 0.02f, 0.02f, Black);
                     break;
-                case 4: // Jhelum DMR: long barrel, wooden stock, its own scope.
+                case 4: // Jhelum DMR: long barrel with a brake, wooden stock, its own scope.
                     P(b, 0f, 0.02f, 0.4f, 0.075f, 0.055f, Black);
-                    Barrel(b, 0.45f, 0.025f, 0.025f, 0.5f, Metal);
+                    P(b, 0.03f, 0.035f, 0.06f, 0.018f, 0.057f, Metal);
                     P(b, 0.3f, 0.02f, 0.26f, 0.06f, 0.05f, Black);
+                    for (int i = 0; i < 4; i++) P(b, 0.2f + i * 0.06f, 0.02f, 0.03f, 0.015f, 0.052f, Metal);
+                    Barrel(b, 0.45f, 0.025f, 0.025f, 0.5f, Metal);
+                    Barrel(b, 0.69f, 0.025f, 0.035f, 0.05f, Black);
+                    P(b, 0.69f, 0.025f, 0.012f, 0.012f, 0.037f, Metal);
+                    P(b, 0.36f, -0.015f, 0.16f, 0.01f, 0.01f, Metal, 0f, -0.015f);
+                    P(b, 0.36f, -0.015f, 0.16f, 0.01f, 0.01f, Metal, 0f, 0.015f);
                     P(b, 0.06f, -0.07f, 0.06f, 0.1f, 0.03f, Black);
+                    P(b, 0.06f, -0.123f, 0.065f, 0.008f, 0.034f, Metal);
                     P(b, -0.1f, -0.05f, 0.035f, 0.08f, 0.035f, Black, 15f);
+                    P(b, -0.05f, -0.032f, 0.05f, 0.005f, 0.014f, Black);
+                    P(b, -0.055f, -0.024f, 0.006f, 0.016f, 0.006f, Metal, -15f);
                     P(b, -0.38f, 0f, 0.34f, 0.09f, 0.045f, Wood);
                     P(b, -0.34f, 0.05f, 0.18f, 0.03f, 0.04f, Wood);
+                    P(b, -0.555f, 0f, 0.02f, 0.1f, 0.047f, Black);
                     Barrel(b, 0f, 0.1f, 0.05f, 0.32f, Black);
                     Barrel(b, 0.15f, 0.1f, 0.06f, 0.05f, Black);
+                    Barrel(b, -0.15f, 0.1f, 0.056f, 0.04f, Black);
+                    P(b, 0.176f, 0.1f, 0.003f, 0.045f, 0.045f, Blue);
+                    P(b, 0f, 0.13f, 0.025f, 0.02f, 0.025f, Black);
+                    P(b, 0f, 0.1f, 0.025f, 0.025f, 0.02f, Black, 0f, 0.035f);
                     P(b, -0.06f, 0.07f, 0.02f, 0.04f, 0.02f, Black);
                     P(b, 0.07f, 0.07f, 0.02f, 0.04f, 0.02f, Black);
                     break;
-                case 5: // Basohli .45: a heavy revolver.
+                case 5: // Basohli .45: a heavy revolver with a wooden grip.
                     Barrel(b, 0.1f, 0.015f, 0.026f, 0.14f, Metal);
                     P(b, 0.1f, 0.032f, 0.14f, 0.008f, 0.012f, Metal);
+                    P(b, 0.11f, 0f, 0.1f, 0.014f, 0.016f, Metal);
+                    P(b, 0.06f, -0.004f, 0.06f, 0.006f, 0.006f, Metal);
+                    P(b, 0.165f, 0.04f, 0.012f, 0.01f, 0.004f, Black);
                     Barrel(b, 0f, 0f, 0.056f, 0.05f, Metal);
+                    for (int i = 0; i < 3; i++) P(b, 0f, -0.018f + i * 0.018f, 0.04f, 0.006f, 0.058f, Black);
                     P(b, -0.01f, 0f, 0.07f, 0.06f, 0.03f, Metal);
-                    P(b, -0.045f, 0.03f, 0.015f, 0.025f, 0.01f, Black);
+                    P(b, -0.01f, 0.032f, 0.07f, 0.008f, 0.02f, Metal);
+                    P(b, -0.045f, 0.03f, 0.015f, 0.025f, 0.01f, Black, -20f);
+                    P(b, -0.057f, 0.043f, 0.015f, 0.006f, 0.01f, Black);
                     P(b, -0.06f, -0.05f, 0.04f, 0.085f, 0.032f, Wood, 20f);
+                    P(b, -0.08f, -0.045f, 0.006f, 0.085f, 0.026f, Metal, 20f);
+                    b.Ball(new Vector3(-0.06f, Yc + 0.017f, -0.05f), new Vector3(0.012f, 0.004f, 0.012f), Brass);
+                    b.Ball(new Vector3(-0.06f, Yc - 0.017f, -0.05f), new Vector3(0.012f, 0.004f, 0.012f), Brass);
                     P(b, -0.005f, -0.035f, 0.04f, 0.006f, 0.01f, Metal);
+                    P(b, 0.015f, -0.025f, 0.006f, 0.02f, 0.01f, Metal);
+                    P(b, -0.01f, -0.022f, 0.006f, 0.016f, 0.006f, Black, -15f);
                     break;
                 case 6: // Ujh Carbine: short, carry handle, skeleton stock.
                     P(b, 0f, 0.02f, 0.3f, 0.07f, 0.055f, Metal);
-                    P(b, 0f, 0.07f, 0.12f, 0.025f, 0.015f, Metal);
+                    P(b, 0.02f, 0.03f, 0.05f, 0.018f, 0.057f, Black);
+                    P(b, 0.05f, -0.02f, 0.05f, 0.03f, 0.05f, Metal);
+                    P(b, 0f, 0.085f, 0.12f, 0.012f, 0.015f, Metal);
+                    P(b, -0.05f, 0.068f, 0.012f, 0.026f, 0.015f, Metal);
+                    P(b, 0.05f, 0.068f, 0.012f, 0.026f, 0.015f, Metal);
+                    P(b, -0.055f, 0.096f, 0.01f, 0.012f, 0.012f, Black);
                     P(b, 0.22f, 0.02f, 0.16f, 0.055f, 0.055f, Khaki);
+                    for (int i = 0; i < 4; i++) P(b, 0.16f + i * 0.04f, 0.02f, 0.008f, 0.057f, 0.057f, Black);
+                    P(b, 0.32f, 0.035f, 0.02f, 0.015f, 0.03f, Black);
+                    P(b, 0.32f, 0.058f, 0.012f, 0.04f, 0.008f, Black);
                     Barrel(b, 0.37f, 0.025f, 0.02f, 0.14f, Metal);
-                    P(b, 0.05f, -0.075f, 0.04f, 0.12f, 0.028f, Black, -8f);
+                    Barrel(b, 0.44f, 0.025f, 0.025f, 0.03f, Black);
+                    P(b, 0.05f, -0.065f, 0.04f, 0.09f, 0.028f, Black, -8f);
+                    P(b, 0.066f, -0.125f, 0.04f, 0.05f, 0.028f, Black, -20f);
                     P(b, -0.09f, -0.05f, 0.035f, 0.08f, 0.035f, Black, 15f);
+                    P(b, -0.04f, -0.032f, 0.05f, 0.005f, 0.014f, Black);
+                    P(b, -0.045f, -0.024f, 0.006f, 0.016f, 0.006f, Metal, -15f);
                     P(b, -0.24f, 0.035f, 0.18f, 0.012f, 0.02f, Metal);
                     P(b, -0.24f, -0.02f, 0.18f, 0.012f, 0.02f, Metal);
+                    P(b, -0.24f, 0.008f, 0.17f, 0.008f, 0.016f, Metal, 17f);
                     P(b, -0.33f, 0f, 0.02f, 0.08f, 0.035f, Black);
+                    P(b, -0.345f, 0f, 0.012f, 0.09f, 0.04f, Black);
                     break;
-                case 7: // Bhaderwah Double: side-by-side barrels, wood.
+                case 7: // Bhaderwah Double: side-by-side barrels, brass-inlaid action, wood.
                     Barrel(b, 0.25f, 0.02f, 0.03f, 0.55f, Metal, -0.016f);
                     Barrel(b, 0.25f, 0.02f, 0.03f, 0.55f, Metal, 0.016f);
+                    Barrel(b, 0.52f, 0.02f, 0.032f, 0.01f, Black, -0.016f);
+                    Barrel(b, 0.52f, 0.02f, 0.032f, 0.01f, Black, 0.016f);
                     P(b, 0.25f, 0.038f, 0.5f, 0.006f, 0.012f, Metal);
+                    b.Ball(new Vector3(0.51f, Yc, 0.044f), new Vector3(0.007f, 0.007f, 0.007f), Brass);
                     P(b, 0.12f, 0f, 0.18f, 0.04f, 0.05f, Wood);
+                    P(b, 0.215f, 0f, 0.012f, 0.038f, 0.048f, Black);
                     P(b, -0.06f, 0.015f, 0.1f, 0.06f, 0.05f, Metal);
+                    P(b, -0.06f, 0.01f, 0.07f, 0.035f, 0.052f, Brass);
+                    P(b, -0.1f, 0.05f, 0.03f, 0.01f, 0.012f, Metal, -15f);
+                    P(b, -0.08f, -0.04f, 0.05f, 0.005f, 0.012f, Metal);
+                    P(b, -0.07f, -0.028f, 0.006f, 0.016f, 0.006f, Metal, -15f);
+                    P(b, -0.087f, -0.028f, 0.006f, 0.016f, 0.006f, Metal, -15f);
                     P(b, -0.3f, -0.01f, 0.4f, 0.08f, 0.045f, Wood, -7f);
-                    P(b, -0.07f, 0.05f, 0.02f, 0.02f, 0.01f, Black);
+                    P(b, -0.15f, -0.02f, 0.08f, 0.055f, 0.042f, Wood, -18f);
+                    P(b, -0.5f, -0.035f, 0.02f, 0.09f, 0.047f, Black, -7f);
+                    P(b, -0.42f, -0.065f, 0.01f, 0.012f, 0.012f, Metal);
                     break;
-                case 8: // Udhampur LMG: heavy, box magazine, folded bipod.
+                case 8: // Udhampur LMG: heavy, cooling shroud, box magazine with a belt, folded bipod.
                     P(b, 0f, 0.025f, 0.42f, 0.09f, 0.065f, Black);
                     P(b, 0f, 0.075f, 0.3f, 0.015f, 0.06f, Black);
-                    Barrel(b, 0.48f, 0.03f, 0.028f, 0.5f, Metal);
+                    for (int i = 0; i < 8; i++) P(b, -0.07f + i * 0.02f, 0.087f, 0.008f, 0.006f, 0.03f, Black);
+                    P(b, -0.12f, 0.085f, 0.03f, 0.012f, 0.04f, Metal);
+                    P(b, 0.15f, 0.105f, 0.08f, 0.012f, 0.012f, Metal);
+                    P(b, 0.12f, 0.09f, 0.012f, 0.02f, 0.012f, Metal);
+                    P(b, 0.18f, 0.09f, 0.012f, 0.02f, 0.012f, Metal);
                     P(b, 0.36f, 0.03f, 0.24f, 0.05f, 0.05f, Metal);
-                    P(b, 0.32f, 0.075f, 0.08f, 0.02f, 0.012f, Black);
+                    for (int i = 0; i < 5; i++) P(b, 0.26f + i * 0.045f, 0.03f, 0.02f, 0.02f, 0.052f, Black);
+                    Barrel(b, 0.48f, 0.03f, 0.028f, 0.5f, Metal);
+                    Barrel(b, 0.72f, 0.03f, 0.035f, 0.05f, Black);
+                    P(b, 0.62f, 0.06f, 0.01f, 0.04f, 0.008f, Black);
                     P(b, 0.05f, -0.09f, 0.12f, 0.12f, 0.08f, Olive);
+                    P(b, 0.05f, -0.09f, 0.124f, 0.015f, 0.082f, Black);
+                    for (int i = 0; i < 4; i++) P(b, 0.01f + i * 0.016f, -0.025f, 0.009f, 0.02f, 0.045f, Brass);
+                    P(b, 0.45f, 0f, 0.02f, 0.02f, 0.05f, Black);
                     P(b, 0.55f, -0.01f, 0.2f, 0.012f, 0.012f, Black, 0f, -0.02f);
                     P(b, 0.55f, -0.01f, 0.2f, 0.012f, 0.012f, Black, 0f, 0.02f);
                     P(b, -0.12f, -0.06f, 0.035f, 0.08f, 0.035f, Black, 15f);
+                    P(b, -0.07f, -0.035f, 0.05f, 0.005f, 0.014f, Black);
+                    P(b, -0.075f, -0.027f, 0.006f, 0.016f, 0.006f, Metal, -15f);
                     P(b, -0.38f, 0.01f, 0.3f, 0.1f, 0.05f, Black);
+                    P(b, -0.34f, 0.07f, 0.16f, 0.02f, 0.045f, Black);
+                    P(b, -0.535f, 0.01f, 0.012f, 0.11f, 0.054f, Metal);
                     break;
                 default: // Pir Panjal: bolt-action rifle with a big scope.
                     Barrel(b, 0.5f, 0.025f, 0.022f, 0.7f, Metal);
+                    Barrel(b, 0.845f, 0.025f, 0.026f, 0.012f, Black);
                     P(b, 0.2f, 0f, 0.5f, 0.05f, 0.05f, Wood);
+                    P(b, 0.455f, 0f, 0.012f, 0.048f, 0.048f, Black);
                     P(b, -0.33f, -0.015f, 0.36f, 0.1f, 0.045f, Wood, -5f);
+                    P(b, -0.3f, 0.04f, 0.16f, 0.02f, 0.042f, Wood);
+                    P(b, -0.515f, -0.03f, 0.02f, 0.11f, 0.047f, Black, -5f);
                     P(b, -0.12f, -0.02f, 0.12f, 0.05f, 0.04f, Wood, 15f);
                     P(b, 0f, 0.025f, 0.2f, 0.04f, 0.04f, Metal);
+                    Barrel(b, -0.11f, 0.025f, 0.03f, 0.03f, Metal);
                     P(b, -0.05f, 0.02f, 0.015f, 0.015f, 0.07f, Metal, 0f, 0.04f);
                     b.Ball(new Vector3(-0.05f, Yc + 0.08f, 0.02f), new Vector3(0.022f, 0.022f, 0.022f), Black);
                     P(b, 0.02f, -0.04f, 0.06f, 0.03f, 0.03f, Black);
+                    P(b, -0.04f, -0.045f, 0.06f, 0.005f, 0.012f, Black);
+                    P(b, -0.045f, -0.036f, 0.006f, 0.016f, 0.006f, Metal, -15f);
+                    P(b, 0.35f, -0.03f, 0.01f, 0.012f, 0.012f, Metal);
+                    P(b, -0.42f, -0.07f, 0.01f, 0.012f, 0.012f, Metal);
                     Barrel(b, 0f, 0.1f, 0.055f, 0.4f, Black);
                     Barrel(b, 0.18f, 0.1f, 0.065f, 0.06f, Black);
                     Barrel(b, -0.17f, 0.1f, 0.06f, 0.05f, Black);
+                    P(b, 0.212f, 0.1f, 0.003f, 0.055f, 0.055f, Blue);
                     P(b, -0.07f, 0.065f, 0.02f, 0.035f, 0.02f, Black);
                     P(b, 0.08f, 0.065f, 0.02f, 0.035f, 0.02f, Black);
                     P(b, 0f, 0.135f, 0.02f, 0.02f, 0.02f, Black);
+                    P(b, 0f, 0.1f, 0.02f, 0.02f, 0.02f, Black, 0f, 0.035f);
                     break;
             }
         }

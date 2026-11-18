@@ -9,6 +9,7 @@ import bpy  # noqa: F401
 import math
 import os
 import re
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "Assets", "Scripts", "Royale", "LootVisuals.cs")
@@ -87,6 +88,11 @@ def parts(lines, env):
             for part in decl.group(1).replace("a == AttachmentType.Scope8x", "big_flag").split(","):
                 k, v = part.split("=", 1)
                 env[k.strip()] = eval(clean(v.strip().replace("a == AttachmentType.Scope8x", "big_flag")), {"math": math}, env)
+            continue
+        loop = re.match(r"for \(int (\w+) = 0; \1 < (\d+); \1\+\+\) (.+)$", line)
+        if loop:
+            for i in range(int(loop.group(2))):
+                solids += parts([loop.group(3)], dict(env, **{loop.group(1): i}))
             continue
         cond = re.match(r"if \((.+?)\) (.+)$", line)
         if cond:
@@ -185,9 +191,14 @@ def main():
            4: [None, "AttachmentType.Suppressor", "AttachmentType.Grip", None], 5: ["AttachmentType.RedDot", None, None, None],
            6: ["AttachmentType.Scope2x", "AttachmentType.Compensator", "AttachmentType.Grip", None], 7: [None, None, None, None],
            8: ["AttachmentType.RedDot", None, "AttachmentType.Grip", None], 9: [None, "AttachmentType.Suppressor", None, None]}
-    for i, key in enumerate(order):
+    hero = "--hero" in sys.argv
+    picks = [3, 4, 8, 5] if hero else range(10)
+    for n, i in enumerate(picks):
+        key = order[i]
         col, row = i % 2, i // 2
         off = (col * 1.9 - 0.95, 0, -row * 0.42)
+        if hero:
+            off = (0.25 if i == 5 else 0, 0, -n * 0.3)
         emit(parts(guns[key], {"Yc": YC}), off)
         for place, name in zip(("sight", "muzzle", "grip", "mag"), fit[i]):
             if name is None or mt[i][place] is None or (place == "sight" and mt[i]["scope"]):
@@ -203,11 +214,21 @@ def main():
     cam = bpy.data.cameras.new("cam"); cam.type = "ORTHO"; cam.ortho_scale = 4.1
     co = bpy.data.objects.new("cam", cam); sc.collection.objects.link(co); sc.camera = co
     co.location = (0.0, -5, -0.88); co.rotation_euler = (math.radians(90), 0, 0)
+    if hero:
+        # A closer, angled look at four guns on a dark backdrop.
+        cam.type = "PERSP"; cam.lens = 50
+        co.location = (-0.85, -2.25, 0.1)
+        d = (0.05 - co.location[0], 0 - co.location[1], -0.42 - co.location[2])
+        co.rotation_euler = (math.pi / 2 + math.atan2(d[2], math.hypot(d[0], d[1])), 0, math.atan2(d[1], d[0]) - math.pi / 2)
+        world.node_tree.nodes["Background"].inputs[0].default_value = (0.1, 0.11, 0.13, 1)
+        fill = bpy.data.lights.new("fill", "AREA"); fill.energy = 120; fill.size = 2
+        fo = bpy.data.objects.new("fill", fill); fo.location = (-1.5, -1.5, 1.2); fo.rotation_euler = (math.radians(50), 0, math.radians(-40))
+        sc.collection.objects.link(fo)
     sc.render.engine = "CYCLES"; sc.cycles.samples = 32
     sc.render.resolution_x, sc.render.resolution_y = 1800, 1050
     sc.render.film_transparent = False
     os.makedirs(OUT, exist_ok=True)
-    sc.render.filepath = os.path.join(OUT, "guns.png")
+    sc.render.filepath = os.path.join(OUT, "guns_hero.png" if hero else "guns.png")
     bpy.ops.render.render(write_still=True)
     print("wrote", sc.render.filepath, [NAMES[i] for i in range(10)])
 
