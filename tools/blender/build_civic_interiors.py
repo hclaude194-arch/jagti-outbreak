@@ -1726,18 +1726,27 @@ def build_all(zone):
     """Shells to export and their zones, rooms and furniture, numbering zones from zone."""
     out = []
     for make, furnish in BUILDERS:
-        C = make()
-        shell = civic_shell(C)
         n0, l0 = len(PLACED), len(LIGHTS)
-        if furnish is not None:
-            furnish(C)
-        else:
-            furnish_shop_ground(C)
-            (furnish_block2_upper if C.name == "Shopping & Medical 2" else furnish_block3_upper)(C)
-        for k in range(TOP + 1):
-            door_leaves(C, k)
-        entrance_leaves(C)
-        exit_signs(C)
+        # Interiors drawn at a block's first spot are built there and then moved to the layout's
+        # (B.INTERIOR_DESIGN); the others are drawn where they stand.
+        with B.at_design(list(B.INTERIOR_DESIGN)):
+            C = make()
+            shell = civic_shell(C)
+            if furnish is not None:
+                furnish(C)
+            else:
+                furnish_shop_ground(C)
+                (furnish_block2_upper if C.name == "Shopping & Medical 2" else furnish_block3_upper)(C)
+            for k in range(TOP + 1):
+                door_leaves(C, k)
+            entrance_leaves(C)
+            exit_signs(C)
+        dx, dz = B.design_shift(C.name)
+        for sp in C.spaces:
+            sp.rect = (sp.rect[0] + dx, sp.rect[1] + dx, sp.rect[2] + dz, sp.rect[3] + dz)
+        if C.hall is not None:
+            C.hall = (C.hall[0] + dx, C.hall[1] + dx, C.hall[2] + dz, C.hall[3] + dz)
+        I.shift_output(shell, PLACED[n0:], LIGHTS[l0:], [], dx, dz)
         rooms = []
         for sp in C.spaces:
             if sp.kind.endswith("_back"):

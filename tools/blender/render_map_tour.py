@@ -416,14 +416,15 @@ VIEWS = {
     "amphitheatre": (170, 225, 6, 175, 300, 0, 22),
     "water_terraces": (-75, 395, 3, -95, 150, -6, 26),
     "brahmaputra_hostel": (5, 130, 1.8, -28, 195, 8, 24),
-    "shops_street": (-50, 5, 1.8, -66, -95, 2, 24),
-    "mess": (25, -80, 1.8, -25, -110, 4, 24),
+    "shops_street": (-6, 2, 1.8, -32, -80, 3, 24),
+    "mess": (-8, -60, 1.8, -32, -125, 4, 24),
+    "mess_bank": (9, -178, 1.8, -28, -128, 7, 22),
+    "mess_area_aerial": (70, -20, 70, -70, -100, 0, 24),
     "hostels": (110, -190, 6, 50, -120, 4, 24),
     "sports": (120, -300, 10, 30, -280, 0, 22),
     "sindhu_hostel": (60, -330, 8, 55, -470, 0, 24),
     "water_tower_hill": (-80, -190, 2, -39, -254, 20, 26),
-    "staff_quarters": (-100, -20, 1.8, -138, -110, 3, 24),
-    "ravine": (330, 60, 1.8, 150, 80, 15, 24),
+    "faculty_residences": (-112, 2, 1.8, -128, -110, 8, 24),
     "girls_hostels": (180, -40, 45, 75, -150, 0, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
@@ -431,6 +432,9 @@ VIEWS = {
 PLANS = {
     "girls_hostels_plan": (85, -150, 240, "-X"),
     "campus_plan": (20, -40, 1150, "+Z"),
+    "mess_plan": (-70, -95, 280, "-X"),
+    "brahmaputra_plan": (-20, 190, 160, "-X"),
+    "sindhu_plan": (50, -460, 220, "-X"),
 }
 os.makedirs(OUT, exist_ok=True)
 only = [a for a in sys.argv[1:] if a in VIEWS or a in PLANS]

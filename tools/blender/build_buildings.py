@@ -1596,6 +1596,57 @@ CIVIC_DOORS = {
 }
 
 
+# Buildings whose interiors were drawn room by room in world coordinates at an earlier spot:
+# name -> (map x, map y) of the top-left corner they were drawn at. The layout may move them
+# (same size); the interior builders draw them at this spot and shift the result. The mess and
+# the shopping and medical blocks moved to the scale model's places on 2026-11-18.
+INTERIOR_DESIGN = {
+    "Shopping & Medical 1 (ATM)": (335, 1008),
+    "Shopping & Medical 2": (336, 1043),
+    "Shopping & Medical 3": (336, 1069),
+    "Annapurna Mess": (368, 1087),
+    "Annapurna Mess - Kitchen": (383, 1103),
+}
+
+
+def design_centre(name):
+    bd = BUILDINGS[name]
+    mx, my = INTERIOR_DESIGN[name]
+    return mx - 414.0 + bd["width"] / 2, 996.0 - my - bd["depth"] / 2
+
+
+def design_shift(name):
+    """(dx, dz) from the spot a building's interior was drawn at to its place in the layout."""
+    if name not in INTERIOR_DESIGN:
+        return 0.0, 0.0
+    X, Z = design_centre(name)
+    return BUILDINGS[name]["x"] - X, BUILDINGS[name]["z"] - Z
+
+
+class at_design:
+    """Context: the named buildings sit at their design spots in BUILDINGS (and the mess doors
+    follow), so code with world coordinates drawn there works; restored afterwards."""
+
+    def __init__(self, names):
+        self.names = [n for n in names if n in INTERIOR_DESIGN]
+
+    def __enter__(self):
+        global MESS_DOORS
+        self.saved = {n: (BUILDINGS[n]["x"], BUILDINGS[n]["z"]) for n in self.names}
+        self.doors = MESS_DOORS
+        for n in self.names:
+            BUILDINGS[n]["x"], BUILDINGS[n]["z"] = design_centre(n)
+        MESS_DOORS = mess_doors()
+        return self
+
+    def __exit__(self, *exc):
+        global MESS_DOORS
+        for n, (x, z) in self.saved.items():
+            BUILDINGS[n]["x"], BUILDINGS[n]["z"] = x, z
+        MESS_DOORS = self.doors
+        return False
+
+
 def box_rect(name):
     bd = BUILDINGS[name]
     return (bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] - bd["depth"] / 2, bd["z"] + bd["depth"] / 2)
@@ -1786,6 +1837,11 @@ def auto_models():
     groups = [
         ("Walled_Residence", ["Walled Residence", "Walled Residence - Wing"], "residential"),
     ]
+    # The professor residences (the scale model's 4): each tower is two stepped halves.
+    for k in range(1, 6):
+        parts = [n for n in BUILDINGS if n.startswith("Faculty Residence %d - " % k)]
+        if parts:
+            groups.append(("Faculty_Residence_%d" % k, parts, "residential"))
     named = {n for _, parts, _ in groups for n in parts}
     out = list(groups)
     skip = {"Main Gate", "Clock Tower", "Water Tower"}
@@ -1795,7 +1851,7 @@ def auto_models():
         n = name.lower()
         if "hostel" in n:
             style = "hostel"
-        elif "staff" in n or "block near atm" in n or "west building" in n:
+        elif "staff" in n or "faculty" in n or "block near atm" in n or "west building" in n:
             style = "residential"
         elif "shed" in n or "substation" in n or "pavilion" in n:
             style = "utility"
@@ -1957,14 +2013,16 @@ def water_tower():
     return m
 
 
+BRAHMAPUTRA = ["Brahmaputra Hostel - East Wing", "Brahmaputra Hostel - North Wing", "Brahmaputra Hostel - South Wing"]
+SINDHU_A = ["Sindhu Hostel A - North Wing", "Sindhu Hostel A - West Wing", "Sindhu Hostel A - South Wing"]
+SINDHU_B = ["Sindhu Hostel B - North Wing", "Sindhu Hostel B - West Wing", "Sindhu Hostel B - South Wing"]
 GIRLS_A = ["Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing"]
 GIRLS_B = ["Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing"]
 HAND_COVERED = {
     "Academic Block - North Wing", "Academic Block - South Wing", "Academic Block - West Wing",
     "Academic Block - East Wing", "Academic Block - Entrance", "Mandapam Auditorium (west drum)", "East Drum",
     "Annapurna Mess", "Annapurna Mess - Kitchen",
-    "Brahmaputra Hostel", "Brahmaputra Hostel - South",
-    "Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West", "Sindhu Hostel - Step 2", "Sindhu Hostel - South",
+    *BRAHMAPUTRA, *SINDHU_A, *SINDHU_B,
     "Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing",
     "Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing",
     "Shopping & Medical 1 (ATM)", "Shopping & Medical 2", "Shopping & Medical 3", "Sports Complex",
@@ -1980,9 +2038,10 @@ MODELS = [
     mess,
     amphitheatre_pond,
     water_tower,
-    lambda: detailed_model("Brahmaputra_Hostel", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"], "hostel"),
-    lambda: detailed_model("Sindhu_Hostel", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
-                                             "Sindhu Hostel - Step 2", "Sindhu Hostel - South"], "hostel"),
+    # The boys' hostels are U blocks too (owner, 2026-11-18).
+    lambda: detailed_model("Brahmaputra_Hostel", BRAHMAPUTRA, "hostel"),
+    lambda: detailed_model("Sindhu_Hostel_A", SINDHU_A, "hostel"),
+    lambda: detailed_model("Sindhu_Hostel_B", SINDHU_B, "hostel"),
     # The girls' hostels: two U blocks round badminton courtyards (the owner's top view).
     lambda: detailed_model("Girls_Hostel_A", GIRLS_A, "hostel"),
     lambda: detailed_model("Girls_Hostel_B", GIRLS_B, "hostel"),

@@ -206,6 +206,21 @@ def p_volleyball_net():
     return m
 
 
+@oprop("Retaining_Wall", solid=True)
+def p_retaining_wall():
+    """4 m of stone retaining wall along X, 2.4 m thick, its top level with the terrace it holds
+    (z = 0) and its foot buried 16 m down; a concrete coping and a parapet on the -Y (low) side,
+    with a plinth and weep holes along the face."""
+    m = new("Retaining_Wall")
+    bx(m, -2.01, 2.01, -1.2, 1.2, -16.0, -0.12, "Stone")
+    bx(m, -2.01, 2.01, -1.25, 1.2, -0.12, 0.0, "Concrete")
+    bx(m, -2.01, 2.01, -1.25, -0.95, 0.0, 0.9, "Stone")
+    bx(m, -2.03, 2.03, -1.3, -0.9, 0.9, 0.98, "Concrete")
+    for x in (-1.0, 1.0):
+        bx(m, x - 0.06, x + 0.06, -1.22, -1.19, -4.0, -3.88, "Metal")
+    return m
+
+
 @oprop("Badminton_Net", solid=True)
 def p_badminton_net():
     """Badminton posts and a 6.1 m net, its top 1.55 m up, centred, net along X."""
@@ -680,6 +695,19 @@ def fence_round(x0, x1, z0, z1):
             place("Fence_Panel", X, Z, yaw)
 
 
+def retaining_walls():
+    """The stone wall holding the mess terrace up beside the spine road (generate_terrain.py
+    keeps the terrace up to RETAINING_X), wherever the drop to the road is over a metre."""
+    X = -1.0                       # wall centre: its 2.4 m thickness covers the step
+    for k in range(40):
+        Z = -9.0 - 4.0 * k
+        if Z < -162.0:
+            break
+        if ground(-4.0, Z) - ground(2.5, Z) < 1.0:
+            continue
+        place("Retaining_Wall", X, Z, 90.0, gx=-4.0, gz=Z)
+
+
 def courts():
     """Fences round the sports and tennis courts, hoops on the first sports court and on the
     big courts, volleyball nets on the other sports courts, tennis nets on the tennis pair and
@@ -748,6 +776,7 @@ def shop_signs():
 
 def main():
     os.makedirs(I.PROP_DIR, exist_ok=True)
+    retaining_walls()
     courts()
     shops_walk_furniture()
     name_boards()
