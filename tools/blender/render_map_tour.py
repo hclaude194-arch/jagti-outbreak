@@ -122,6 +122,9 @@ for (x0, x1, z0, z1) in [(-1000, 1048, -1044, CAMPUS[2]), (-1000, 1048, CAMPUS[3
 # ------------------------------------------------------------------ strips: roads, paths, water
 
 
+STRIPS = [0]
+
+
 def strip(name, pts, width, lift, mat):
     dense = []
     for a, b in zip(pts[:-1], pts[1:]):
@@ -134,16 +137,21 @@ def strip(name, pts, width, lift, mat):
         return
     bm = bmesh.new()
     rows = []
+    STRIPS[0] += 1
+    bias = 0.003 * (STRIPS[0] % 7)   # crossing strips never share a plane
     for i, (x, z) in enumerate(dense):
         q = dense[min(i + 1, len(dense) - 1)]
         p = dense[max(i - 1, 0)]
         dx, dz = q[0] - p[0], q[1] - p[1]
         L = math.hypot(dx, dz) or 1
         nx, nz = -dz / L * width / 2, dx / L * width / 2
-        rows.append((bm.verts.new((x + nx, z + nz, ground(x + nx, z + nz) + lift)),
-                     bm.verts.new((x - nx, z - nz, ground(x - nx, z - nz) + lift))))
+        rows.append((bm.verts.new((x + nx, z + nz, ground(x + nx, z + nz) + lift + bias)),
+                     bm.verts.new((x - nx, z - nz, ground(x - nx, z - nz) + lift + bias))))
     for (a1, b1), (a2, b2) in zip(rows[:-1], rows[1:]):
-        bm.faces.new((a1, b1, b2, a2))
+        f = bm.faces.new((a1, b1, b2, a2))
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()     # all strips face up (crossings rendered black otherwise)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     me.materials.append(mat)
@@ -413,6 +421,7 @@ VIEWS = {
     "gate": (-150, 600, 1.8, -105, 515, 4, 28),
     "clock_tower": (72, 408, 1.8, 74, 470, 10, 24),
     "academic_block": (215, 250, 14, 80, 300, 8, 24),
+    "academic_courtyard": (58, 248, 9.6, 92, 300, 0, 22),
     "amphitheatre": (170, 225, 6, 175, 300, 0, 22),
     "water_terraces": (-75, 395, 3, -95, 150, -6, 26),
     "brahmaputra_hostel": (5, 130, 1.8, -28, 195, 8, 24),

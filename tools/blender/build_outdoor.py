@@ -82,6 +82,42 @@ def p_bollard_light():
     return m
 
 
+@oprop("Garden_Lamp")
+def p_garden_lamp():
+    """Slim courtyard lamp post, 4.2 m, a black pole with a flat disc lamp on top (owner's
+    photo of the academic courtyard)."""
+    m = new("Garden_Lamp")
+    cyl(m, 0, 0, 0.12, 0.0, 0.35, "Concrete", seg=10)
+    cyl(m, 0, 0, 0.045, 0.35, 4.0, "Metal", seg=8)
+    cyl(m, 0, 0, 0.26, 4.0, 4.1, "Lamp_Glow", seg=14)
+    cyl(m, 0, 0, 0.3, 4.1, 4.2, "Metal", seg=14)
+    return m
+
+
+@oprop("Palm_Small")
+def p_palm_small():
+    """A young palm about 3 m high: a ringed trunk, slightly leaning, and a crown of drooping
+    fronds made of thin leaf blades."""
+    m = new("Palm_Small")
+    rnd = random.Random(31)
+    lean = 0.0
+    for k in range(6):
+        z0, z1 = 0.45 * k, 0.45 * (k + 1)
+        cyl(m, lean, 0.0, 0.11 - 0.008 * k, z0, z1, "Wood", seg=7)
+        lean += 0.025
+    top = 2.7
+    cyl(m, lean, 0.0, 0.16, top - 0.3, top + 0.1, "Foliage", seg=7)
+    for k in range(9):
+        a = 2 * math.pi * k / 9 + rnd.uniform(-0.15, 0.15)
+        ca, sa = math.cos(a), math.sin(a)
+        # Each frond: three blades getting narrower, rising a little then drooping.
+        for j, (r0, r1, dz, w) in enumerate(((0.05, 0.6, 0.12, 0.2), (0.55, 1.1, 0.02, 0.17), (1.05, 1.5, -0.3, 0.11))):
+            x0, x1 = lean + ca * r0, lean + ca * r1
+            y0, y1 = sa * r0, sa * r1
+            obox(m, (x0 + x1) / 2, (y0 + y1) / 2, (r1 - r0) / 2 + 0.06, w, a, top + dz - 0.04, top + dz + 0.04, "Foliage")
+    return m
+
+
 @oprop("Park_Bench", solid=True)
 def p_park_bench():
     """Campus bench: sandstone end blocks, five wooden slats on the seat, three on the back,
@@ -455,11 +491,41 @@ def lamp_posts():
             side = -side
 
 
+def courtyard_lamps_and_palms(r, poly):
+    """Academic courtyard (owner's photo): slim lamp posts and young palms just off the paved
+    paths, beyond the hedges, alternating sides; nothing round the central pool."""
+    if r["name"] == "Courtyard Centre Square":
+        return
+    side = 1.0
+    for k, (P_, t, d) in enumerate(walk(poly, 9.0, 4.5)):
+        n = (-t[1] * side, t[0] * side)
+        Q = (P_[0] + n[0] * (r["width"] / 2 + 1.1), P_[1] + n[1] * (r["width"] / 2 + 1.1))
+        if not taken(Q, 3.0) and not near_road_except(Q, r, 1.6):
+            place("Garden_Lamp", Q[0], Q[1], 0.0)
+        Qp = (P_[0] - n[0] * (r["width"] / 2 + 1.6), P_[1] - n[1] * (r["width"] / 2 + 1.6))
+        if k % 2 == 1 and not taken(Qp, 3.0) and not near_road_except(Qp, r, 2.0):
+            place("Palm_Small", Qp[0], Qp[1], (k * 47.0) % 360.0)
+        side = -side
+
+
+def near_road_except(Q, r, gap):
+    """Is Q within gap of the edge of any road or path other than r?"""
+    for r2, poly2 in ROAD_PTS:
+        if r2 is r:
+            continue
+        if line_dist(Q, poly2) < r2["width"] / 2 + gap:
+            return True
+    return False
+
+
 def path_lights_and_benches():
     for r, poly in ROAD_PTS:
         if not is_path(r):
             continue
-        step = 12.0 if r["name"].startswith(("Courtyard", "Plaza")) else 16.0
+        if r["name"].startswith("Courtyard"):
+            courtyard_lamps_and_palms(r, poly)
+            continue
+        step = 12.0 if r["name"].startswith("Plaza") else 16.0
         side = 1.0
         for k, (P_, t, d) in enumerate(walk(poly, step, step / 2)):
             n = (-t[1] * side, t[0] * side)

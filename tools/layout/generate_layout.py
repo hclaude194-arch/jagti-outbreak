@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 18
+VERSION = 19
 
 
 def to_world(x, y):
@@ -180,10 +180,12 @@ ROADS = [
     ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 763]], True),
         ("Clock Tower Walkway", 4, [[486, 523], [486, 613]], False),
     # Cross-shaped garden paths in the academic courtyard (campus model).
-    ("Courtyard Path North-South", 2.5, [[489, 680], [489, 750]], False),
-    ("Courtyard Path East-West", 2.5, [[467, 715], [511, 715]], False),
-    ("Courtyard Path Loop", 2.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
-    ("Courtyard Centre Square", 8.0, [[485, 715], [493, 715]], False),
+    # Widened to the owner's photo of the courtyard (2026-11-18): wide paved cross paths, a loop
+    # round the middle and a paved square round the central pool.
+    ("Courtyard Path North-South", 4.0, [[489, 680], [489, 750]], False),
+    ("Courtyard Path East-West", 4.0, [[467, 715], [511, 715]], False),
+    ("Courtyard Path Loop", 3.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
+    ("Courtyard Centre Square", 9.0, [[489, 710], [489, 720]], False),
     # Paved walks (Phase 4D): past the shop fronts of the shopping and medical blocks and on to
     # Annapurna Mess's west door, and from the spine road to the sports complex lobby.
     ("Plaza Shops Walk", 4, [[405, 994], [405, 1099], [358, 1099], [358, 1115]], False),
@@ -291,8 +293,8 @@ POOLS = [
 # Trees planted in rows or spots that the scattered planting would miss
 # (kind: 0 broadleaf, 1 eucalyptus, 2 pine, 3 shrub; spacing m; offset east of the line m).
 TREE_ROWS = [(0, 7.5, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 7.5, -3.5, TERRACE_LINES[4])]
-# Courtyard garden: a tree in each corner of the eight planted beds round the centre square.
-TREE_SPOTS = [(0, x, y) for x in (471, 480, 498, 507) for y in (686, 702, 728, 744)]
+# Courtyard garden: open lawns now (owner's photo); its small palms are outdoor props.
+TREE_SPOTS = []
 
 # Boundary wall polygon from the map
 BOUNDARY = [[282, 468], [560, 468], [590, 600], [645, 690], [645, 830], [640, 1000], [640, 1200], [604, 1380], [560, 1565], [380, 1565], [332, 1440], [262, 1300], [262, 1000], [290, 860], [296, 700], [278, 560]]
