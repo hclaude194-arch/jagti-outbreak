@@ -1957,14 +1957,16 @@ def water_tower():
     return m
 
 
+GIRLS_A = ["Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing"]
+GIRLS_B = ["Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing"]
 HAND_COVERED = {
     "Academic Block - North Wing", "Academic Block - South Wing", "Academic Block - West Wing",
     "Academic Block - East Wing", "Academic Block - Entrance", "Mandapam Auditorium (west drum)", "East Drum",
     "Annapurna Mess", "Annapurna Mess - Kitchen",
     "Brahmaputra Hostel", "Brahmaputra Hostel - South",
     "Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West", "Sindhu Hostel - Step 2", "Sindhu Hostel - South",
-    "Hostel U - West", "Hostel U - North", "Hostel U - East",
-    "Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3",
+    "Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing",
+    "Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing",
     "Shopping & Medical 1 (ATM)", "Shopping & Medical 2", "Shopping & Medical 3", "Sports Complex",
 }
 CIVIC_4D = [("Shopping_Medical_1_ATM", "Shopping & Medical 1 (ATM)"), ("Shopping_Medical_2", "Shopping & Medical 2"),
@@ -1981,9 +1983,9 @@ MODELS = [
     lambda: detailed_model("Brahmaputra_Hostel", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"], "hostel"),
     lambda: detailed_model("Sindhu_Hostel", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
                                              "Sindhu Hostel - Step 2", "Sindhu Hostel - South"], "hostel"),
-    lambda: detailed_model("Hostel_U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"], "hostel"),
-    # The three chain blocks are one stepped building on the satellite view, joined corner to corner.
-    lambda: detailed_model("Hostel_Chain", ["Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3"], "hostel"),
+    # The girls' hostels: two U blocks round badminton courtyards (the owner's top view).
+    lambda: detailed_model("Girls_Hostel_A", GIRLS_A, "hostel"),
+    lambda: detailed_model("Girls_Hostel_B", GIRLS_B, "hostel"),
 ]
 MODELS += [(lambda mn=mn, n=n: detailed_model(mn, [n], "civic", doors=door_points(n), shops=shop_points(n)))
            for mn, n in CIVIC_4D]

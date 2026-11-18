@@ -148,8 +148,27 @@
    ]
   },
   {
-   "name": "Hostel_U",
-   "fbx": "Assets/Models/Buildings/Hostel_U.fbx",
+   "name": "Girls_Hostel_A",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_A.fbx",
+   "pivotX": 33.0,
+   "pivotZ": -121.0,
+   "boundsMin": [
+    18.0,
+    -202.0
+   ],
+   "boundsMax": [
+    48.0,
+    -108.0
+   ],
+   "replaces": [
+    "Girls Hostel A - North Wing",
+    "Girls Hostel A - West Wing",
+    "Girls Hostel A - South Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_B",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_B.fbx",
    "pivotX": 56.0,
    "pivotZ": -102.0,
    "boundsMin": [
@@ -161,28 +180,9 @@
     -82.0
    ],
    "replaces": [
-    "Hostel U - West",
-    "Hostel U - North",
-    "Hostel U - East"
-   ]
-  },
-  {
-   "name": "Hostel_Chain",
-   "fbx": "Assets/Models/Buildings/Hostel_Chain.fbx",
-   "pivotX": 35.0,
-   "pivotZ": -133.0,
-   "boundsMin": [
-    20.0,
-    -188.0
-   ],
-   "boundsMax": [
-    51.0,
-    -122.0
-   ],
-   "replaces": [
-    "Hostel Chain 1",
-    "Hostel Chain 2",
-    "Hostel Chain 3"
+    "Girls Hostel B - West Wing",
+    "Girls Hostel B - North Wing",
+    "Girls Hostel B - East Wing"
    ]
   },
   {

@@ -2,7 +2,7 @@
 """Phase 4C: walk-in hostels and Annapurna Mess. Imported by build_interiors.py, which writes
 the shells and furniture of every building into interiors.json (one zone per building).
 
-Hostels (Brahmaputra, Hostel U, the three chain blocks and Sindhu) have seven floors. Each
+Hostels (Brahmaputra, the two girls' hostels and Sindhu) have seven floors. Each
 wing of a hostel model is planned on its own from its facade (build_buildings.hostel_facade):
     - one room behind each window bay, so every room has its window pair;
     - wide wings (20 m or more) get a ring corridor round a core of washrooms, baths, a pantry
@@ -37,8 +37,8 @@ EPS = 1e-6
 
 HOSTELS = [
     ("Brahmaputra_Hostel", "Brahmaputra", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"]),
-    ("Hostel_U", "Hostel U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"]),
-    ("Hostel_Chain", "Chain Block", ["Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3"]),
+    ("Girls_Hostel_A", "Girls Hostel A", B.GIRLS_A),
+    ("Girls_Hostel_B", "Girls Hostel B", B.GIRLS_B),
     ("Sindhu_Hostel", "Sindhu", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
                                  "Sindhu Hostel - Step 2", "Sindhu Hostel - South"]),
 ]

@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 16
+VERSION = 17
 
 
 def to_world(x, y):
@@ -75,14 +75,17 @@ BUILDINGS = [
     ("Shopping & Medical 3", "central", 336, 1069, 15, 22, 3, "box"),
     ("Annapurna Mess", "central", 368, 1087, 29, 26, 2, "box"),
     ("Annapurna Mess - Kitchen", "central", 383, 1103, 30, 29, 2, "box"),
-    ("Hostel U - West", "hostels", 462, 1078, 16, 40, 7, "box"),
-    ("Hostel U - North", "hostels", 478, 1078, 43, 18, 7, "box"),
-    ("Hostel U - East", "hostels", 521, 1078, 14, 40, 7, "box"),
-    # The chain is one stepped building (satellite view and the institute's model): its blocks
-    # touch, and Chain 1 meets Hostel U's west wing at a corner.
-    ("Hostel Chain 1", "hostels", 436, 1118, 26, 22, 7, "box"),
-    ("Hostel Chain 2", "hostels", 434, 1140, 26, 22, 7, "box"),
-    ("Hostel Chain 3", "hostels", 437, 1162, 28, 22, 7, "box"),
+    # Girls' hostels (label 9 on the institute's scale model; the owner's top view of 2026-11-18):
+    # two U-shaped blocks round courtyards with badminton courts, and a pair of tennis courts
+    # beside the running track. B is the U traced from the satellite view (opening south); A
+    # replaces the stepped chain with the model's U opening east, and its north wing meets B's
+    # west wing face to face so the corridors join.
+    ("Girls Hostel B - West Wing", "hostels", 462, 1078, 16, 40, 7, "box"),
+    ("Girls Hostel B - North Wing", "hostels", 478, 1078, 43, 18, 7, "box"),
+    ("Girls Hostel B - East Wing", "hostels", 521, 1078, 14, 40, 7, "box"),
+    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 30, 26, 7, "box"),
+    ("Girls Hostel A - West Wing", "hostels", 432, 1130, 14, 40, 7, "box"),
+    ("Girls Hostel A - South Wing", "hostels", 432, 1170, 30, 28, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
@@ -183,7 +186,13 @@ AREAS = [
     ("lawn", "box", 430, 560, 40, 60),
     ("lawn", "box", 293, 908, 100, 72),
     ("lawn", "box", 460, 1409, 51, 88),
-    ("court", "box", 480, 1097, 39, 20),
+    # Girls' hostel courtyards: a lawn with two badminton courts in each (courts under 16 m).
+    ("lawn", "box", 446, 1130, 16, 40),
+    ("court", "box", 447, 1139, 13, 6),
+    ("court", "box", 447, 1155, 13, 6),
+    ("lawn", "box", 478, 1096, 43, 22),
+    ("court", "box", 489, 1100, 6, 13),
+    ("court", "box", 504, 1100, 6, 13),
     ("courtyard", "box", 465, 678, 48, 74),
     ("lawn", "ellipse", 312, 1056, 22, 100),
     ("parking", "box", 379, 840, 20, 50),
@@ -191,6 +200,7 @@ AREAS = [
     ("court", "box", 440, 1207, 26, 28),
     ("court", "box", 440, 1237, 26, 28),
     ("court", "box", 440, 1267, 26, 26),
+    ("court", "box", 478, 1124, 28, 30),   # the girls' hostel tennis courts (a pair)
     ("track", "ellipse", 517, 1261, 96, 170),
     ("field", "ellipse", 517, 1261, 74, 146),
     ("amphitheatre", "box", 565, 688, 64, 114),
@@ -215,7 +225,7 @@ PLACES = [
     ("Shopping Block", 343, 1068),
     ("Annapurna Mess (Dining Block)", 392, 1108),
     ("Staff Residences", 278, 1080),
-    ("Hostel Blocks", 498, 1098),
+    ("Girls' Hostels", 459, 1126),
     ("Sports Courts", 453, 1237),
     ("Indoor Games Block", 450, 1324),
     ("Athletics Track", 517, 1261),

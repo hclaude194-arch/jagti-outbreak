@@ -93,7 +93,7 @@ The last group of buildings can now be entered, and the campus outside has stree
 
 ## Phase 4C: walk-in hostels and Annapurna Mess
 
-Every hostel can now be entered and explored on all seven floors: Brahmaputra, Hostel U, the three chain blocks and Sindhu.
+Every hostel can now be entered and explored on all seven floors: Brahmaputra, the two girls' hostel U blocks and Sindhu.
 
 - **Entrances:** each wing has a front door with a concrete canopy and steps, in the bay beside a jali stair slot. Glass doors stand open inside it, and the security desk and notice board are in the entrance lobby. The warden's office is next door.
 - **Floors:** one room behind every window pair, so each room has its window and curtains. Wide wings have a corridor running round a central core of washrooms, bathing areas, a pantry and a common room; narrow wings have a corridor down the middle. A dog-leg stair rises behind the jali screens (you can see the lattice from the landings) to the top floor. Where two wings meet, a passage joins their corridors, so you can walk right through Sindhu or round Hostel U without going outside.
