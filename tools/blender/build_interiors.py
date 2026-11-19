@@ -2889,6 +2889,10 @@ def shift_output(shell, props, lights, rooms, dx, dz):
         return
     shell.px += dx
     shell.pz += dz
+    # The shell's world rectangles move with it: interiors.json takes each zone's bounds from them,
+    # and stale ones left the Medical Centre and the mess zones beside their buildings, so the
+    # interior hid while the player stood inside.
+    shell.solid = [(x0 + dx, x1 + dx, z0 + dz, z1 + dz) for x0, x1, z0, z1 in shell.solid]
     for p in list(props) + list(lights):
         p["x"] = round(p["x"] + dx, 3)
         p["z"] = round(p["z"] + dz, 3)
