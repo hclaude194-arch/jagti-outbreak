@@ -185,7 +185,7 @@ namespace Jagti.EditorTools
             bloom.scatter.value = 0.65f;
             bloom.tint.value = new Color(1f, 0.95f, 0.88f);
             bloom.highQualityFiltering.value = false;
-            bloom.skipIterations.value = 2;
+            bloom.maxIterations.value = 5;   // fewer passes than the default 6, for integrated graphics
 
             var vignette = profile.Add<Vignette>(true);
             vignette.color.value = new Color(0.05f, 0.04f, 0.03f);
