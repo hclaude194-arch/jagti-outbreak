@@ -23,6 +23,9 @@ namespace Jagti.Royale
             public string text;
             public float time;
             public bool involvesPlayer;
+            // The parts, for the HUD's kill feed: killer is null when nobody got the kill.
+            public string killer, victim, weapon;
+            public bool head, byPlayer, ofPlayer;
         }
 
         [Header("Scene parts (set by RoyaleBuilder)")]
@@ -416,7 +419,13 @@ namespace Jagti.Royale
             else if (weapon == NetMatch.LeftWeapon) text = victim.displayName + " left the match";
             else text = victim.displayName + " is out";
             bool mine = victim.isPlayer || (killer != null && killer.isPlayer);
-            feed.Add(new FeedLine { text = text, time = Time.time, involvesPlayer = mine });
+            bool credited = killer != null && killer != victim;
+            feed.Add(new FeedLine
+            {
+                text = text, time = Time.time, involvesPlayer = mine,
+                killer = credited ? killer.displayName : null, victim = victim.displayName, weapon = weapon, head = head,
+                byPlayer = credited && killer.isPlayer, ofPlayer = victim.isPlayer,
+            });
             if (feed.Count > 30) feed.RemoveAt(0);
             if (killer != null && killer.isPlayer) GameState.Kills = killer.Kills;
 

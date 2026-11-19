@@ -92,6 +92,13 @@ namespace Jagti.Royale
             BuildViews();
         }
 
+        /// <summary>The field of view when not aiming (the settings menu changes it).</summary>
+        public void SetBaseFov(float fov)
+        {
+            baseFov = fov;
+            if (cam != null && aimBlend <= 0f) cam.fieldOfView = fov;
+        }
+
         void OnPlayerHit(bool head, bool kill)
         {
             HitMarker = 1f;
