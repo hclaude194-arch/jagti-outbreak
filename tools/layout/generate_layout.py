@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 22
+VERSION = 23
 
 
 def to_world(x, y):
@@ -300,7 +300,8 @@ POOLS = [
 ]
 # Trees planted in rows or spots that the scattered planting would miss
 # (kind: 0 broadleaf, 1 eucalyptus, 2 pine, 3 shrub; spacing m; offset east of the line m).
-TREE_ROWS = [(0, 7.5, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 7.5, -3.5, TERRACE_LINES[4])]
+# Sparse planted rows (the owner's photos show few trees on the campus, 2026-11-19).
+TREE_ROWS = [(0, 18.0, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 18.0, -3.5, TERRACE_LINES[4])]
 # Courtyard garden: open lawns now (owner's photo); its small palms are outdoor props.
 TREE_SPOTS = []
 

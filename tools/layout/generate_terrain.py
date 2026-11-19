@@ -768,11 +768,11 @@ def clear_at(x, z, gap):
     return road_dist[i, j] > gap and pad_mask[i, j] < 0.05
 
 
-# Avenue trees along the main campus roads.
+# Avenue trees along campus roads. The owner's photos and video (2026-11-19) show few trees on
+# the campus: its roads are lined with kerbed beds of shrubs and young palms (outdoor props in
+# build_outdoor.py), not tree avenues. Only the gate approach keeps a short eucalyptus row.
 AVENUES = {
-    "Spine Road North": (EUCA, 13), "Spine Road South": (EUCA, 13), "Academic Ring": (BROAD, 15), "Academic West Drive": (BROAD, 15),
-    "Central East-West Road": (BROAD, 14), "Serpentine Drive": (BROAD, 16), "Gate Approach": (EUCA, 10),
-    "Southern East-West Road": (BROAD, 15), "Track Road": (EUCA, 16), "Oval Loop": (BROAD, 14),
+    "Gate Approach": (EUCA, 14),
 }
 for name, width, pts in roads:
     if name not in AVENUES:
@@ -804,7 +804,9 @@ JZ = GZ + rng.uniform(-step / 2, step / 2, GZ.shape)
 fi = np.clip(((JZ - MIN_Z) / CELL).round().astype(int), 0, RES - 1)
 fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
 o = outside[fi, fj]
-density = np.where(sd[fi, fj] < 0, 0.035 + 0.32 * hill_mask[fi, fj],
+# Inside the campus only a sprinkle of trees and bushes, and the pine wood on the hill by the
+# courts (owner's photos, 2026-11-19); outside, scrub forest in the ravines.
+density = np.where(sd[fi, fj] < 0, 0.006 + 0.32 * hill_mask[fi, fj],
                    (0.30 - 0.22 * smoothstep(200, 650, o)) * (1 - smoothstep(650, 900, o)) * smoothstep(3, 15, o))
 density *= 0.5 + 0.8 * np.clip(0.5 - n_patch[fi, fj], 0, 1)   # clumps
 density *= 1 - farm_mask[fi, fj] * 0.92                        # few trees in fields
@@ -818,11 +820,11 @@ for x, z, i, j in zip(JX[keep], JZ[keep], fi[keep], fj[keep]):
     if sd[i, j] < 0 and hill_mask[i, j] > 0.3:
         kind = PINE if r < 0.6 else (BROAD if r < 0.8 else SHRUB)  # pine wood on the hill by the courts
     elif sd[i, j] < 0:
-        kind = BROAD if r < 0.55 else (SHRUB if r < 0.8 else EUCA)
+        kind = SHRUB if r < 0.6 else BROAD
     elif slope[i, j] > 18:
-        kind = PINE if r < 0.45 else (SHRUB if r < 0.8 else BROAD)
+        kind = SHRUB if r < 0.55 else (BROAD if r < 0.9 else PINE)
     else:
-        kind = BROAD if r < 0.4 else (SHRUB if r < 0.75 else (PINE if r < 0.88 else EUCA))
+        kind = BROAD if r < 0.45 else (SHRUB if r < 0.85 else EUCA)
     trees.append((float(x), float(z), kind, float(rng.uniform(0.75, 1.3))))
 
 # Planted rows on the water terraces and trees in the courtyard garden beds.
