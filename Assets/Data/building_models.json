@@ -61,15 +61,15 @@
   {
    "name": "Annapurna_Mess",
    "fbx": "Assets/Models/Buildings/Annapurna_Mess.fbx",
-   "pivotX": -31.5,
-   "pivotZ": -104.0,
+   "pivotX": -36.5,
+   "pivotZ": -119.0,
    "boundsMin": [
-    -46.0,
-    -136.0
+    -51.0,
+    -151.0
    ],
    "boundsMax": [
-    -1.0,
-    -91.0
+    -6.0,
+    -106.0
    ],
    "replaces": [
     "Annapurna Mess",
@@ -111,45 +111,82 @@
   {
    "name": "Brahmaputra_Hostel",
    "fbx": "Assets/Models/Buildings/Brahmaputra_Hostel.fbx",
-   "pivotX": -25.0,
-   "pivotZ": 201.0,
+   "pivotX": -22.0,
+   "pivotZ": 192.0,
    "boundsMin": [
-    -43.0,
-    160.0
+    -50.0,
+    158.0
    ],
    "boundsMax": [
     -14.0,
-    214.0
+    226.0
    ],
    "replaces": [
-    "Brahmaputra Hostel",
-    "Brahmaputra Hostel - South"
+    "Brahmaputra Hostel - East Wing",
+    "Brahmaputra Hostel - North Wing",
+    "Brahmaputra Hostel - South Wing"
    ]
   },
   {
-   "name": "Sindhu_Hostel",
-   "fbx": "Assets/Models/Buildings/Sindhu_Hostel.fbx",
-   "pivotX": 70.0,
-   "pivotZ": -398.5,
+   "name": "Sindhu_Hostel_A",
+   "fbx": "Assets/Models/Buildings/Sindhu_Hostel_A.fbx",
+   "pivotX": 40.0,
+   "pivotZ": -394.0,
    "boundsMin": [
-    19.0,
-    -541.0
+    20.0,
+    -459.0
    ],
    "boundsMax": [
-    95.0,
+    60.0,
     -383.0
    ],
    "replaces": [
-    "Sindhu Hostel - North",
-    "Sindhu Hostel - Step 1",
-    "Sindhu Hostel - West",
-    "Sindhu Hostel - Step 2",
-    "Sindhu Hostel - South"
+    "Sindhu Hostel A - North Wing",
+    "Sindhu Hostel A - West Wing",
+    "Sindhu Hostel A - South Wing"
    ]
   },
   {
-   "name": "Hostel_U",
-   "fbx": "Assets/Models/Buildings/Hostel_U.fbx",
+   "name": "Sindhu_Hostel_B",
+   "fbx": "Assets/Models/Buildings/Sindhu_Hostel_B.fbx",
+   "pivotX": 40.0,
+   "pivotZ": -476.0,
+   "boundsMin": [
+    20.0,
+    -541.0
+   ],
+   "boundsMax": [
+    60.0,
+    -465.0
+   ],
+   "replaces": [
+    "Sindhu Hostel B - North Wing",
+    "Sindhu Hostel B - West Wing",
+    "Sindhu Hostel B - South Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_A",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_A.fbx",
+   "pivotX": 33.0,
+   "pivotZ": -121.0,
+   "boundsMin": [
+    18.0,
+    -202.0
+   ],
+   "boundsMax": [
+    48.0,
+    -108.0
+   ],
+   "replaces": [
+    "Girls Hostel A - North Wing",
+    "Girls Hostel A - West Wing",
+    "Girls Hostel A - South Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_B",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_B.fbx",
    "pivotX": 56.0,
    "pivotZ": -102.0,
    "boundsMin": [
@@ -161,42 +198,23 @@
     -82.0
    ],
    "replaces": [
-    "Hostel U - West",
-    "Hostel U - North",
-    "Hostel U - East"
-   ]
-  },
-  {
-   "name": "Hostel_Chain",
-   "fbx": "Assets/Models/Buildings/Hostel_Chain.fbx",
-   "pivotX": 35.0,
-   "pivotZ": -133.0,
-   "boundsMin": [
-    20.0,
-    -188.0
-   ],
-   "boundsMax": [
-    51.0,
-    -122.0
-   ],
-   "replaces": [
-    "Hostel Chain 1",
-    "Hostel Chain 2",
-    "Hostel Chain 3"
+    "Girls Hostel B - West Wing",
+    "Girls Hostel B - North Wing",
+    "Girls Hostel B - East Wing"
    ]
   },
   {
    "name": "Shopping_Medical_1_ATM",
    "fbx": "Assets/Models/Buildings/Shopping_Medical_1_ATM.fbx",
-   "pivotX": -71.0,
-   "pivotZ": -27.0,
+   "pivotX": -36.0,
+   "pivotZ": -39.0,
    "boundsMin": [
-    -79.0,
-    -42.0
+    -44.0,
+    -54.0
    ],
    "boundsMax": [
-    -63.0,
-    -12.0
+    -28.0,
+    -24.0
    ],
    "replaces": [
     "Shopping & Medical 1 (ATM)"
@@ -205,15 +223,15 @@
   {
    "name": "Shopping_Medical_2",
    "fbx": "Assets/Models/Buildings/Shopping_Medical_2.fbx",
-   "pivotX": -70.5,
-   "pivotZ": -58.0,
+   "pivotX": -36.5,
+   "pivotZ": -89.0,
    "boundsMin": [
-    -78.0,
-    -69.0
+    -44.0,
+    -100.0
    ],
    "boundsMax": [
-    -63.0,
-    -47.0
+    -29.0,
+    -78.0
    ],
    "replaces": [
     "Shopping & Medical 2"
@@ -222,15 +240,15 @@
   {
    "name": "Shopping_Medical_3",
    "fbx": "Assets/Models/Buildings/Shopping_Medical_3.fbx",
-   "pivotX": -70.5,
-   "pivotZ": -84.0,
+   "pivotX": -21.5,
+   "pivotZ": -67.0,
    "boundsMin": [
-    -78.0,
-    -95.0
+    -29.0,
+    -78.0
    ],
    "boundsMax": [
-    -63.0,
-    -73.0
+    -14.0,
+    -56.0
    ],
    "replaces": [
     "Shopping & Medical 3"
@@ -272,139 +290,93 @@
    ]
   },
   {
-   "name": "Block_near_ATM",
-   "fbx": "Assets/Models/Buildings/Block_near_ATM.fbx",
-   "pivotX": -29.5,
-   "pivotZ": -32.0,
+   "name": "Faculty_Residence_1",
+   "fbx": "Assets/Models/Buildings/Faculty_Residence_1.fbx",
+   "pivotX": -82.5,
+   "pivotZ": -119.0,
    "boundsMin": [
-    -38.0,
-    -43.0
+    -90.0,
+    -130.0
    ],
    "boundsMax": [
-    -21.0,
-    -21.0
+    -71.0,
+    -86.0
    ],
    "replaces": [
-    "Block near ATM"
+    "Faculty Residence 1 - South",
+    "Faculty Residence 1 - North"
    ]
   },
   {
-   "name": "Block_near_ATM_2",
-   "fbx": "Assets/Models/Buildings/Block_near_ATM_2.fbx",
-   "pivotX": -22.0,
-   "pivotZ": -61.0,
+   "name": "Faculty_Residence_2",
+   "fbx": "Assets/Models/Buildings/Faculty_Residence_2.fbx",
+   "pivotX": -82.5,
+   "pivotZ": -66.0,
    "boundsMin": [
-    -33.0,
-    -69.0
-   ],
-   "boundsMax": [
-    -11.0,
-    -53.0
-   ],
-   "replaces": [
-    "Block near ATM 2"
-   ]
-  },
-  {
-   "name": "Block_near_ATM_3",
-   "fbx": "Assets/Models/Buildings/Block_near_ATM_3.fbx",
-   "pivotX": -14.0,
-   "pivotZ": -76.0,
-   "boundsMin": [
-    -19.0,
-    -84.0
-   ],
-   "boundsMax": [
-    -9.0,
-    -68.0
-   ],
-   "replaces": [
-    "Block near ATM 3"
-   ]
-  },
-  {
-   "name": "Staff_Quarters_1",
-   "fbx": "Assets/Models/Buildings/Staff_Quarters_1.fbx",
-   "pivotX": -137.0,
-   "pivotZ": -27.0,
-   "boundsMin": [
-    -146.0,
-    -42.0
-   ],
-   "boundsMax": [
-    -128.0,
-    -12.0
-   ],
-   "replaces": [
-    "Staff Quarters 1"
-   ]
-  },
-  {
-   "name": "Staff_Quarters_2",
-   "fbx": "Assets/Models/Buildings/Staff_Quarters_2.fbx",
-   "pivotX": -136.5,
-   "pivotZ": -67.0,
-   "boundsMin": [
-    -145.0,
+    -90.0,
     -78.0
    ],
    "boundsMax": [
-    -128.0,
-    -56.0
+    -71.0,
+    -30.0
    ],
    "replaces": [
-    "Staff Quarters 2"
+    "Faculty Residence 2 - South",
+    "Faculty Residence 2 - North"
    ]
   },
   {
-   "name": "Staff_Quarters_3",
-   "fbx": "Assets/Models/Buildings/Staff_Quarters_3.fbx",
-   "pivotX": -136.5,
-   "pivotZ": -92.0,
+   "name": "Faculty_Residence_3",
+   "fbx": "Assets/Models/Buildings/Faculty_Residence_3.fbx",
+   "pivotX": -140.0,
+   "pivotZ": -165.0,
    "boundsMin": [
-    -145.0,
-    -104.0
+    -148.0,
+    -178.0
    ],
    "boundsMax": [
     -128.0,
-    -80.0
+    -126.0
    ],
    "replaces": [
-    "Staff Quarters 3"
+    "Faculty Residence 3 - South",
+    "Faculty Residence 3 - North"
    ]
   },
   {
-   "name": "Staff_Quarters_4",
-   "fbx": "Assets/Models/Buildings/Staff_Quarters_4.fbx",
-   "pivotX": -135.5,
-   "pivotZ": -121.0,
+   "name": "Faculty_Residence_4",
+   "fbx": "Assets/Models/Buildings/Faculty_Residence_4.fbx",
+   "pivotX": -140.0,
+   "pivotZ": -110.0,
    "boundsMin": [
-    -144.0,
-    -132.0
+    -148.0,
+    -122.0
    ],
    "boundsMax": [
-    -127.0,
-    -110.0
+    -128.0,
+    -74.0
    ],
    "replaces": [
-    "Staff Quarters 4"
+    "Faculty Residence 4 - South",
+    "Faculty Residence 4 - North"
    ]
   },
   {
-   "name": "Staff_Quarters_5",
-   "fbx": "Assets/Models/Buildings/Staff_Quarters_5.fbx",
-   "pivotX": -135.0,
-   "pivotZ": -144.0,
+   "name": "Faculty_Residence_5",
+   "fbx": "Assets/Models/Buildings/Faculty_Residence_5.fbx",
+   "pivotX": -140.0,
+   "pivotZ": -58.0,
    "boundsMin": [
-    -143.0,
-    -154.0
+    -148.0,
+    -70.0
    ],
    "boundsMax": [
-    -127.0,
-    -134.0
+    -128.0,
+    -22.0
    ],
    "replaces": [
-    "Staff Quarters 5"
+    "Faculty Residence 5 - South",
+    "Faculty Residence 5 - North"
    ]
   },
   {

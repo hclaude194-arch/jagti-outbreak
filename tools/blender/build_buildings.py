@@ -560,6 +560,27 @@ def hall_bays(A, B_):
     return [i for i in range(bays) if z0 < A[1] + sgn * (i + 0.5) * bw < z1]
 
 
+def court_galleries(run, floors, depth=2.2):
+    """The academic courtyard's deep open galleries (owner's photo from the third floor, 2026-11-18):
+    a projecting slab with a solid cream parapet at every upper floor, deep fins every two or
+    three bays and a frame at roof level, all standing in front of the windowed wall."""
+    L = run.L
+    bays, bw = facade_bays(L)
+    top = floors * FLOOR
+    s0 = depth        # the corner square belongs to the run before (the runs go round in order)
+    for f in range(1, floors):
+        zf = f * FLOOR
+        run.box(s0, L, zf - 0.25, zf + 0.05, 0.0, depth, "Concrete")
+        run.box(s0, L, zf + 0.05, zf + 1.05, depth - 0.2, depth, "Plaster")
+    run.box(s0, L, top - 0.35, top + 0.45, 0.0, depth, "Plaster")
+    step = 3 if bays % 3 == 0 else 2
+    for i in range(0, bays + 1, step):
+        s_ = min(i * bw, L - 0.2)
+        if s_ - 0.2 < s0:
+            continue
+        run.box(s_ - 0.2, s_ + 0.2, 0.0, top + 0.45, 0.0, depth + 0.08, "Plaster")
+
+
 def academic_facade(run, z0, floors, kind="outer", ribbon=True, pilasters=True, inner=True, doors=(), steps=True, skip=(), shops=None):
     """Sandstone facade from the campus model: tall recessed windows between pilasters,
     a blue glass ribbon on the top floor, string courses and a parapet with coping.
@@ -821,6 +842,7 @@ def academic_block():
             r.n = (-r.n[0], -r.n[1])   # courtyard walls face into the courtyard
         # A doorway out to the garden in the middle of each courtyard side, on the path axes.
         academic_facade(r, 0.0, floors, "court", ribbon=False, pilasters=False, doors=[facade_bays(r.L)[0] // 2])
+        court_galleries(r, floors)
     # Stair and lift heads on the roof.
     for (X, Z) in (((OX0 + OX1) / 2 - 22, (IZ1 + OZ1) / 2), ((OX0 + OX1) / 2 + 22, (IZ1 + OZ1) / 2),
                    ((OX0 + OX1) / 2, (OZ0 + IZ0) / 2), ((OX0 + IX0) / 2, (IZ0 + IZ1) / 2), ((IX1 + OX1) / 2, (IZ0 + IZ1) / 2)):
@@ -932,17 +954,40 @@ def academic_block():
         q = [m.b(*c0)] + [m.b(c0[0] + 1.8 * math.cos(a0 + (k / 6 - 0.5) * math.pi / 2), c0[1] + 1.8 * math.sin(a0 + (k / 6 - 0.5) * math.pi / 2)) for k in range(7)]
         m.prism(anticlockwise(q), -0.2, 0.55, "Concrete", "Planter")
 
-    # --- courtyard garden: kerbed beds round a raised centre square (paths are drawn by the scene)
+    # --- courtyard garden (owner's photo): lawns quartered by wide paved paths with a loop round
+    # the middle, clipped hedges along the path edges and a small rectangular pool at the centre
+    # (the paths are drawn by the scene; lamps and palms are outdoor props).
     gx, gz = (IX0 + IX1) / 2, (IZ0 + IZ1) / 2
-    m.box(gx - 3.5, gx + 3.5, gz - 3.5, gz + 3.5, -0.3, 0.35, "Stone", "Concrete")
-    m.cylinder_local(*m.b(gx, gz), 1.6, 0.35, 0.8, "Stone", "Planter", segments=16)
-    # Kerbs round the four beds inside the loop path (map x 476.5-501.5, y 695.5-734.5).
-    for (mx0, mx1) in ((476.5, 487.5), (490.5, 501.5)):
-        for (my0, my1) in ((695.5, 713.5), (716.5, 734.5)):
-            X0, X1, Z1, Z0 = mx0 - 414.0, mx1 - 414.0, 996.0 - my0, 996.0 - my1
-            for (x0_, x1_, z0_, z1_) in ((X0, X1, Z0, Z0 + 0.25), (X0, X1, Z1 - 0.25, Z1),
-                                         (X0, X0 + 0.25, Z0, Z1), (X1 - 0.25, X1, Z0, Z1)):
-                m.box(x0_, x1_, z0_, z1_, -0.2, 0.3, "Concrete", "Concrete")
+    m.box(gx - 2.4, gx + 2.4, gz - 5.0, gz + 5.0, -0.3, 0.5, "Stone", "Concrete")
+    m.box(gx - 2.05, gx + 2.05, gz - 4.65, gz + 4.65, -0.3, 0.38, "Water", "Water")
+    HW = 0.35   # half the hedge width
+
+    def hedge(X0, X1, Z0, Z1):
+        if X1 - X0 > 0.3 and Z1 - Z0 > 0.3:
+            m.box(X0, X1, Z0, Z1, -0.2, 0.65, "Foliage", "Foliage")
+
+    def wx(mx):
+        return mx - 414.0
+
+    def wz(my):
+        return 996.0 - my
+    # The four beds inside the loop (map x 476.5-487, 491-501.5; y 695.5-713, 717-734.5), hedged
+    # all round, with the pool's paving cut out of the inner corners.
+    for (mx0, mx1) in ((476.5, 487.0), (491.0, 501.5)):
+        for (my0, my1) in ((695.5, 713.0), (717.0, 734.5)):
+            X0, X1, Z0, Z1 = wx(mx0), wx(mx1), wz(my1), wz(my0)
+            hedge(X0, X1, Z0, Z0 + 2 * HW)
+            hedge(X0, X1, Z1 - 2 * HW, Z1)
+            hedge(X0, X0 + 2 * HW, Z0 + 2 * HW, Z1 - 2 * HW)    # the ends stop at the long hedges
+            hedge(X1 - 2 * HW, X1, Z0 + 2 * HW, Z1 - 2 * HW)
+    # The outer lawns: a hedge along the outside of the loop, open where the cross paths pass.
+    lx0, lx1, lz0, lz1 = wx(473.5), wx(504.5), wz(737.5), wz(692.5)
+    for (a0, a1) in ((lx0, wx(487.0)), (wx(491.0), lx1)):
+        hedge(a0, a1, lz0 - 2 * HW, lz0)
+        hedge(a0, a1, lz1, lz1 + 2 * HW)
+    for (b0, b1) in ((lz0, wz(717.0)), (wz(713.0), lz1)):
+        hedge(lx0 - 2 * HW, lx0, b0, b1)
+        hedge(lx1, lx1 + 2 * HW, b0, b1)
 
     # --- the auditorium hall on the west, its far end curved
     au = BUILDINGS["Mandapam Auditorium (west drum)"]
@@ -1596,6 +1641,57 @@ CIVIC_DOORS = {
 }
 
 
+# Buildings whose interiors were drawn room by room in world coordinates at an earlier spot:
+# name -> (map x, map y) of the top-left corner they were drawn at. The layout may move them
+# (same size); the interior builders draw them at this spot and shift the result. The mess and
+# the shopping and medical blocks moved to the scale model's places on 2026-11-18.
+INTERIOR_DESIGN = {
+    "Shopping & Medical 1 (ATM)": (335, 1008),
+    "Shopping & Medical 2": (336, 1043),
+    "Shopping & Medical 3": (336, 1069),
+    "Annapurna Mess": (368, 1087),
+    "Annapurna Mess - Kitchen": (383, 1103),
+}
+
+
+def design_centre(name):
+    bd = BUILDINGS[name]
+    mx, my = INTERIOR_DESIGN[name]
+    return mx - 414.0 + bd["width"] / 2, 996.0 - my - bd["depth"] / 2
+
+
+def design_shift(name):
+    """(dx, dz) from the spot a building's interior was drawn at to its place in the layout."""
+    if name not in INTERIOR_DESIGN:
+        return 0.0, 0.0
+    X, Z = design_centre(name)
+    return BUILDINGS[name]["x"] - X, BUILDINGS[name]["z"] - Z
+
+
+class at_design:
+    """Context: the named buildings sit at their design spots in BUILDINGS (and the mess doors
+    follow), so code with world coordinates drawn there works; restored afterwards."""
+
+    def __init__(self, names):
+        self.names = [n for n in names if n in INTERIOR_DESIGN]
+
+    def __enter__(self):
+        global MESS_DOORS
+        self.saved = {n: (BUILDINGS[n]["x"], BUILDINGS[n]["z"]) for n in self.names}
+        self.doors = MESS_DOORS
+        for n in self.names:
+            BUILDINGS[n]["x"], BUILDINGS[n]["z"] = design_centre(n)
+        MESS_DOORS = mess_doors()
+        return self
+
+    def __exit__(self, *exc):
+        global MESS_DOORS
+        for n, (x, z) in self.saved.items():
+            BUILDINGS[n]["x"], BUILDINGS[n]["z"] = x, z
+        MESS_DOORS = self.doors
+        return False
+
+
 def box_rect(name):
     bd = BUILDINGS[name]
     return (bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2, bd["z"] - bd["depth"] / 2, bd["z"] + bd["depth"] / 2)
@@ -1786,6 +1882,11 @@ def auto_models():
     groups = [
         ("Walled_Residence", ["Walled Residence", "Walled Residence - Wing"], "residential"),
     ]
+    # The professor residences (the scale model's 4): each tower is two stepped halves.
+    for k in range(1, 6):
+        parts = [n for n in BUILDINGS if n.startswith("Faculty Residence %d - " % k)]
+        if parts:
+            groups.append(("Faculty_Residence_%d" % k, parts, "residential"))
     named = {n for _, parts, _ in groups for n in parts}
     out = list(groups)
     skip = {"Main Gate", "Clock Tower", "Water Tower"}
@@ -1795,7 +1896,7 @@ def auto_models():
         n = name.lower()
         if "hostel" in n:
             style = "hostel"
-        elif "staff" in n or "block near atm" in n or "west building" in n:
+        elif "staff" in n or "faculty" in n or "block near atm" in n or "west building" in n:
             style = "residential"
         elif "shed" in n or "substation" in n or "pavilion" in n:
             style = "utility"
@@ -1957,14 +2058,18 @@ def water_tower():
     return m
 
 
+BRAHMAPUTRA = ["Brahmaputra Hostel - East Wing", "Brahmaputra Hostel - North Wing", "Brahmaputra Hostel - South Wing"]
+SINDHU_A = ["Sindhu Hostel A - North Wing", "Sindhu Hostel A - West Wing", "Sindhu Hostel A - South Wing"]
+SINDHU_B = ["Sindhu Hostel B - North Wing", "Sindhu Hostel B - West Wing", "Sindhu Hostel B - South Wing"]
+GIRLS_A = ["Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing"]
+GIRLS_B = ["Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing"]
 HAND_COVERED = {
     "Academic Block - North Wing", "Academic Block - South Wing", "Academic Block - West Wing",
     "Academic Block - East Wing", "Academic Block - Entrance", "Mandapam Auditorium (west drum)", "East Drum",
     "Annapurna Mess", "Annapurna Mess - Kitchen",
-    "Brahmaputra Hostel", "Brahmaputra Hostel - South",
-    "Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West", "Sindhu Hostel - Step 2", "Sindhu Hostel - South",
-    "Hostel U - West", "Hostel U - North", "Hostel U - East",
-    "Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3",
+    *BRAHMAPUTRA, *SINDHU_A, *SINDHU_B,
+    "Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing",
+    "Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing",
     "Shopping & Medical 1 (ATM)", "Shopping & Medical 2", "Shopping & Medical 3", "Sports Complex",
 }
 CIVIC_4D = [("Shopping_Medical_1_ATM", "Shopping & Medical 1 (ATM)"), ("Shopping_Medical_2", "Shopping & Medical 2"),
@@ -1978,12 +2083,13 @@ MODELS = [
     mess,
     amphitheatre_pond,
     water_tower,
-    lambda: detailed_model("Brahmaputra_Hostel", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"], "hostel"),
-    lambda: detailed_model("Sindhu_Hostel", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
-                                             "Sindhu Hostel - Step 2", "Sindhu Hostel - South"], "hostel"),
-    lambda: detailed_model("Hostel_U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"], "hostel"),
-    # The three chain blocks are one stepped building on the satellite view, joined corner to corner.
-    lambda: detailed_model("Hostel_Chain", ["Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3"], "hostel"),
+    # The boys' hostels are U blocks too (owner, 2026-11-18).
+    lambda: detailed_model("Brahmaputra_Hostel", BRAHMAPUTRA, "hostel"),
+    lambda: detailed_model("Sindhu_Hostel_A", SINDHU_A, "hostel"),
+    lambda: detailed_model("Sindhu_Hostel_B", SINDHU_B, "hostel"),
+    # The girls' hostels: two U blocks round badminton courtyards (the owner's top view).
+    lambda: detailed_model("Girls_Hostel_A", GIRLS_A, "hostel"),
+    lambda: detailed_model("Girls_Hostel_B", GIRLS_B, "hostel"),
 ]
 MODELS += [(lambda mn=mn, n=n: detailed_model(mn, [n], "civic", doors=door_points(n), shops=shop_points(n)))
            for mn, n in CIVIC_4D]

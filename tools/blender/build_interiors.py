@@ -2795,6 +2795,21 @@ def export_model(m, path):
     return obj
 
 
+def shift_output(shell, props, lights, rooms, dx, dz):
+    """Move one building's interior (drawn at its design spot) by (dx, dz): the shell's pivot,
+    its furniture, lights and room rectangles."""
+    if dx == 0.0 and dz == 0.0:
+        return
+    shell.px += dx
+    shell.pz += dz
+    for p in list(props) + list(lights):
+        p["x"] = round(p["x"] + dx, 3)
+        p["z"] = round(p["z"] + dz, 3)
+    for r in rooms:
+        x0, x1, z0, z1 = r["rect"]
+        r["rect"] = [round(x0 + dx, 2), round(x1 + dx, 2), round(z0 + dz, 2), round(z1 + dz, 2)]
+
+
 def main():
     os.makedirs(PROP_DIR, exist_ok=True)
     # The hostel module imports this one by name: make that this very module, not a second copy.

@@ -252,6 +252,28 @@ for g, cx, cz, hw, hd, ell in pads:
     dev_dist[rows, cols] = np.minimum(dev_dist[rows, cols], dd)
 n_knoll = fbm(RES, 20, 3, SEED + 10)
 plateau += 6.0 * np.clip(n_knoll + 0.2, 0, None) * smoothstep(12.0, 45.0, dev_dist) * (1 - hill_mask)
+# The mess terrace and the faculty terrace above it (owner, 2026-11-18): the mess, shopping and
+# medical blocks stand about four storeys (12 m) above the girls' hostels, and the faculty
+# residences a little higher again. The rise starts at the spine road coming up from the sports
+# complex: a steep bank along the road's west side, with the roundabout end level with the
+# terrace. (world x0, x1, z0, z1, height m, ramp east-west m, ramp north-south m), applied in
+# order, so the faculty terrace's ramp makes the step down to the mess terrace; the mess
+# terrace's south end is a long grassy bank you can walk down.
+TERRACE_PADS = [
+    (-64.0, -5.0, -162.0, -8.0, 43.0, 7.0, 24.0),
+    (-156.0, -64.0, -186.0, -4.0, 46.0, 8.0, 16.0),
+]
+for x0, x1, z0, z1, th, ramp, ramp_z in TERRACE_PADS:
+    ddx = np.maximum(np.maximum(x0 - X, X - x1), 0.0)
+    ddz = np.maximum(np.maximum(z0 - Z, Z - z1), 0.0) * (ramp / ramp_z)
+    w = 1.0 - smoothstep(0.0, ramp, np.sqrt(ddx * ddx + ddz * ddz))
+    plateau = plateau * (1 - w) + (th + 0.4 * n_mid) * w
+# The mess terrace ends at a stone retaining wall beside the spine road (build_outdoor.py puts
+# the wall on this line); the terrace is put back up to it after the road is flattened.
+RETAINING_X = -2.0
+mess_terrace = (X >= TERRACE_PADS[0][0]) & (X <= RETAINING_X) & (Z >= TERRACE_PADS[0][2]) & (Z <= TERRACE_PADS[0][3])
+mess_terrace_h = TERRACE_PADS[0][4] + 0.4 * n_mid
+
 # Gate slope: the serpentine drive climbs from the gate (about 3 m) up to the ridge.
 gate_ramp = smoothstep(380.0, 528.0, Z)
 plateau = plateau * (1 - gate_ramp) + 3.0 * gate_ramp
@@ -339,6 +361,7 @@ def flatten_roads(h):
 pad_heights = flatten_pads(height, 3.0, 12.0)
 road_dist = flatten_roads(height)
 flatten_pads(height, 1.0, 3.0, pad_heights)
+height[mess_terrace] = np.maximum(height[mess_terrace], mess_terrace_h[mess_terrace])
 
 # Terraced lawns from the campus model: level steps cut into the ground, each riser a
 # 3.5 m ramp so the player can still walk up it. Kept clear of the wall's inner edge.

@@ -82,6 +82,42 @@ def p_bollard_light():
     return m
 
 
+@oprop("Garden_Lamp")
+def p_garden_lamp():
+    """Slim courtyard lamp post, 4.2 m, a black pole with a flat disc lamp on top (owner's
+    photo of the academic courtyard)."""
+    m = new("Garden_Lamp")
+    cyl(m, 0, 0, 0.12, 0.0, 0.35, "Concrete", seg=10)
+    cyl(m, 0, 0, 0.045, 0.35, 4.0, "Metal", seg=8)
+    cyl(m, 0, 0, 0.26, 4.0, 4.1, "Lamp_Glow", seg=14)
+    cyl(m, 0, 0, 0.3, 4.1, 4.2, "Metal", seg=14)
+    return m
+
+
+@oprop("Palm_Small")
+def p_palm_small():
+    """A young palm about 3 m high: a ringed trunk, slightly leaning, and a crown of drooping
+    fronds made of thin leaf blades."""
+    m = new("Palm_Small")
+    rnd = random.Random(31)
+    lean = 0.0
+    for k in range(6):
+        z0, z1 = 0.45 * k, 0.45 * (k + 1)
+        cyl(m, lean, 0.0, 0.11 - 0.008 * k, z0, z1, "Wood", seg=7)
+        lean += 0.025
+    top = 2.7
+    cyl(m, lean, 0.0, 0.16, top - 0.3, top + 0.1, "Foliage", seg=7)
+    for k in range(9):
+        a = 2 * math.pi * k / 9 + rnd.uniform(-0.15, 0.15)
+        ca, sa = math.cos(a), math.sin(a)
+        # Each frond: three blades getting narrower, rising a little then drooping.
+        for j, (r0, r1, dz, w) in enumerate(((0.05, 0.6, 0.12, 0.2), (0.55, 1.1, 0.02, 0.17), (1.05, 1.5, -0.3, 0.11))):
+            x0, x1 = lean + ca * r0, lean + ca * r1
+            y0, y1 = sa * r0, sa * r1
+            obox(m, (x0 + x1) / 2, (y0 + y1) / 2, (r1 - r0) / 2 + 0.06, w, a, top + dz - 0.04, top + dz + 0.04, "Foliage")
+    return m
+
+
 @oprop("Park_Bench", solid=True)
 def p_park_bench():
     """Campus bench: sandstone end blocks, five wooden slats on the seat, three on the back,
@@ -203,6 +239,51 @@ def p_volleyball_net():
         cyl(m, x, 0.0, 0.05, 0.0, 2.55, "Metal", seg=8)
     bx(m, -4.75, 4.75, -0.005, 0.005, 1.43, 2.43, "Net")
     bx(m, -4.75, 4.75, -0.012, 0.012, 2.36, 2.43, "Linen")
+    return m
+
+
+@oprop("Retaining_Wall", solid=True)
+def p_retaining_wall():
+    """4 m of stone retaining wall along X, 2.4 m thick, its top level with the terrace it holds
+    (z = 0) and its foot buried 16 m down; a concrete coping and a parapet on the -Y (low) side,
+    with a plinth and weep holes along the face."""
+    m = new("Retaining_Wall")
+    bx(m, -2.01, 2.01, -1.2, 1.2, -16.0, -0.12, "Stone")
+    bx(m, -2.01, 2.01, -1.25, 1.2, -0.12, 0.0, "Concrete")
+    bx(m, -2.01, 2.01, -1.25, -0.95, 0.0, 0.9, "Stone")
+    bx(m, -2.03, 2.03, -1.3, -0.9, 0.9, 0.98, "Concrete")
+    for x in (-1.0, 1.0):
+        bx(m, x - 0.06, x + 0.06, -1.22, -1.19, -4.0, -3.88, "Metal")
+    return m
+
+
+@oprop("Badminton_Net", solid=True)
+def p_badminton_net():
+    """Badminton posts and a 6.1 m net, its top 1.55 m up, centred, net along X."""
+    m = new("Badminton_Net")
+    for x in (-3.1, 3.1):
+        bx(m, x - 0.2, x + 0.2, -0.2, 0.2, 0.0, 0.06, "Concrete")
+        cyl(m, x, 0.0, 0.035, 0.06, 1.58, "Metal", seg=8)
+    bx(m, -3.05, 3.05, -0.004, 0.004, 0.79, 1.55, "Net")
+    bx(m, -3.05, 3.05, -0.01, 0.01, 1.51, 1.55, "Linen")
+    return m
+
+
+@oprop("Tennis_Net", solid=True)
+def p_tennis_net():
+    """Tennis posts and a 12.8 m net along X, 1.07 m at the posts and pulled down to 0.91 m at
+    the middle by a white centre strap."""
+    m = new("Tennis_Net")
+    for x in (-6.4, 6.4):
+        cyl(m, x, 0.0, 0.05, 0.0, 1.1, "Metal", seg=8)
+    n = 8
+    for i in range(n):
+        xa, xb = -6.35 + 12.7 * i / n, -6.35 + 12.7 * (i + 1) / n
+        xm = abs((xa + xb) / 2) / 6.35
+        top = 0.91 + 0.16 * xm
+        bx(m, xa, xb, -0.004, 0.004, 0.05, top, "Net")
+        bx(m, xa, xb, -0.01, 0.01, top - 0.05, top, "Linen")
+    bx(m, -0.025, 0.025, -0.012, 0.012, 0.0, 0.91, "Linen")
     return m
 
 
@@ -410,11 +491,41 @@ def lamp_posts():
             side = -side
 
 
+def courtyard_lamps_and_palms(r, poly):
+    """Academic courtyard (owner's photo): slim lamp posts and young palms just off the paved
+    paths, beyond the hedges, alternating sides; nothing round the central pool."""
+    if r["name"] == "Courtyard Centre Square":
+        return
+    side = 1.0
+    for k, (P_, t, d) in enumerate(walk(poly, 9.0, 4.5)):
+        n = (-t[1] * side, t[0] * side)
+        Q = (P_[0] + n[0] * (r["width"] / 2 + 1.1), P_[1] + n[1] * (r["width"] / 2 + 1.1))
+        if not taken(Q, 3.0) and not near_road_except(Q, r, 1.6):
+            place("Garden_Lamp", Q[0], Q[1], 0.0)
+        Qp = (P_[0] - n[0] * (r["width"] / 2 + 1.6), P_[1] - n[1] * (r["width"] / 2 + 1.6))
+        if k % 2 == 1 and not taken(Qp, 3.0) and not near_road_except(Qp, r, 2.0):
+            place("Palm_Small", Qp[0], Qp[1], (k * 47.0) % 360.0)
+        side = -side
+
+
+def near_road_except(Q, r, gap):
+    """Is Q within gap of the edge of any road or path other than r?"""
+    for r2, poly2 in ROAD_PTS:
+        if r2 is r:
+            continue
+        if line_dist(Q, poly2) < r2["width"] / 2 + gap:
+            return True
+    return False
+
+
 def path_lights_and_benches():
     for r, poly in ROAD_PTS:
         if not is_path(r):
             continue
-        step = 12.0 if r["name"].startswith(("Courtyard", "Plaza")) else 16.0
+        if r["name"].startswith("Courtyard"):
+            courtyard_lamps_and_palms(r, poly)
+            continue
+        step = 12.0 if r["name"].startswith("Plaza") else 16.0
         side = 1.0
         for k, (P_, t, d) in enumerate(walk(poly, step, step / 2)):
             n = (-t[1] * side, t[0] * side)
@@ -625,35 +736,79 @@ def railings():
                 place("Railing_Segment", Q[0], Q[1], yaw_to(t[0], t[1]) - 90.0)
 
 
+def court_kind(a):
+    """Courts are told apart by size: badminton courts (under 16 m) in the girls' hostel
+    courtyards, the tennis pair beside the running track (27 m to 35 m), and the square sports
+    courts by the hostels (the rest)."""
+    lo, hi = min(a["width"], a["depth"]), max(a["width"], a["depth"])
+    if hi < 16:
+        return "badminton"
+    if lo >= 27 and hi < 35:
+        return "tennis"
+    return "sports"
+
+
+def fence_round(x0, x1, z0, z1):
+    for (A, B_, yaw) in (((x0, z0), (x1, z0), 0.0), ((x1, z1), (x0, z1), 0.0),
+                         ((x0, z1), (x0, z0), 90.0), ((x1, z0), (x1, z1), 90.0)):
+        L = math.dist(A, B_)
+        n = max(1, round(L / 3.0))
+        for i in range(n):
+            f = (i + 0.5) / n
+            X, Z = A[0] + (B_[0] - A[0]) * f, A[1] + (B_[1] - A[1]) * f
+            if yaw == 90.0 and A[0] == x0 and i == n // 2:
+                continue                                # a gate on the west side
+            place("Fence_Panel", X, Z, yaw)
+
+
+def retaining_walls():
+    """The stone wall holding the mess terrace up beside the spine road (generate_terrain.py
+    keeps the terrace up to RETAINING_X), wherever the drop to the road is over a metre."""
+    X = -1.0                       # wall centre: its 2.4 m thickness covers the step
+    for k in range(40):
+        Z = -9.0 - 4.0 * k
+        if Z < -162.0:
+            break
+        if ground(-4.0, Z) - ground(2.5, Z) < 1.0:
+            continue
+        place("Retaining_Wall", X, Z, 90.0, gx=-4.0, gz=Z)
+
+
 def courts():
-    """Fences round the hostel sports courts, hoops on the first court and on the Hostel U
-    court, volleyball nets on the others."""
+    """Fences round the sports and tennis courts, hoops on the first sports court and on the
+    big courts, volleyball nets on the other sports courts, tennis nets on the tennis pair and
+    open badminton courts (net only) in the girls' hostel courtyards."""
     cs = [a for a in layout["areas"] if a["type"] == "court"]
+    sports = [c for c in cs if court_kind(c) == "sports"]
     for k, a in enumerate(cs):
+        kind = court_kind(a)
+        long_x = a["width"] > a["depth"]
+        if kind == "badminton":
+            # The net crosses the court's long axis.
+            place("Badminton_Net", a["x"], a["z"], 90.0 if long_x else 0.0)
+            continue
         x0, x1 = a["x"] - a["width"] / 2 - 1.0, a["x"] + a["width"] / 2 + 1.0
         z0, z1 = a["z"] - a["depth"] / 2 - 1.0, a["z"] + a["depth"] / 2 + 1.0
-        if a["width"] < 30:      # the three courts by the hostel chain: fenced all round
-            for (A, B_, yaw) in (((x0, z0), (x1, z0), 0.0), ((x1, z1), (x0, z1), 0.0),
-                                 ((x0, z1), (x0, z0), 90.0), ((x1, z0), (x1, z1), 90.0)):
-                L = math.dist(A, B_)
-                n = max(1, round(L / 3.0))
-                for i in range(n):
-                    f = (i + 0.5) / n
-                    X, Z = A[0] + (B_[0] - A[0]) * f, A[1] + (B_[1] - A[1]) * f
-                    if yaw == 90.0 and A[0] == x0 and i == n // 2:
-                        continue                                # a gate on the west side
-                    place("Fence_Panel", X, Z, yaw)
-        long_x = a["width"] > a["depth"]
-        first_small = a is next(c for c in cs if c["width"] < 30)
-        if first_small or a["width"] >= 30:
-            if long_x:
-                place("Basketball_Hoop", a["x"] - a["width"] / 2 + 0.4, a["z"], 90.0)
-                place("Basketball_Hoop", a["x"] + a["width"] / 2 - 0.4, a["z"], 270.0)
-            else:
-                place("Basketball_Hoop", a["x"], a["z"] - a["depth"] / 2 + 0.4, 0.0)
-                place("Basketball_Hoop", a["x"], a["z"] + a["depth"] / 2 - 0.4, 180.0)
+        if kind == "tennis":
+            # Two courts side by side, each long across the pair's long side.
+            fence_round(x0, x1, z0, z1)
+            for s_ in (-1.0, 1.0):
+                if long_x:
+                    place("Tennis_Net", a["x"], a["z"] + s_ * a["depth"] / 4, 90.0)
+                else:
+                    place("Tennis_Net", a["x"] + s_ * a["width"] / 4, a["z"], 0.0)
         else:
-            place("Volleyball_Net", a["x"], a["z"], 90.0 if not long_x else 0.0)
+            if a["width"] < 30:      # the three courts by the hostels: fenced all round
+                fence_round(x0, x1, z0, z1)
+            if (sports and a is sports[0]) or a["width"] >= 30:
+                if long_x:
+                    place("Basketball_Hoop", a["x"] - a["width"] / 2 + 0.4, a["z"], 90.0)
+                    place("Basketball_Hoop", a["x"] + a["width"] / 2 - 0.4, a["z"], 270.0)
+                else:
+                    place("Basketball_Hoop", a["x"], a["z"] - a["depth"] / 2 + 0.4, 0.0)
+                    place("Basketball_Hoop", a["x"], a["z"] + a["depth"] / 2 - 0.4, 180.0)
+            else:
+                place("Volleyball_Net", a["x"], a["z"], 90.0 if not long_x else 0.0)
         # Benches outside the fence on the east side.
         for dz in (-6.0, 6.0):
             Q = (x1 + 1.4, a["z"] + dz)
@@ -687,6 +842,7 @@ def shop_signs():
 
 def main():
     os.makedirs(I.PROP_DIR, exist_ok=True)
+    retaining_walls()
     courts()
     shops_walk_furniture()
     name_boards()

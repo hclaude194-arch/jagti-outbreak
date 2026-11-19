@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 16
+VERSION = 19
 
 
 def to_world(x, y):
@@ -58,40 +58,56 @@ BUILDINGS = [
     ("Mandapam Auditorium (west drum)", "academic", 423, 688, 40, 53, 3, "cylinder"),
     ("East Drum", "academic", 525, 696, 34, 34, 3, "cylinder"),
     # Wings of one hostel touch but never overlap: build_hostel_interiors.py joins their corridors.
-    ("Brahmaputra Hostel", "academic", 378, 782, 22, 26, 7, "box"),
-    ("Brahmaputra Hostel - South", "academic", 371, 808, 25, 28, 7, "box"),
+    # Boys' hostels are U blocks like the girls' (owner, 2026-11-18). Brahmaputra opens west
+    # to its badminton courtyard, its long east wing along the spine road.
+    ("Brahmaputra Hostel - East Wing", "academic", 384, 770, 16, 68, 7, "box"),
+    ("Brahmaputra Hostel - North Wing", "academic", 364, 770, 20, 22, 7, "box"),
+    ("Brahmaputra Hostel - South Wing", "academic", 364, 816, 20, 22, 7, "box"),
     ("Walled Residence", "central", 348, 926, 22, 20, 2, "box"),
     ("Walled Residence - Wing", "central", 366, 936, 10, 16, 1, "box"),
-    ("Block near ATM", "central", 376, 1017, 17, 22, 3, "box"),
-    ("Block near ATM 2", "central", 381, 1049, 22, 16, 3, "box"),
-    ("Block near ATM 3", "central", 395, 1064, 10, 16, 2, "box"),
-    ("Staff Quarters 1", "central", 268, 1008, 18, 30, 5, "box"),
-    ("Staff Quarters 2", "central", 269, 1052, 17, 22, 5, "box"),
-    ("Staff Quarters 3", "central", 269, 1076, 17, 24, 5, "box"),
-    ("Staff Quarters 4", "central", 270, 1106, 17, 22, 5, "box"),
-    ("Staff Quarters 5", "central", 271, 1130, 16, 20, 5, "box"),
-    ("Shopping & Medical 1 (ATM)", "central", 335, 1008, 16, 30, 3, "box"),
-    ("Shopping & Medical 2", "central", 336, 1043, 15, 22, 3, "box"),
-    ("Shopping & Medical 3", "central", 336, 1069, 15, 22, 3, "box"),
-    ("Annapurna Mess", "central", 368, 1087, 29, 26, 2, "box"),
-    ("Annapurna Mess - Kitchen", "central", 383, 1103, 30, 29, 2, "box"),
-    ("Hostel U - West", "hostels", 462, 1078, 16, 40, 7, "box"),
-    ("Hostel U - North", "hostels", 478, 1078, 43, 18, 7, "box"),
-    ("Hostel U - East", "hostels", 521, 1078, 14, 40, 7, "box"),
-    # The chain is one stepped building (satellite view and the institute's model): its blocks
-    # touch, and Chain 1 meets Hostel U's west wing at a corner.
-    ("Hostel Chain 1", "hostels", 436, 1118, 26, 22, 7, "box"),
-    ("Hostel Chain 2", "hostels", 434, 1140, 26, 22, 7, "box"),
-    ("Hostel Chain 3", "hostels", 437, 1162, 28, 22, 7, "box"),
+    # The mess area follows the institute's scale model (owner, 2026-11-18): dining block 5
+    # (Annapurna Mess), the shopping block 6 as a stepped L (blocks 2 and 3) and the medical
+    # block 7 (block 1) on a terrace about four storeys above the girls' hostels, and the
+    # professor residences 4 behind them on a terrace a little higher again: a front row of two
+    # stepped towers and a back row of three. The mess and the shopping and medical blocks keep
+    # the sizes their interiors were drawn for (INTERIOR_DESIGN in build_buildings.py).
+    ("Shopping & Medical 1 (ATM)", "central", 370, 1020, 16, 30, 3, "box"),
+    ("Shopping & Medical 2", "central", 370, 1074, 15, 22, 3, "box"),
+    ("Shopping & Medical 3", "central", 385, 1052, 15, 22, 3, "box"),
+    ("Annapurna Mess", "central", 363, 1102, 29, 26, 2, "box"),
+    ("Annapurna Mess - Kitchen", "central", 378, 1118, 30, 29, 2, "box"),
+    ("Faculty Residence 1 - South", "central", 324, 1104, 15, 22, 6, "box"),
+    ("Faculty Residence 1 - North", "central", 328, 1082, 15, 22, 6, "box"),
+    ("Faculty Residence 2 - South", "central", 324, 1050, 15, 24, 6, "box"),
+    ("Faculty Residence 2 - North", "central", 328, 1026, 15, 24, 6, "box"),
+    ("Faculty Residence 3 - South", "central", 266, 1148, 16, 26, 6, "box"),
+    ("Faculty Residence 3 - North", "central", 270, 1122, 16, 26, 6, "box"),
+    ("Faculty Residence 4 - South", "central", 266, 1094, 16, 24, 6, "box"),
+    ("Faculty Residence 4 - North", "central", 270, 1070, 16, 24, 6, "box"),
+    ("Faculty Residence 5 - South", "central", 266, 1042, 16, 24, 6, "box"),
+    ("Faculty Residence 5 - North", "central", 270, 1018, 16, 24, 6, "box"),
+    # Girls' hostels (label 9 on the institute's scale model; the owner's top view of 2026-11-18):
+    # two U-shaped blocks round courtyards with badminton courts, and a pair of tennis courts
+    # beside the running track. B is the U traced from the satellite view (opening south); A
+    # replaces the stepped chain with the model's U opening east, and its north wing meets B's
+    # west wing face to face so the corridors join.
+    ("Girls Hostel B - West Wing", "hostels", 462, 1078, 16, 40, 7, "box"),
+    ("Girls Hostel B - North Wing", "hostels", 478, 1078, 43, 18, 7, "box"),
+    ("Girls Hostel B - East Wing", "hostels", 521, 1078, 14, 40, 7, "box"),
+    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 30, 26, 7, "box"),
+    ("Girls Hostel A - West Wing", "hostels", 432, 1130, 14, 40, 7, "box"),
+    ("Girls Hostel A - South Wing", "hostels", 432, 1170, 30, 28, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
     ("East Block 2", "hostels", 580, 1274, 34, 24, 2, "box"),
-    ("Sindhu Hostel - North", "sindhu", 466, 1379, 36, 31, 7, "box"),
-    ("Sindhu Hostel - Step 1", "sindhu", 433, 1410, 50, 27, 7, "box"),
-    ("Sindhu Hostel - West", "sindhu", 434, 1437, 28, 40, 7, "box"),
-    ("Sindhu Hostel - Step 2", "sindhu", 437, 1477, 46, 22, 7, "box"),
-    ("Sindhu Hostel - South", "sindhu", 471, 1499, 38, 38, 7, "box"),
+    # Sindhu (boys): two U blocks opening east round badminton courtyards.
+    ("Sindhu Hostel A - North Wing", "sindhu", 434, 1379, 40, 22, 7, "box"),
+    ("Sindhu Hostel A - West Wing", "sindhu", 434, 1401, 16, 32, 7, "box"),
+    ("Sindhu Hostel A - South Wing", "sindhu", 434, 1433, 40, 22, 7, "box"),
+    ("Sindhu Hostel B - North Wing", "sindhu", 434, 1461, 40, 22, 7, "box"),
+    ("Sindhu Hostel B - West Wing", "sindhu", 434, 1483, 16, 32, 7, "box"),
+    ("Sindhu Hostel B - South Wing", "sindhu", 434, 1515, 40, 22, 7, "box"),
     ("Service Shed 1", "sindhu", 388, 1490, 26, 13, 1, "box"),
     ("Service Shed 2", "sindhu", 392, 1512, 24, 12, 1, "box"),
     ("Service Shed 3", "sindhu", 395, 1531, 22, 12, 1, "box"),
@@ -159,18 +175,20 @@ ROADS = [
     ("Southern East-West Road", 7, [[250, 1366], [330, 1366], [413, 1364], [500, 1362], [535, 1355], [562, 1338], [574, 1318]], True),
     ("Track Road", 5, [[600, 972], [582, 1030], [562, 1075], [545, 1105], [548, 1140], [572, 1165], [584, 1215], [584, 1280], [574, 1318]], True),
     ("Sindhu Back Road", 5, [[421, 1545], [468, 1546], [512, 1541]], True),
-    ("Oval Road West", 5, [[294, 990], [291, 1060], [293, 1140], [300, 1160]], True),
+    ("Oval Road West", 5, [[294, 990], [296, 1060], [296, 1140], [302, 1160]], True),
     ("Walled Residence Drive", 4, [[405, 936], [392, 936]], False),
-    ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 782]], True),
+    ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 763]], True),
         ("Clock Tower Walkway", 4, [[486, 523], [486, 613]], False),
     # Cross-shaped garden paths in the academic courtyard (campus model).
-    ("Courtyard Path North-South", 2.5, [[489, 680], [489, 750]], False),
-    ("Courtyard Path East-West", 2.5, [[467, 715], [511, 715]], False),
-    ("Courtyard Path Loop", 2.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
-    ("Courtyard Centre Square", 8.0, [[485, 715], [493, 715]], False),
-    # Paved walks (Phase 4D): along the shop fronts of the shopping and medical blocks and on to
+    # Widened to the owner's photo of the courtyard (2026-11-18): wide paved cross paths, a loop
+    # round the middle and a paved square round the central pool.
+    ("Courtyard Path North-South", 4.0, [[489, 680], [489, 750]], False),
+    ("Courtyard Path East-West", 4.0, [[467, 715], [511, 715]], False),
+    ("Courtyard Path Loop", 3.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
+    ("Courtyard Centre Square", 9.0, [[489, 710], [489, 720]], False),
+    # Paved walks (Phase 4D): past the shop fronts of the shopping and medical blocks and on to
     # Annapurna Mess's west door, and from the spine road to the sports complex lobby.
-    ("Plaza Shops Walk", 5, [[356, 992], [356, 1100], [367, 1100]], False),
+    ("Plaza Shops Walk", 4, [[405, 994], [405, 1099], [358, 1099], [358, 1115]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
@@ -182,15 +200,32 @@ AREAS = [
     ("lawn", "box", 322, 529, 110, 21),
     ("lawn", "box", 430, 560, 40, 60),
     ("lawn", "box", 293, 908, 100, 72),
-    ("lawn", "box", 460, 1409, 51, 88),
-    ("court", "box", 480, 1097, 39, 20),
+    ("lawn", "box", 478, 1409, 33, 88),
+    # Badminton courtyards of the boys' hostels (Sindhu A and B, Brahmaputra).
+    ("lawn", "box", 450, 1401, 24, 32),
+    ("court", "box", 455, 1406, 13, 6),
+    ("court", "box", 455, 1422, 13, 6),
+    ("lawn", "box", 450, 1483, 24, 32),
+    ("court", "box", 455, 1488, 13, 6),
+    ("court", "box", 455, 1504, 13, 6),
+    ("lawn", "box", 364, 792, 20, 24),
+    ("court", "box", 368, 797, 13, 6),
+    ("court", "box", 368, 805, 13, 6),
+    # Girls' hostel courtyards: a lawn with two badminton courts in each (courts under 16 m).
+    ("lawn", "box", 446, 1130, 16, 40),
+    ("court", "box", 447, 1139, 13, 6),
+    ("court", "box", 447, 1155, 13, 6),
+    ("lawn", "box", 478, 1096, 43, 22),
+    ("court", "box", 489, 1100, 6, 13),
+    ("court", "box", 504, 1100, 6, 13),
     ("courtyard", "box", 465, 678, 48, 74),
-    ("lawn", "ellipse", 312, 1056, 22, 100),
+    ("lawn", "ellipse", 311, 1056, 20, 100),
     ("parking", "box", 379, 840, 20, 50),
     ("substation", "box", 247, 618, 30, 44),
     ("court", "box", 440, 1207, 26, 28),
     ("court", "box", 440, 1237, 26, 28),
     ("court", "box", 440, 1267, 26, 26),
+    ("court", "box", 478, 1124, 28, 30),   # the girls' hostel tennis courts (a pair)
     ("track", "ellipse", 517, 1261, 96, 170),
     ("field", "ellipse", 517, 1261, 74, 146),
     ("amphitheatre", "box", 565, 688, 64, 114),
@@ -211,11 +246,11 @@ PLACES = [
     ("Car Park", 389, 865),
     ("Power Substation", 262, 640),
     ("Director's Residence", 359, 936),
-    ("Medical Block", 343, 1023),
-    ("Shopping Block", 343, 1068),
-    ("Annapurna Mess (Dining Block)", 392, 1108),
-    ("Staff Residences", 278, 1080),
-    ("Hostel Blocks", 498, 1098),
+    ("Medical Block", 378, 1035),
+    ("Shopping Block", 377, 1085),
+    ("Annapurna Mess (Dining Block)", 386, 1124),
+    ("Faculty Residences", 300, 1080),
+    ("Girls' Hostels", 459, 1126),
     ("Sports Courts", 453, 1237),
     ("Indoor Games Block", 450, 1324),
     ("Athletics Track", 517, 1261),
@@ -258,8 +293,8 @@ POOLS = [
 # Trees planted in rows or spots that the scattered planting would miss
 # (kind: 0 broadleaf, 1 eucalyptus, 2 pine, 3 shrub; spacing m; offset east of the line m).
 TREE_ROWS = [(0, 7.5, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 7.5, -3.5, TERRACE_LINES[4])]
-# Courtyard garden: a tree in each corner of the eight planted beds round the centre square.
-TREE_SPOTS = [(0, x, y) for x in (471, 480, 498, 507) for y in (686, 702, 728, 744)]
+# Courtyard garden: open lawns now (owner's photo); its small palms are outdoor props.
+TREE_SPOTS = []
 
 # Boundary wall polygon from the map
 BOUNDARY = [[282, 468], [560, 468], [590, 600], [645, 690], [645, 830], [640, 1000], [640, 1200], [604, 1380], [560, 1565], [380, 1565], [332, 1440], [262, 1300], [262, 1000], [290, 860], [296, 700], [278, 560]]

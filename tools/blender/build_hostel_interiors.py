@@ -2,7 +2,7 @@
 """Phase 4C: walk-in hostels and Annapurna Mess. Imported by build_interiors.py, which writes
 the shells and furniture of every building into interiors.json (one zone per building).
 
-Hostels (Brahmaputra, Hostel U, the three chain blocks and Sindhu) have seven floors. Each
+Hostels (Brahmaputra, the two girls' hostels and Sindhu) have seven floors. Each
 wing of a hostel model is planned on its own from its facade (build_buildings.hostel_facade):
     - one room behind each window bay, so every room has its window pair;
     - wide wings (20 m or more) get a ring corridor round a core of washrooms, baths, a pantry
@@ -36,11 +36,11 @@ TOP = 6                     # top storey of the seven-floor hostels
 EPS = 1e-6
 
 HOSTELS = [
-    ("Brahmaputra_Hostel", "Brahmaputra", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"]),
-    ("Hostel_U", "Hostel U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"]),
-    ("Hostel_Chain", "Chain Block", ["Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3"]),
-    ("Sindhu_Hostel", "Sindhu", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
-                                 "Sindhu Hostel - Step 2", "Sindhu Hostel - South"]),
+    ("Brahmaputra_Hostel", "Brahmaputra", B.BRAHMAPUTRA),
+    ("Girls_Hostel_A", "Girls Hostel A", B.GIRLS_A),
+    ("Girls_Hostel_B", "Girls Hostel B", B.GIRLS_B),
+    ("Sindhu_Hostel_A", "Sindhu A", B.SINDHU_A),
+    ("Sindhu_Hostel_B", "Sindhu B", B.SINDHU_B),
 ]
 
 INWARD = {"S": (0.0, 1.0), "N": (0.0, -1.0), "W": (1.0, 0.0), "E": (-1.0, 0.0)}
@@ -1951,7 +1951,17 @@ def build_all():
                         floorOffset=FL, maxLevel=TOP))
         print("%-22s %d wings, %d rooms on %d floors" % (model_name, len(parts), len(rooms) // (TOP + 1), TOP + 1))
         zone += 1
-    shell, hall_ops, kit_ops = mess_shell()
-    rooms = furnish_mess(zone, hall_ops)
+    # The mess interior was drawn at its first spot; draw it there and move it to the layout's.
+    global HALL_R, KIT_R
+    parts = ["Annapurna Mess", "Annapurna Mess - Kitchen"]
+    dx, dz = B.design_shift(parts[0])
+    assert B.design_shift(parts[1]) == (dx, dz), "the mess hall and kitchen must move together"
+    n0, l0 = len(PLACED), len(LIGHTS)
+    with B.at_design(parts):
+        HALL_R, KIT_R = brect(MESS_HALL), brect(MESS_KITCHEN)
+        shell, hall_ops, kit_ops = mess_shell()
+        rooms = furnish_mess(zone, hall_ops)
+    HALL_R, KIT_R = brect(MESS_HALL), brect(MESS_KITCHEN)
+    I.shift_output(shell, PLACED[n0:], LIGHTS[l0:], rooms, dx, dz)
     out.append(dict(shell=shell, name="Annapurna Mess", rooms=rooms, floorOffset=FL, maxLevel=0))
     return out
