@@ -16,7 +16,7 @@ namespace Jagti.EditorTools
     /// hilltop terrain with painted ground, grass and trees (CampusTerrainBuilder),
     /// roads following the ground, sports areas, every building as a grey block at its
     /// real footprint and storey count, the boundary wall, floating name labels,
-    /// sky, sun, fog, a zombie navigation mesh, and a first-person player.
+    /// sky, sun, fog and post-processing (AtmosphereBuilder), a zombie navigation mesh, and a first-person player.
     /// Menu: Jagti > Build Campus.
     /// </summary>
     public static class CampusGreyboxBuilder
@@ -166,7 +166,7 @@ namespace Jagti.EditorTools
             var labelRoot = Child(root.transform, "Labels");
             foreach (var place in layout.places) MakeLabel(place, labelRoot);
 
-            MakeLighting();
+            MakeLighting(root.transform);
 
             // Bake before the player and crates exist so they do not punch holes in the NavMesh.
             Progress("Zombie navigation mesh (this can take a minute)", 0.7f);
@@ -192,6 +192,7 @@ namespace Jagti.EditorTools
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddToBuildSettings(ScenePath);
             EditorPrefs.SetInt(BuiltVersionKey, layout.version);
+            EditorPrefs.SetInt(AtmosphereBuilder.BuiltLookKey, AtmosphereBuilder.LookVersion);
             int trees = terrain != null ? terrain.terrainData.treeInstanceCount : 0;
             Debug.Log("[Jagti] Built campus: terrain, " + trees + " trees, " + layout.buildings.Length + " buildings, " + layout.roads.Length + " roads. Press Play to walk it.");
         }
@@ -666,40 +667,13 @@ namespace Jagti.EditorTools
             go.AddComponent<Billboard>();
         }
 
-        static void MakeLighting()
+        static void MakeLighting(Transform root)
         {
             var sunObject = new GameObject("Sun");
             var sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.intensity = 1.1f;
-            sun.color = new Color(1f, 0.95f, 0.85f);
-            sun.shadows = LightShadows.Soft;
-            sunObject.transform.rotation = Quaternion.Euler(42f, -30f, 0f);
-
-            RenderSettings.sun = sun;
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.62f, 0.66f, 0.72f);
-            RenderSettings.ambientEquatorColor = new Color(0.50f, 0.50f, 0.45f);
-            RenderSettings.ambientGroundColor = new Color(0.25f, 0.23f, 0.20f);
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 150f;
-            RenderSettings.fogEndDistance = 1100f; // far enough to see the ridges on the horizon
-            RenderSettings.fogColor = new Color(0.72f, 0.76f, 0.79f);
-
-            // Hazy Jammu sky; fog fades the far hills into its horizon colour.
-            var skyShader = Shader.Find("Skybox/Procedural");
-            if (skyShader != null)
-            {
-                var sky = new Material(skyShader) { name = "Jagti_Sky" };
-                sky.SetFloat("_SunSize", 0.04f);
-                sky.SetFloat("_AtmosphereThickness", 1.1f);
-                sky.SetColor("_SkyTint", new Color(0.52f, 0.56f, 0.62f));
-                sky.SetColor("_GroundColor", new Color(0.45f, 0.43f, 0.38f));
-                sky.SetFloat("_Exposure", 1.2f);
-                AssetDatabase.CreateAsset(sky, ProceduralAssets.Folder + "/Jagti_Sky.mat");
-                RenderSettings.skybox = sky;
-            }
+            // Sun, sky, fog, post-processing, wind and ambient particles: AtmosphereBuilder.
+            AtmosphereBuilder.Build(root, sun, terrain);
         }
 
         static void MakeNavMesh(CampusLayout layout)
@@ -755,6 +729,7 @@ namespace Jagti.EditorTools
             cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             cam.backgroundColor = RenderSettings.fogColor;
             cameraObject.AddComponent<AudioListener>();
+            AtmosphereBuilder.ConfigureCamera(cam);
 
             var flashlightObject = new GameObject("Flashlight");
             flashlightObject.transform.SetParent(cameraObject.transform, false);

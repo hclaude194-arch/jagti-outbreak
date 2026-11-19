@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Jagti.Gameplay;
+using Jagti.World;
 using UnityEngine;
 
 namespace Jagti.Royale
@@ -75,6 +76,7 @@ namespace Jagti.Royale
                     else
                     {
                         Puff(end, d);
+                        ImpactMarks.At(end, d);
                         if (p < 16) worldMask |= 1 << p;
                     }
                 }
@@ -111,7 +113,11 @@ namespace Jagti.Royale
                 Vector3 d = ends[p] - origin;
                 if (d.sqrMagnitude < 1e-4f) continue;
                 Vector3 dir = d.normalized;
-                if (p < 16 && (worldMask & (1 << p)) != 0) Puff(ends[p], dir);
+                if (p < 16 && (worldMask & (1 << p)) != 0)
+                {
+                    Puff(ends[p], dir);
+                    ImpactMarks.At(ends[p], dir);
+                }
                 if ((p == 0 || p % 3 == 0) && !(suppressed && Random.value < 0.7f)) Tracer(origin + dir * 0.6f, ends[p]);
                 NearMiss(shooter, origin, ends[p]);
             }
