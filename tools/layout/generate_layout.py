@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 19
+VERSION = 21
 
 
 def to_world(x, y):
@@ -100,7 +100,7 @@ BUILDINGS = [
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
-    ("East Block 2", "hostels", 580, 1274, 34, 24, 2, "box"),
+    ("East Block 2", "hostels", 589, 1274, 34, 24, 2, "box"),   # clear of the track road (was across it)
     # Sindhu (boys): two U blocks opening east round badminton courtyards.
     ("Sindhu Hostel A - North Wing", "sindhu", 434, 1379, 40, 22, 7, "box"),
     ("Sindhu Hostel A - West Wing", "sindhu", 434, 1401, 16, 32, 7, "box"),
@@ -175,10 +175,14 @@ ROADS = [
     ("Southern East-West Road", 7, [[250, 1366], [330, 1366], [413, 1364], [500, 1362], [535, 1355], [562, 1338], [574, 1318]], True),
     ("Track Road", 5, [[600, 972], [582, 1030], [562, 1075], [545, 1105], [548, 1140], [572, 1165], [584, 1215], [584, 1280], [574, 1318]], True),
     ("Sindhu Back Road", 5, [[421, 1545], [468, 1546], [512, 1541]], True),
-    ("Oval Road West", 5, [[294, 990], [296, 1060], [296, 1140], [302, 1160]], True),
+    # The oval green west of the mess (satellite, 2026-11-19): a loop road all round a long lawn,
+    # open at its north end onto the central road, with the faculty rows on both sides, and a
+    # lane on from its south end to the southern faculty towers.
+    ("Oval Loop", 5, [[298, 991]] + [[309.5 + 11.5 * math.cos(math.radians(a)), 1099 + 11.5 * math.sin(math.radians(a))]
+                                     for a in range(180, -1, -15)] + [[321, 991]], False),
+    ("Faculty Lane", 4, [[309.5, 1110.5], [304, 1135], [302, 1160]], True),
     ("Walled Residence Drive", 4, [[405, 936], [392, 936]], False),
     ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 763]], True),
-        ("Clock Tower Walkway", 4, [[486, 523], [486, 613]], False),
     # Cross-shaped garden paths in the academic courtyard (campus model).
     # Widened to the owner's photo of the courtyard (2026-11-18): wide paved cross paths, a loop
     # round the middle and a paved square round the central pool.
@@ -186,9 +190,9 @@ ROADS = [
     ("Courtyard Path East-West", 4.0, [[467, 715], [511, 715]], False),
     ("Courtyard Path Loop", 3.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
     ("Courtyard Centre Square", 9.0, [[489, 710], [489, 720]], False),
-    # Paved walks (Phase 4D): past the shop fronts of the shopping and medical blocks and on to
-    # Annapurna Mess's west door, and from the spine road to the sports complex lobby.
-    ("Plaza Shops Walk", 4, [[405, 994], [405, 1099], [358, 1099], [358, 1115]], False),
+    # Paved walks (Phase 4D): the pavement along the shop fronts beside the spine road (the only
+    # road to Annapurna Mess, per the satellite), and from the spine road to the sports complex lobby.
+    ("Plaza Shops Walk", 4, [[405, 994], [405, 1099]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
@@ -219,7 +223,7 @@ AREAS = [
     ("court", "box", 489, 1100, 6, 13),
     ("court", "box", 504, 1100, 6, 13),
     ("courtyard", "box", 465, 678, 48, 74),
-    ("lawn", "ellipse", 311, 1056, 20, 100),
+    ("lawn", "ellipse", 309.5, 1047, 17, 106),
     ("parking", "box", 379, 840, 20, 50),
     ("substation", "box", 247, 618, 30, 44),
     ("court", "box", 440, 1207, 26, 28),
@@ -295,6 +299,19 @@ POOLS = [
 TREE_ROWS = [(0, 7.5, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 7.5, -3.5, TERRACE_LINES[4])]
 # Courtyard garden: open lawns now (owner's photo); its small palms are outdoor props.
 TREE_SPOTS = []
+
+# The clock tower walk (campus model, satellite): a straight stepped walk from the serpentine's
+# second leg up to the fountain square in front of the academic porch, with the tower on a level
+# landing near its foot. generate_terrain.py designs the flights and landings to fit the heights
+# there and writes them to campus_terrain.json ("clockSteps"); build_buildings.py builds them.
+# (map x, map y bottom, map y top, width m, map y of the tower landing's centre, landing length m)
+CLOCK_STEPS = (486, 526.5, 613, 4.0, 545, 15.0)
+# Height of the steps the walk climbs between the serpentine and the porch (m): the serpentine
+# is pinned this far below the porch where the walk meets it.
+CLOCK_STEPS_RISE = 15.0
+# The amphitheatre is sunk into the slope east of the academic block: its top walk is level with
+# the ring road and its stage and pond this far below (11 tiers of 0.36 m in build_buildings.py).
+AMPHITHEATRE_DEPTH = 3.96
 
 # Boundary wall polygon from the map
 BOUNDARY = [[282, 468], [560, 468], [590, 600], [645, 690], [645, 830], [640, 1000], [640, 1200], [604, 1380], [560, 1565], [380, 1565], [332, 1440], [262, 1300], [262, 1000], [290, 860], [296, 700], [278, 560]]

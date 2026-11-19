@@ -42,6 +42,21 @@
    ]
   },
   {
+   "name": "Clock_Tower_Steps",
+   "fbx": "Assets/Models/Buildings/Clock_Tower_Steps.fbx",
+   "pivotX": 72.0,
+   "pivotZ": 451.0,
+   "boundsMin": [
+    65.7,
+    383.0
+   ],
+   "boundsMax": [
+    78.3,
+    469.5
+   ],
+   "replaces": []
+  },
+  {
    "name": "Main_Gate",
    "fbx": "Assets/Models/Buildings/Main_Gate.fbx",
    "pivotX": -117.0,
@@ -82,7 +97,7 @@
    "pivotX": 174.0,
    "pivotZ": 285.0,
    "boundsMin": [
-    144.44,
+    150.84,
     197.0
    ],
    "boundsMax": [
@@ -416,14 +431,14 @@
   {
    "name": "East_Block_2",
    "fbx": "Assets/Models/Buildings/East_Block_2.fbx",
-   "pivotX": 183.0,
+   "pivotX": 192.0,
    "pivotZ": -290.0,
    "boundsMin": [
-    166.0,
+    175.0,
     -302.0
    ],
    "boundsMax": [
-    200.0,
+    209.0,
     -278.0
    ],
    "replaces": [

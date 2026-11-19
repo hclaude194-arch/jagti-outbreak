@@ -338,8 +338,25 @@ def outdoor_points(layout, rng):
     poly = list(zip(layout["boundary"][0::2], layout["boundary"][1::2]))
     points = []
 
+    # The amphitheatre's seating fan and stepped pond, round a centre east of the stage (the
+    # Amphitheatre_Pond model in build_buildings.py): loot there goes on the stage only.
+    fan_x, fan_z = 610.0 - 414.0, 996.0 - 711.0
+
+    def on_stage(x, z):
+        r = math.hypot(x - fan_x, z - fan_z)
+        off = abs(abs(math.degrees(math.atan2(z - fan_z, x - fan_x))) - 180.0)
+        return 18.0 < r < 26.0 and off < 34.0
+
+    def in_amphitheatre(x, z):
+        return math.hypot(x - fan_x, z - fan_z) < 48.0 or (fan_x - 50 < x < fan_x + 35 and fan_z - 92 < z < fan_z + 25)
+
     def clear(x, z):
         if not inside_boundary(poly, x, z):
+            return False
+        if in_amphitheatre(x, z) and not on_stage(x, z):
+            return False
+        # The clock tower's plinth and the steps of its walk.
+        if abs(x - 72.0) < 4.5 and 380.0 < z < 471.0 and not (abs(z - 451.0) < 7.5 and abs(x - 72.0) > 4.0):
             return False
         return not any(inside_box(o, x, z, 0.9) for o in buildings)
 
@@ -381,6 +398,9 @@ def outdoor_points(layout, rng):
                 break
             x = a["x"] + rng.uniform(-0.4, 0.4) * a["width"]
             z = a["z"] + rng.uniform(-0.4, 0.4) * a["depth"]
+            if a["type"] == "amphitheatre":          # somewhere on the stage
+                r, ang = rng.uniform(19.0, 25.0), math.radians(180.0 + rng.uniform(-30.0, 30.0))
+                x, z = fan_x + r * math.cos(ang), fan_z + r * math.sin(ang)
             if not clear(x, z):
                 continue
             points.append({"x": round(x, 2), "y": 0.0, "z": round(z, 2), "zone": -1, "level": 0,

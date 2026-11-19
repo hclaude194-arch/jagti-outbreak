@@ -1138,7 +1138,74 @@ def clock_tower():
     # Side walls of the clock stage at its overhang, and the roof.
     m.box_local(-hw - 0.25, hw + 0.25, -hw - 0.25, hw + 0.25, H + 0.5, H + 0.5, "Concrete", "Roof")
     m.box_local(-0.5, 0.5, -0.5, 0.5, H + 0.5, H + 2.5, "Metal", "Metal")  # mast
+    # The tower stands on the walk's paved landing, which is STEP_PAVING above the ground there.
+    m.verts = [(x, y, z + STEP_PAVING) for x, y, z in m.verts]
     m.solid = []
+    m.local_bounds_to_solid()
+    return m
+
+
+# The clock tower walk's steps and landings stand this far above the ground generate_terrain.py
+# cut for them (it lowers the ground under the walk by the same amount).
+STEP_PAVING = 0.12
+TERRAIN_JSON = os.path.join(ROOT, "Assets", "Data", "campus_terrain.json")
+
+
+def clock_steps():
+    """The stepped walk from the serpentine up to the fountain square in front of the academic
+    porch (campus model and satellite), with the clock tower on a wide level landing near its
+    foot. Flights and landings come from generate_terrain.py ("clockSteps" in
+    campus_terrain.json), which fits them to the heights of the drive below and the porch above
+    and cuts the ground under them. Each tread and landing is a solid stone block; low side walls
+    with a concrete coping run along both edges and round the tower landing."""
+    with open(TERRAIN_JSON) as f:
+        cs = json.load(f)["clockSteps"]
+    X = cs["x"]
+    half = cs["width"] / 2
+    m = Model("Clock_Tower_Steps", *centre("Clock Tower"))
+    base = cs["towerHeight"] - STEP_PAVING          # the ground at the pivot, on the tower landing
+    prof = cs["profile"]
+    land1, land0 = cs["landing"]
+    wall = 0.3
+    # Treads and landings: each level stretch of the profile becomes a block down into the ground.
+    for (za, ha), (zb, hb) in zip(prof[:-1], prof[1:]):
+        if abs(ha - hb) > 1e-6 or abs(za - zb) < 1e-4:
+            continue
+        z0, z1 = min(za, zb), max(za, zb)
+        top = ha - base
+        hw = 6.0 if land1 - 0.01 < (z0 + z1) / 2 < land0 + 0.01 else half
+        m.box(X - hw, X + hw, z0, z1, top - 0.75, top, "Stone", "Stone", bottom=False)
+    # Side walls: along each edge, a wall from below the steps to 0.6 m over the nosing line,
+    # stepping with the flights (one segment per profile corner pair, sloped along the flights).
+    noses = [(z, h) for z, h in prof]
+    for side in (-1, 1):
+        for (za, ha), (zb, hb) in zip(noses[:-1], noses[1:]):
+            if abs(za - zb) < 1e-4:
+                continue
+            mid = (za + zb) / 2
+            on_landing = land1 - 0.01 < mid < land0 + 0.01
+            hw = 6.0 if on_landing else half
+            x0, x1 = (X + side * hw, X + side * (hw + wall))
+            xa, xb = min(x0, x1), max(x0, x1)
+            lo = min(ha, hb) - base - 1.2
+            hi_a, hi_b = ha - base + 0.6, hb - base + 0.6
+            # A sloped-top wall segment: two side faces, a top and both ends.
+            for xx, hint in ((xa, -1.0), (xb, 1.0)):
+                lx, _ = m.b(xx, 0.0)
+                _, ya = m.b(0.0, za)
+                _, yb = m.b(0.0, zb)
+                m.face([(lx, ya, lo), (lx, yb, lo), (lx, yb, hi_b), (lx, ya, hi_a)], "Stone", (-hint, 0, 0))
+            lxa, _ = m.b(xa, 0.0)
+            lxb, _ = m.b(xb, 0.0)
+            _, ya = m.b(0.0, za)
+            _, yb = m.b(0.0, zb)
+            m.face([(lxa, ya, hi_a), (lxb, ya, hi_a), (lxb, yb, hi_b), (lxa, yb, hi_b)], "Concrete", (0, 0, 1))
+    # Short return walls joining the narrow walls to the wide landing walls.
+    for zz in (land0, land1):
+        h_ = next(h for z, h in prof if abs(z - zz) < 0.01) - base
+        for side in (-1, 1):
+            xa, xb = sorted((X + side * (half + wall), X + side * (6.0 + wall)))
+            m.box(xa, xb, zz - wall / 2, zz + wall / 2, h_ - 1.2, h_ + 0.6, "Stone", "Concrete")
     m.local_bounds_to_solid()
     return m
 
@@ -1936,7 +2003,11 @@ def amphitheatre_pond():
     from the top view of the institute's model. The seating fan is a wide shallow sector whose
     rows rise west towards the building; a flat stage fills its narrow east end; the pond wraps
     the stage on the east and south, its basins split by zig-zag weirs and stepping down away
-    from the stage, with a round lobe beside the stage."""
+    from the stage, with a round lobe beside the stage.
+    The whole fan is sunk into the slope (generate_terrain.py lowers its plot by
+    AMPHITHEATRE_DEPTH, the height of the seating), so the top walk is level with the ring road
+    outside the block: you walk straight onto it through a gap in the parapet and down the
+    aisles to the stage; the grass banks beside the seating also lead down to the stage and pond."""
     def M(px, py):
         # Photo pixel (west up, north right) -> map units, scaled on the academic block.
         return (543.0 + (py - 860.0) / 4.8, 790.0 - (px - 720.0) / 4.0)
@@ -1986,6 +2057,7 @@ def amphitheatre_pond():
             m.face([P(ri, aisle - da, z), P(ri + tread / 2, aisle - da, z), P(ri + tread / 2, aisle + da, z), P(ri, aisle + da, z)],
                    "Stone", (0, 0, 1))
     # Top walk, low parapet and the outer wall with piers.
+    entrance = (segs // 2 - 1, segs // 2)          # the two segments either side of the axis
     for j in range(segs):
         a0, a1 = angles[j], angles[j + 1]
         out = P(rmax + 1, (a0 + a1) / 2, 0)
@@ -1993,6 +2065,8 @@ def amphitheatre_pond():
         i_ = (-o[0], -o[1], 0)
         m.face([P(rmax, a0, ztop), P(rmax + 2.0, a0, ztop), P(rmax + 2.0, a1, ztop), P(rmax, a1, ztop)], "Stone", (0, 0, 1))
         m.face([P(rmax + 2.0, a0, -0.8), P(rmax + 2.0, a1, -0.8), P(rmax + 2.0, a1, ztop), P(rmax + 2.0, a0, ztop)], "Stone", o)
+        if j in entrance:
+            continue                                 # the way in from the ring road: no parapet
         m.face([P(rmax + 1.75, a0, ztop + 0.9), P(rmax + 2.05, a0, ztop + 0.9), P(rmax + 2.05, a1, ztop + 0.9), P(rmax + 1.75, a1, ztop + 0.9)],
                "Concrete", (0, 0, 1))
         m.face([P(rmax + 1.75, a0, ztop), P(rmax + 1.75, a1, ztop), P(rmax + 1.75, a1, ztop + 0.9), P(rmax + 1.75, a0, ztop + 0.9)], "Concrete", i_)
@@ -2001,15 +2075,11 @@ def amphitheatre_pond():
         L0 = math.hypot(*r.n)
         r.n = (r.n[0] / L0, r.n[1] / L0)
         r.box(0, r.L, -0.8, ztop - 0.2, 0.0, 0.3, "Stone", bottom=False)
-    # Entry stair from the academic apron down to the top walk, on the axis.
-    n_steps = int(ztop / 0.18)
-    da = 1.6 / rmax
-    for k in range(n_steps):
-        r1 = rmax + 2.0 + (n_steps - k) * 0.3
-        z = (k + 1) * 0.18
-        m.face([P(rmax + 2.0, axis - da, z), P(r1, axis - da, z), P(r1, axis + da, z), P(rmax + 2.0, axis + da, z)], "Stone", (0, 0, 1))
-        m.face([P(r1, axis - da, z - 0.18), P(r1, axis + da, z - 0.18), P(r1, axis + da, z), P(r1, axis - da, z)], "Stone",
-               (-math.cos(axis), math.sin(axis), 0))
+    # End caps on the parapet either side of the entrance.
+    for a, sgn in ((angles[entrance[0]], 1), (angles[entrance[1] + 1], -1)):
+        hint = P(1.0, a + sgn * math.pi / 2, 0)
+        m.face([P(rmax + 1.75, a, ztop), P(rmax + 2.05, a, ztop), P(rmax + 2.05, a, ztop + 0.9), P(rmax + 1.75, a, ztop + 0.9)],
+               "Concrete", (hint[0] - sx, hint[1] - sy, 0))
     # Stage: a flat paved trapezoid filling the narrow end of the fan.
     stage = [P(r_in, a, 0)[:2] for a in angles] + [P(r_stage, a, 0)[:2] for a in angles[::-1]]
     m.prism(anticlockwise(dedupe(stage)), -0.4, 0.3, "Stone", "Concrete")
@@ -2079,6 +2149,7 @@ CIVIC_4D = [("Shopping_Medical_1_ATM", "Shopping & Medical 1 (ATM)"), ("Shopping
 MODELS = [
     academic_block,
     clock_tower,
+    clock_steps,
     main_gate,
     mess,
     amphitheatre_pond,
