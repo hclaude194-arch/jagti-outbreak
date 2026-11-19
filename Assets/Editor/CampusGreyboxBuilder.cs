@@ -281,6 +281,7 @@ namespace Jagti.EditorTools
             float half = road.width / 2f;
             float distance = 0f;
             bool paved = IsPaved(road.name);
+            float top = RoadTop + RoadLift(road, allRoads);
 
             for (int i = 0; i < count; i++)
             {
@@ -295,8 +296,8 @@ namespace Jagti.EditorTools
 
                 // Each edge follows the ground; the generator flattened the terrain across the road.
                 Vector2 left = p + normal * half, right = p - normal * half;
-                vertices.Add(new Vector3(left.x, Ground(left.x, left.y) + RoadTop, left.y));
-                vertices.Add(new Vector3(right.x, Ground(right.x, right.y) + RoadTop, right.y));
+                vertices.Add(new Vector3(left.x, Ground(left.x, left.y) + top, left.y));
+                vertices.Add(new Vector3(right.x, Ground(right.x, right.y) + top, right.y));
                 if (paved)
                 {
                     // Paving tiles in metres so the slabs keep their size on every path width.
@@ -334,6 +335,18 @@ namespace Jagti.EditorTools
 
             if (road.name != "Highway" && road.name != "Clock Tower Walkway" && !road.name.StartsWith("Plaza ") && road.width >= 4f)
                 MakeKerbs(road, points, allRoads, go.transform);
+        }
+
+        /// <summary>
+        /// Where two roads overlap at a junction they would share one plane and flicker, so each
+        /// road sits a little higher than the narrower ones (1 cm per metre of width), with a
+        /// further centimetre step between roads of the same width. The wider road covers the end
+        /// of the narrower one that runs into it.
+        /// </summary>
+        static float RoadLift(RoadData road, RoadData[] allRoads)
+        {
+            int index = System.Array.IndexOf(allRoads, road);
+            return (Mathf.Clamp(road.width, 3f, 13f) - 3f) * 0.01f + (index < 0 ? 0 : index % 3) * 0.01f;
         }
 
         const float PavingTile = 3f; // metres per paving texture tile (5 x 5 slabs of 0.6 m)
@@ -456,6 +469,7 @@ namespace Jagti.EditorTools
             if (kerbMaterial == null)
                 kerbMaterial = ProceduralAssets.LitMaterial("Road_Kerb", Color.white, ProceduralAssets.KerbTexture(), 0.1f);
             const float kerbWidth = 0.3f, kerbHeight = 0.18f;
+            float top = RoadTop + RoadLift(road, allRoads);
             int count = points.Length / 2;
             float half = road.width / 2f;
             var vertices = new List<Vector3>();
@@ -479,10 +493,10 @@ namespace Jagti.EditorTools
                     if (i > 0) distance += Vector2.Distance(p, Point(points, i - 1));
 
                     Vector2 inner = p + normal * half, outer = p + normal * (half + kerbWidth);
-                    float gy = Ground(inner.x, inner.y) + RoadTop;
+                    float gy = Ground(inner.x, inner.y) + top;
                     var innerLow = new Vector3(inner.x, gy, inner.y);
                     var innerTop = new Vector3(inner.x, gy + kerbHeight, inner.y);
-                    var outerTop = new Vector3(outer.x, Mathf.Max(gy, Ground(outer.x, outer.y) + RoadTop) + kerbHeight, outer.y);
+                    var outerTop = new Vector3(outer.x, Mathf.Max(gy, Ground(outer.x, outer.y) + top) + kerbHeight, outer.y);
                     bool ok = !InsideOtherRoad(inner, road, allRoads);
 
                     if (i > 0 && ok && prevOk)

@@ -145,6 +145,8 @@ for name, zone, x, y, w, d, floors, shape in L.BUILDINGS:
     cx, cz = L.to_world(x + w / 2, y + d / 2)
     if zone == "academic" and not name.startswith("Brahmaputra"):
         group = "academic"
+    elif name.startswith("Girls Hostel"):
+        group = "Girls Hostels"   # A's north wing meets B's west wing: one floor level for both
     else:
         group = name.split(" - ")[0]
     pads.append((group, cx, cz, w / 2, d / 2, False))
@@ -306,7 +308,13 @@ height = blur(height, 1)
 
 
 # ------------------------------------------------------------------ flatten plots and roads
-def flatten_pads(h, margin, blend, heights=None):
+# Plots shaped by their own code below rather than flattened to one level.
+CARVED_PADS = {"Clock Tower", "area-565-688"}   # the clock tower walk, the sunken amphitheatre
+
+
+def flatten_pads(h, margin, blend, heights=None, keep=None):
+    """Levels each plot group to its mean height. keep (0..1 per cell) protects ground that
+    something else has already shaped, such as the road surfaces."""
     if heights is None:
         groups = {}
         for g, cx, cz, hw, hd, ell in pads:
@@ -315,9 +323,13 @@ def flatten_pads(h, margin, blend, heights=None):
             groups.setdefault(g, []).append(h[rows, cols][d <= 0])
         heights = {g: float(np.mean(np.concatenate(v))) for g, v in groups.items()}
     for g, cx, cz, hw, hd, ell in pads:
+        if g in CARVED_PADS:
+            continue
         rows, cols = window(cx, cz, max(hw, hd) + margin + blend)
         d = pad_distance(X[rows, cols], Z[rows, cols], cx, cz, hw, hd, ell)
         w = 1.0 - smoothstep(margin, margin + blend, d)
+        if keep is not None:
+            w = w * (1 - keep[rows, cols])
         h[rows, cols] = h[rows, cols] * (1 - w) + heights[g] * w
     return heights
 
@@ -331,15 +343,102 @@ def smooth_profile(values, window_pts):
     return v
 
 
-def flatten_roads(h):
+def arc_lengths(p):
+    return np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))])
+
+
+def nearest_on(p, prof, x, z):
+    """Distance from (x, z) to the polyline p, and the profile height at the nearest point."""
+    a, b_ = p[:-1], p[1:]
+    e = b_ - a
+    t = np.clip(((x - a[:, 0]) * e[:, 0] + (z - a[:, 1]) * e[:, 1]) / np.maximum((e * e).sum(1), 1e-9), 0, 1)
+    d = np.hypot(x - (a[:, 0] + t * e[:, 0]), z - (a[:, 1] + t * e[:, 1]))
+    k = int(np.argmin(d))
+    return float(d[k]), float(prof[k] * (1 - t[k]) + prof[k + 1] * t[k])
+
+
+def grade_limit(h, s, g, pinned):
+    """Keeps the slope along a profile under g, moving only the points that are not pinned."""
+    h = h.copy()
+    ds = np.diff(s)
+    for _ in range(4):
+        for i in range(1, len(h)):
+            if not pinned[i]:
+                h[i] = min(max(h[i], h[i - 1] - g * ds[i - 1]), h[i - 1] + g * ds[i - 1])
+        for i in range(len(h) - 2, -1, -1):
+            if not pinned[i]:
+                h[i] = min(max(h[i], h[i + 1] - g * ds[i]), h[i + 1] + g * ds[i])
+    return h
+
+
+# Steepest grade allowed on each road (rise over run). Drives stay drivable for the campus
+# vehicles; the highway is gentler; footpaths may be a little steeper.
+ROAD_GRADE = {"Highway": 0.06, "Serpentine Drive": 0.10}
+DEFAULT_GRADE, PATH_GRADE = 0.09, 0.12
+
+
+def is_footpath(name):
+    return name.startswith("Courtyard") or name.startswith("Plaza")
+
+
+def solve_road_profiles(h, fixed=None):
+    """Heights along every road, solved as one network: wider roads first; where a road meets or
+    crosses a road already solved (or a roundabout), it takes that road's height there, so
+    junctions are level; then each profile is smoothed and held under its grade limit.
+    fixed maps a road name to a profile decided elsewhere (the serpentine)."""
+    order = sorted(range(len(roads)), key=lambda k: (roads[k][0] != "Highway", is_footpath(roads[k][0]),
+                                                      roads[k][0] not in (fixed or {}), -roads[k][1]))
+    rings = []   # roundabouts: [x, z, radius, height or None]
+    for typ, shape, x, y, w, d in L.AREAS:
+        if typ == "roundabout":
+            cx, cz = L.to_world(x, y)
+            rings.append([cx, cz, w / 2, None])
+    solved = {}
+    for k in order:
+        name, width, pts = roads[k]
+        p = np.array(pts)
+        s = arc_lengths(p)
+        if fixed and name in fixed:
+            prof = np.asarray(fixed[name], float)
+        else:
+            pin = np.full(len(p), np.nan)
+            for oname, (op, oprof, owidth) in solved.items():
+                for i, (x, z) in enumerate(p):
+                    d, oh = nearest_on(op, oprof, x, z)
+                    if d < owidth / 2 + 0.5:
+                        pin[i] = oh
+            for cx, cz, r, rh in rings:
+                if rh is None:
+                    continue
+                inside = np.hypot(p[:, 0] - cx, p[:, 1] - cz) < r + 1.0
+                pin[inside] = rh
+            window_pts = {"Highway": 25, "Serpentine Drive": 40}.get(name, 15)
+            prof = smooth_profile(sample(h, p[:, 0], p[:, 1]), window_pts)
+            pinned = ~np.isnan(pin)
+            g = ROAD_GRADE.get(name, PATH_GRADE if is_footpath(name) else DEFAULT_GRADE)
+            for _ in range(3):
+                prof[pinned] = pin[pinned]
+                prof = grade_limit(prof, s, g, pinned)
+                sm = smooth_profile(prof, 5)
+                prof = np.where(pinned, prof, sm)
+            prof[pinned] = pin[pinned]
+            prof = grade_limit(prof, s, g, pinned)
+        solved[name] = (p, prof, width)
+        for ring in rings:
+            if ring[3] is None:
+                d, oh = nearest_on(p, prof, ring[0], ring[1])
+                if d < ring[2] + width / 2:
+                    ring[3] = oh
+    return solved, rings
+
+
+def flatten_roads(h, solved, rings, shoulder=9.0):
+    """Lays the ground to the solved road heights: level across each road, then a shoulder that
+    blends back into the land. Returns the distance from the nearest road edge and the weight
+    (1 on the road surface, falling to 0 across the shoulder)."""
     best_d = np.full(h.shape, np.inf)
     best_h = np.zeros(h.shape)
-    best_w = np.zeros(h.shape)
-    shoulder = 9.0
-    for name, width, pts in roads:
-        p = np.array(pts)
-        window_pts = {"Highway": 25, "Serpentine Drive": 40}.get(name, 15)
-        prof = smooth_profile(sample(h, p[:, 0], p[:, 1]), window_pts)
+    for name, (p, prof, width) in solved.items():
         reach = width / 2 + 1.0 + shoulder
         for k in range(len(p) - 1):
             (ax, az), (bx, bz) = p[k], p[k + 1]
@@ -350,17 +449,23 @@ def flatten_roads(h):
             dx, dz = px - (ax + t * ex), pz - (az + t * ez)
             d = np.sqrt(dx * dx + dz * dz) - width / 2
             rh = prof[k] * (1 - t) + prof[k + 1] * t
-            sub_d, sub_h, sub_w = best_d[rows, cols], best_h[rows, cols], best_w[rows, cols]
+            sub_d, sub_h = best_d[rows, cols], best_h[rows, cols]
             closer = d < sub_d
-            sub_d[closer], sub_h[closer], sub_w[closer] = d[closer], rh[closer], width
+            sub_d[closer], sub_h[closer] = d[closer], rh[closer]
+    for cx, cz, r, rh in rings:
+        if rh is None:
+            continue
+        rows, cols = window(cx, cz, r + 1.0 + shoulder)
+        d = np.hypot(X[rows, cols] - cx, Z[rows, cols] - cz) - r
+        sub_d, sub_h = best_d[rows, cols], best_h[rows, cols]
+        closer = d < sub_d
+        sub_d[closer], sub_h[closer] = d[closer], rh
     w = 1.0 - smoothstep(1.0, 1.0 + shoulder, best_d)
     h[:] = h * (1 - w) + best_h * w
-    return best_d
+    return best_d, 1.0 - smoothstep(1.0, 2.5, best_d)
 
 
 pad_heights = flatten_pads(height, 3.0, 12.0)
-road_dist = flatten_roads(height)
-flatten_pads(height, 1.0, 3.0, pad_heights)
 height[mess_terrace] = np.maximum(height[mess_terrace], mess_terrace_h[mess_terrace])
 
 # Terraced lawns from the campus model: level steps cut into the ground, each riser a
@@ -388,6 +493,167 @@ for x0, y0, x1, y1, drop, lines in L.TERRACES:
         inside *= smoothstep(2.0, 8.0, d)
     height[rows, cols] = height[rows, cols] * (1 - inside) + level * inside
 
+
+# ------------------------------------------------------------------ the serpentine and the gate hillside
+# The serpentine climbs from the gate roundabout to the academic block. Its heights are set
+# along its length rather than read off the ground: a steady climb to the foot of the clock
+# tower walk, which meets it CLOCK_STEPS_RISE below the porch, then a gentler one to the top.
+# The hillside between its legs is then shaped from the road, like a slope the drive was cut into.
+serp_name = "Serpentine Drive"
+serp = np.array(next(r[2] for r in roads if r[0] == serp_name))
+serp_s = arc_lengths(serp)
+cs_x, cs_y0, cs_y1, cs_w, cs_ty, cs_land = L.CLOCK_STEPS
+cs_X, cs_Z0 = L.to_world(cs_x, cs_y0)          # foot of the walk (on the serpentine's edge)
+_, cs_Z1 = L.to_world(cs_x, cs_y1)             # top of the walk (fountain square)
+_, cs_TZ = L.to_world(cs_x, cs_ty)             # tower landing centre
+porch = np.array(next(r[2] for r in roads if r[0] == "Porch Drive"))
+# The gate roundabout: no higher than the gate approach can reach from the highway at 7.5 %
+# (the approach's first 7 m lie on the highway and its last 9 m on the roundabout).
+gate_app = np.array(next(r[2] for r in roads if r[0] == "Gate Approach"))
+gate_h = min(float(sample(height, serp[0, 0], serp[0, 1])),
+             float(sample(height, gate_app[0, 0], gate_app[0, 1])) + 0.075 * (arc_lengths(gate_app)[-1] - 16.0))
+top_h = pad_heights["academic"] - 0.6           # the porch apron, just below the block's floor plot
+foot_i = int(np.argmin(np.hypot(serp[:, 0] - cs_X, serp[:, 1] - cs_Z0)))
+foot_h = top_h - L.CLOCK_STEPS_RISE
+serp_prof = np.interp(serp_s, [0.0, 9.0, serp_s[foot_i], serp_s[-1]], [gate_h, gate_h, foot_h, top_h])
+serp_prof = np.where(serp_s <= 9.0, gate_h, smooth_profile(serp_prof, 9))   # level across the roundabout
+serp_prof[-1] = top_h
+
+CLOCK_X_Y = L.CLOCK_STEPS[:3]
+# Hillside: inverse-distance blend of the drive's heights, over the slope between the gate and
+# the academic plateau, fading out at the sides.
+hx0, hx1, hz0, hz1 = -150.0, 125.0, 402.0, 530.0
+rows, cols = window((hx0 + hx1) / 2, (hz0 + hz1) / 2, max(hx1 - hx0, hz1 - hz0) / 2 + 20)
+px, pz = X[rows, cols], Z[rows, cols]
+num = np.zeros(px.shape)
+den = np.zeros(px.shape)
+for (sx, sz), sh in zip(serp[::2], serp_prof[::2]):
+    w = 1.0 / (np.hypot(px - sx, pz - sz) ** 3 + 8.0)
+    num += w * sh
+    den += w
+hill = num / den
+mask = 1 - smoothstep(0.0, 16.0, np.maximum.reduce([hx0 - px, px - hx1, hz0 - pz, pz - hz1]))
+# Round the clock tower walk the slope carries on up to the porch: the walk climbs the hillside
+# rather than a cutting in the plateau. Its heights rise evenly from the drive to the porch.
+_, _cz0 = L.to_world(CLOCK_X_Y[0], CLOCK_X_Y[1])
+_, _cz1 = L.to_world(CLOCK_X_Y[0], CLOCK_X_Y[2])
+_cx, _ = L.to_world(CLOCK_X_Y[0], CLOCK_X_Y[1])
+walk_line = foot_h + (top_h - foot_h) * np.clip((_cz0 - pz) / (_cz0 - _cz1), 0.0, 1.0)
+wd = np.abs(px - _cx)
+ww = 1.0 / (wd ** 2 + 8.0) * 40.0
+hill = (num + ww * walk_line) / (den + ww)
+walk_mask = (1 - smoothstep(18.0, 45.0, wd)) * (1 - smoothstep(0.0, 6.0, np.maximum(_cz1 - 4.0 - pz, pz - _cz0)))
+mask = np.maximum(mask, walk_mask)
+mask *= smoothstep(2.0, 12.0, -sd[rows, cols])
+height[rows, cols] = height[rows, cols] * (1 - mask) + hill * mask
+
+# ------------------------------------------------------------------ road network
+solved, rings = solve_road_profiles(height, fixed={serp_name: serp_prof})
+road_dist, road_core = flatten_roads(height, solved, rings)
+# Plots again, sharp-edged, without touching the road surfaces; then each footprint exactly at
+# its own level, so a neighbour's bank can never reach under a building's ground floor.
+flatten_pads(height, 1.0, 3.0, pad_heights, keep=road_core)
+flatten_pads(height, 0.6, 0.01, pad_heights, keep=road_core)
+mt = mess_terrace & (road_core < 0.5)
+height[mt] = np.maximum(height[mt], mess_terrace_h[mt])
+
+# ------------------------------------------------------------------ the clock tower walk
+# A straight walk of flights and landings from the serpentine up to the fountain square, the
+# tower on a level landing near the foot. Risers 0.15 m, treads 0.30 m, a 1.8 m landing after
+# every 12 risers at most. The ground is cut to just below the steps; build_buildings.py builds
+# them (with side walls) from the profile written to campus_terrain.json.
+RISER, TREAD, MAX_RUN, LANDING = 0.15, 0.30, 12, 1.8
+cs_bottom_h = float(np.interp(0.0, [0.0], [solved[serp_name][1][foot_i]]))
+cs_top_h = nearest_on(solved["Porch Drive"][0], solved["Porch Drive"][1], cs_X, cs_Z1 - 10.0)[1]
+land0, land1 = cs_TZ + cs_land / 2, cs_TZ - cs_land / 2     # tower landing (world Z falls going up)
+
+
+def design_flights(z_start, z_end, h_start, h_end):
+    """Steps from z_start (low) to z_end (high, smaller Z) rising h_end - h_start: as many risers as
+    the rise needs, in runs of up to MAX_RUN, with the landings between the runs stretched to fill
+    the length. Returns [(z, h)] corners: every step nose and landing end."""
+    n = max(1, int(round((h_end - h_start) / RISER)))
+    rise = (h_end - h_start) / n
+    runs = [MAX_RUN] * (n // MAX_RUN) + ([n % MAX_RUN] if n % MAX_RUN else [])
+    length = z_start - z_end
+    stairs = n * TREAD
+    gaps = len(runs) + 1                     # a landing before, between and after the runs
+    land = max(0.6, (length - stairs) / gaps)
+    if land * gaps + stairs > length + 1e-6:
+        print("  clock walk: %.1f m of steps do not fit in %.1f m" % (stairs + gaps * land, length))
+    pts = [(z_start, h_start)]
+    z, hh = z_start - land, h_start
+    pts.append((z, hh))
+    for r in runs:
+        for _ in range(r):
+            hh += rise
+            pts.append((z, hh))               # riser
+            z -= TREAD
+            pts.append((z, hh))               # tread
+        z -= land - 0.0
+        pts.append((z, hh))
+    pts[-1] = (z_end, h_end)
+    return pts, rise
+
+
+lower_rise = min(4.2, max(0.6, (cs_top_h - cs_bottom_h) * (cs_Z0 - land0) / (cs_Z0 - cs_Z1 - cs_land)))
+tower_h = cs_bottom_h + lower_rise
+low_pts, r_low = design_flights(cs_Z0, land0, cs_bottom_h, tower_h)
+up_pts, r_up = design_flights(land1, cs_Z1, tower_h, cs_top_h)
+clock_profile = low_pts + up_pts
+cz_ = np.array([p[0] for p in clock_profile])
+ch_ = np.array([p[1] for p in clock_profile])
+# The ground under the walk: the lowest line under the steps (through each riser's foot).
+foot_line = ch_.copy()
+foot_line[1:] = np.minimum(ch_[1:], ch_[:-1])
+order_ = np.argsort(-cz_)
+rows, cols = window(cs_X, (cs_Z0 + cs_Z1) / 2, (cs_Z0 - cs_Z1) / 2 + 14)
+px, pz = X[rows, cols], Z[rows, cols]
+walk_h = np.interp(-pz, -cz_, foot_line) - 0.12
+half = np.where(np.abs(pz - cs_TZ) < cs_land / 2 + 1.0, 6.0, cs_w / 2 + 0.6)   # wider round the tower
+across = np.abs(px - cs_X) - half
+along = np.maximum(pz - cs_Z0 - 1.0, cs_Z1 - 2.0 - pz)
+w = (1 - smoothstep(0.0, 10.0, across)) * (1 - smoothstep(0.0, 3.0, along)) * (1 - road_core[rows, cols])
+height[rows, cols] = height[rows, cols] * (1 - w) + walk_h * w
+road_dist[rows, cols] = np.minimum(road_dist[rows, cols], np.maximum(across, along))   # no trees on the walk
+# The fountain square at the top, level with the porch drive.
+fx0, fx1, fz0, fz1 = cs_X - 8.0, cs_X + 8.0, cs_Z1 - 12.0, cs_Z1
+rows, cols = window(cs_X, (fz0 + fz1) / 2, 16.0)
+px, pz = X[rows, cols], Z[rows, cols]
+w = 1 - smoothstep(0.0, 3.0, np.maximum.reduce([fx0 - px, px - fx1, fz0 - pz, pz - fz1]))
+height[rows, cols] = height[rows, cols] * (1 - w) + cs_top_h * w
+print("Clock walk: %.1f m up from the serpentine (%.1f m) to the porch (%.1f m); tower landing %.1f m; risers %.3f / %.3f m" % (
+    cs_top_h - cs_bottom_h, cs_bottom_h, cs_top_h, tower_h, r_low, r_up))
+
+# ------------------------------------------------------------------ the sunken amphitheatre
+# Its plot sits AMPHITHEATRE_DEPTH below the academic plot, so the top row of seats is level with
+# the ring road outside the block and the seats step down to the stage and the pond. Grassy
+# banks inside the plot's north, south and east edges lead down to the stage level; on the west
+# the seating's own outer wall holds the ground up.
+ax0, az0 = L.to_world(565, 688)
+ax1, az1 = L.to_world(565 + 64, 688 + 114)
+amph_h = pad_heights["academic"] - L.AMPHITHEATRE_DEPTH
+rows, cols = window((ax0 + ax1) / 2, (az0 + az1) / 2, 90.0)
+px, pz = X[rows, cols], Z[rows, cols]
+fan_x, fan_z = L.to_world(610.0, 711.0)
+fan_r = np.hypot(px - fan_x, pz - fan_z)
+fan_a = np.degrees(np.arctan2(pz - fan_z, px - fan_x))
+off_axis = np.abs(np.abs(fan_a) - 180.0)                                  # degrees from the fan's axis
+in_fan = (fan_r < 45.2) & (off_axis < 39.3)
+# Banks inside the plot on the west, north and south; on the east the low ground runs on out
+# towards the boundary wall, where the land falls away to the ravine.
+inner = np.minimum.reduce([px - ax0, az0 - pz, pz - az1])                # metres inside the plot
+w = smoothstep(0.0, 9.0, inner) * (1 - smoothstep(0.0, 16.0, px - ax1))
+target = np.full(px.shape, amph_h)
+# Beside the seating the ground slopes down with the rows (the seats' side walls hold it), from
+# the top walk's level at the back to the stage's at the front, so it never stands over the seats.
+beside = fan_r * np.sin(np.radians(np.clip(off_axis - 39.0, 0.0, 90.0)))  # metres out from the side walls
+tiers = np.clip((fan_r - 27.4) / (43.0 - 27.4), 0.0, 1.0) * L.AMPHITHEATRE_DEPTH
+near = (1 - smoothstep(0.0, 10.0, beside)) * (fan_r < 47.0) * (off_axis < 90.0)
+target = target + tiers * near
+w = np.maximum(w, near)
+w = np.where(in_fan, 1.0, w) * (1 - road_core[rows, cols])
+height[rows, cols] = height[rows, cols] * (1 - w) + target * w
 height = np.clip(height, H_MIN + 0.5, H_MIN + H_RANGE - 0.5)
 
 # ------------------------------------------------------------------ write heightmap
@@ -506,7 +772,7 @@ def clear_at(x, z, gap):
 AVENUES = {
     "Spine Road North": (EUCA, 13), "Spine Road South": (EUCA, 13), "Academic Ring": (BROAD, 15), "Academic West Drive": (BROAD, 15),
     "Central East-West Road": (BROAD, 14), "Serpentine Drive": (BROAD, 16), "Gate Approach": (EUCA, 10),
-    "Southern East-West Road": (BROAD, 15), "Track Road": (EUCA, 16), "Oval Road West": (BROAD, 14),
+    "Southern East-West Road": (BROAD, 15), "Track Road": (EUCA, 16), "Oval Loop": (BROAD, 14), "Mess Road": (BROAD, 14),
 }
 for name, width, pts in roads:
     if name not in AVENUES:
@@ -597,6 +863,12 @@ terrain = {
     "grassResolution": GRASS_RES,
     "treeTypes": ["broadleaf", "eucalyptus", "pine", "shrub"],
     "trees": [round(v, 2) for t in trees for v in t],  # x, z, type, scale
+    # The clock tower walk (see generate_layout.CLOCK_STEPS): its centre line X and width, the
+    # tower landing's height, and the walk's outline from the serpentine up to the porch as
+    # [Z, height] corners (every step nose and landing end).
+    "clockSteps": {"x": round(cs_X, 3), "width": cs_w, "towerHeight": round(tower_h, 3),
+                   "landing": [round(land1, 3), round(land0, 3)],
+                   "profile": [[round(z, 3), round(hh, 3)] for z, hh in clock_profile]},
 }
 with open(os.path.join(DATA, "campus_terrain.json"), "w") as f:
     json.dump(terrain, f, separators=(",", ":"))

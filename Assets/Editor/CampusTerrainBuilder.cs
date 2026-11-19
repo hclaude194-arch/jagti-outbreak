@@ -80,7 +80,7 @@ namespace Jagti.EditorTools
             var terrain = go.GetComponent<Terrain>();
             terrain.materialTemplate = TerrainMaterial();
             terrain.drawInstanced = true;
-            terrain.heightmapPixelError = 4f;
+            terrain.heightmapPixelError = 2f;   // 4 let distant slopes rise through the road surfaces
             terrain.basemapDistance = 300f;
             terrain.treeDistance = 400f;
             terrain.treeBillboardDistance = 400f;

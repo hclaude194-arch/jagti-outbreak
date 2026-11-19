@@ -352,6 +352,11 @@ def ground(X, Z):
 ROADS = [r for r in layout["roads"] if r["name"] != "Highway"]
 BOX = [(b["x"] - b["width"] / 2, b["x"] + b["width"] / 2, b["z"] - b["depth"] / 2, b["z"] + b["depth"] / 2)
        for b in layout["buildings"]]
+# The clock tower walk and its tower landing (generate_terrain.py) are kept clear too.
+with open(B.TERRAIN_JSON) as _f:
+    _cs = json.load(_f)["clockSteps"]
+_cz = [z for z, _h in _cs["profile"]]
+BOX.append((_cs["x"] - 6.5, _cs["x"] + 6.5, min(_cz), max(_cz) + 1.5))
 BOUNDARY = list(zip(layout["boundary"][0::2], layout["boundary"][1::2]))
 KEEP_OUT_AREAS = ("court", "track", "field", "amphitheatre", "roundabout", "substation", "courtyard")
 
@@ -765,9 +770,11 @@ def retaining_walls():
     """The stone wall holding the mess terrace up beside the spine road (generate_terrain.py
     keeps the terrace up to RETAINING_X), wherever the drop to the road is over a metre."""
     X = -1.0                       # wall centre: its 2.4 m thickness covers the step
-    for k in range(40):
+    # On past the terrace's south end, stepping down with the grass bank behind it, so the bank
+    # never spills out over the road beyond the last piece.
+    for k in range(48):
         Z = -9.0 - 4.0 * k
-        if Z < -162.0:
+        if Z < -190.0:
             break
         if ground(-4.0, Z) - ground(2.5, Z) < 1.0:
             continue

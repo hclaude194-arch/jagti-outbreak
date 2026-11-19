@@ -435,6 +435,14 @@ VIEWS = {
     "water_tower_hill": (-80, -190, 2, -39, -254, 20, 26),
     "faculty_residences": (-112, 2, 1.8, -128, -110, 8, 24),
     "girls_hostels": (180, -40, 45, 75, -150, 0, 24),
+    # Map fixes (2026-11-19): the clock tower walk from the serpentine, the sunken amphitheatre
+    # seen from the ring road outside the academic block, and the mess road and oval loop.
+    "clock_walk": (72, 478, 1.8, 72, 400, 6, 26),
+    "clock_walk_aerial": (128, 500, 38, 70, 420, 0, 26),
+    "amphitheatre_entry": (146, 285, 1.8, 185, 285, -2, 24),
+    "amphitheatre_aerial": (158, 345, 26, 186, 278, -2, 24),
+    "mess_road": (-48, 6, 1.8, -50, -90, 3, 26),
+    "oval_loop": (-104, 12, 22, -106, -90, 0, 26),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).
