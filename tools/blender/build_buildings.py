@@ -353,7 +353,15 @@ class Model:
         return cx, cy, r, H
 
     # ---------------------------------------------------------------- output
-    def to_object(self):
+    def to_object(self, fixed=()):
+        moved = 0
+        for _ in range(4):   # a lifted face can land on another lifted one: go round again
+            k = separate_coplanar(self.verts, self.faces, fixed)
+            moved += k
+            if k == 0:
+                break
+        if moved:
+            print("  %s: %d coplanar faces lifted clear" % (self.name, moved))
         mesh = bpy.data.meshes.new(self.name)
         bm = bmesh.new()
         bverts = [bm.verts.new(v) for v in self.verts]
@@ -381,6 +389,121 @@ class Model:
         xs = [v for r in self.solid for v in r[:2]]
         zs = [v for r in self.solid for v in r[2:]]
         return [min(xs), min(zs)], [max(xs), max(zs)]
+
+
+# Faces that lie in one plane, face the same way and overlap flicker in Unity (z-fighting: the
+# black and striped patches seen on walls, floors and roofs). Before a model becomes a mesh, one
+# face of each such pair is lifted a few millimetres along its normal: the smaller one (a detail
+# laid on a bigger face), or the later one when the two are the same size.
+COPLANAR_TOL = 0.004
+COPLANAR_LIFT = 0.008
+
+
+def _clip_convex(subject, clipper):
+    """Sutherland-Hodgman: the part of polygon subject inside convex polygon clipper (both CCW)."""
+    out = subject
+    for i in range(len(clipper)):
+        a, b_ = clipper[i], clipper[(i + 1) % len(clipper)]
+        inp, out = out, []
+        if not inp:
+            break
+
+        def side(p):
+            return (b_[0] - a[0]) * (p[1] - a[1]) - (b_[1] - a[1]) * (p[0] - a[0])
+
+        s = inp[-1]
+        for e in inp:
+            se, ss = side(e), side(s)
+            if se >= 0:
+                if ss < 0:
+                    t = ss / (ss - se)
+                    out.append((s[0] + t * (e[0] - s[0]), s[1] + t * (e[1] - s[1])))
+                out.append(e)
+            elif ss >= 0:
+                t = ss / (ss - se)
+                out.append((s[0] + t * (e[0] - s[0]), s[1] + t * (e[1] - s[1])))
+            s = e
+    return out
+
+
+def _area2(q):
+    return 0.5 * sum(q[i][0] * q[(i + 1) % len(q)][1] - q[(i + 1) % len(q)][0] * q[i][1] for i in range(len(q)))
+
+
+def separate_coplanar(verts, faces, fixed=()):
+    """Lifts one face of every coplanar, same-facing overlapping pair (see COPLANAR_LIFT).
+    verts/faces as in Model (each face has its own vertices, so a face moves on its own).
+    fixed: point lists of faces of another model in this model's local frame (an interior
+    shell's building); this model's faces are lifted off them. Returns the number lifted."""
+    recs = []   # (normal key, d, index or -1, u-v polygon, bbox, area, normal)
+    def add(pts, idx):
+        nx = ny = nz = 0.0
+        for k in range(len(pts)):
+            p, q = pts[k], pts[(k + 1) % len(pts)]
+            nx += (p[1] - q[1]) * (p[2] + q[2])
+            ny += (p[2] - q[2]) * (p[0] + q[0])
+            nz += (p[0] - q[0]) * (p[1] + q[1])
+        L = math.sqrt(nx * nx + ny * ny + nz * nz)
+        if L < 1e-6:
+            return
+        n = (nx / L, ny / L, nz / L)
+        d = n[0] * pts[0][0] + n[1] * pts[0][1] + n[2] * pts[0][2]
+        r = (0.0, 0.0, 1.0) if abs(n[2]) < 0.9 else (1.0, 0.0, 0.0)
+        u = (n[1] * r[2] - n[2] * r[1], n[2] * r[0] - n[0] * r[2], n[0] * r[1] - n[1] * r[0])
+        ul = math.sqrt(sum(c * c for c in u))
+        u = tuple(c / ul for c in u)
+        w = (n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0])
+        q = [(p[0] * u[0] + p[1] * u[1] + p[2] * u[2], p[0] * w[0] + p[1] * w[1] + p[2] * w[2]) for p in pts]
+        a = _area2(q)
+        if a < 0:
+            q.reverse()
+            a = -a
+        if a < 0.005:
+            return
+        key = (round(n[0], 2) + 0.0, round(n[1], 2) + 0.0, round(n[2], 2) + 0.0)
+        xs, ys = [p[0] for p in q], [p[1] for p in q]
+        recs.append((key, d, idx, q, (min(xs), max(xs), min(ys), max(ys)), a, n))
+
+    for i, (ids, _mat, _uvs) in enumerate(faces):
+        add([verts[k] for k in ids], i)
+    for pts in fixed:
+        add(pts, -1)
+    groups = {}
+    for r in recs:
+        groups.setdefault(r[0], []).append(r)
+    moved = set()
+    for rs in groups.values():
+        if len(rs) < 2:
+            continue
+        rs.sort(key=lambda r: r[1])
+        for a_i, A in enumerate(rs):
+            for Bq in rs[a_i + 1:]:
+                if Bq[1] - A[1] > COPLANAR_TOL:
+                    break
+                if A[2] < 0 and Bq[2] < 0:
+                    continue
+                if A[2] in moved or Bq[2] in moved:
+                    continue
+                ba, bb = A[4], Bq[4]
+                if ba[0] >= bb[1] - 0.01 or bb[0] >= ba[1] - 0.01 or ba[2] >= bb[3] - 0.01 or bb[2] >= ba[3] - 0.01:
+                    continue
+                c = _clip_convex(A[3], Bq[3])
+                if len(c) < 3 or _area2(c) < 0.01:
+                    continue
+                if A[2] < 0:
+                    pick = Bq
+                elif Bq[2] < 0:
+                    pick = A
+                elif abs(A[5] - Bq[5]) < 0.02 * max(A[5], Bq[5]):
+                    pick = A if A[2] > Bq[2] else Bq
+                else:
+                    pick = A if A[5] < Bq[5] else Bq
+                moved.add(pick[2])
+                n = pick[6]
+                for k in faces[pick[2]][0]:
+                    v = verts[k]
+                    verts[k] = (v[0] + n[0] * COPLANAR_LIFT, v[1] + n[1] * COPLANAR_LIFT, v[2] + n[2] * COPLANAR_LIFT)
+    return len(moved)
 
 
 def inset_polygon(poly, d):

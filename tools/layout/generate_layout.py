@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 24
+VERSION = 25
 
 
 def to_world(x, y):
@@ -97,7 +97,7 @@ BUILDINGS = [
     ("Girls Hostel B - West Wing", "hostels", 462, 1078, 16, 40, 7, "box"),
     ("Girls Hostel B - North Wing", "hostels", 478, 1078, 43, 18, 7, "box"),
     ("Girls Hostel B - East Wing", "hostels", 521, 1078, 14, 40, 7, "box"),
-    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 30, 26, 7, "box"),
+    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 26, 26, 7, "box"),   # 4 m clear of Girls Hostel B (they touched, and a doorway opened into a B room)
     ("Girls Hostel A - West Wing", "hostels", 432, 1130, 14, 40, 7, "box"),
     ("Girls Hostel A - South Wing", "hostels", 432, 1170, 30, 28, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),

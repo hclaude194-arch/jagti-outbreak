@@ -26,6 +26,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_buildings as B  # noqa: E402  (imports bpy first)
+import bpy  # noqa: E402
 from build_buildings import FLOOR, BUILDINGS, MATERIALS, Model, inset_polygon, arc_points  # noqa: E402
 
 ROOT = B.ROOT
@@ -2788,11 +2789,96 @@ def furnish():
 
 
 # ------------------------------------------------------------------ output
-def export_model(m, path):
+def export_model(m, path, fixed=()):
     B.clear_scene()
-    obj = m.to_object()
+    obj = m.to_object(fixed)
     B.export(obj, path)
     return obj
+
+
+def door_thresholds():
+    """[(X, Z, through axis (x, z), width)] of every ground-floor doorway in the building models:
+    the door-sized concrete thresholds at plinth level (0.6 m)."""
+    out = []
+    for bm in json.load(open(os.path.join(B.ROOT, "Assets", "Data", "building_models.json")))["models"]:
+        B.clear_scene()
+        bpy.ops.import_scene.fbx(filepath=os.path.join(B.ROOT, bm["fbx"]))
+        for o in list(bpy.context.scene.objects):
+            if o.type != "MESH":
+                continue
+            mw = o.matrix_world
+            mats = [x.name for x in o.data.materials]
+            for poly in o.data.polygons:
+                if not mats[poly.material_index].startswith("Concrete"):
+                    continue
+                vs = [mw @ o.data.vertices[i].co for i in poly.vertices]
+                if any(abs(v.z - FL) > 0.03 for v in vs) or (mw.to_3x3() @ poly.normal).z < 0.99:
+                    continue
+                xs, ys = [v.x for v in vs], [v.y for v in vs]
+                w, d = max(xs) - min(xs), max(ys) - min(ys)
+                if min(w, d) > 0.9 or not 1.2 <= max(w, d) <= 5.0:
+                    continue
+                cx, cy = sum(xs) / len(xs), sum(ys) / len(ys)
+                # local Blender (x, y) -> world (pivot - x, pivot - y)
+                out.append((bm["pivotX"] - cx, bm["pivotZ"] - cy, (1.0, 0.0) if w < d else (0.0, 1.0), max(w, d)))
+    B.clear_scene()
+    return out
+
+
+def clear_doorways(prop_models):
+    """Drops ground-floor furniture that stands in a doorway or just inside it (shelves and racks
+    across shop doors, beds by a hostel entrance), so the way in and out is never blocked."""
+    solid = {pm["name"]: pm["solid"] for pm in prop_models}
+    sizes = json.load(open(os.path.join(B.ROOT, "tools", "royale", "prop_sizes.json")))
+    doors = door_thresholds()
+    keep, dropped = [], 0
+    for p in PLACED:
+        sz = sizes.get(p["prop"])
+        if p.get("level", 0) != 0 or not solid.get(p["prop"]) or sz is None or sz[2] > 1.6 or sz[3] < 0.3:
+            keep.append(p)
+            continue
+        a = math.radians(p.get("yaw", 0.0))
+        ex = abs(math.cos(a)) * sz[0] / 2 + abs(math.sin(a)) * sz[1] / 2
+        ez = abs(math.sin(a)) * sz[0] / 2 + abs(math.cos(a)) * sz[1] / 2
+        hit = False
+        for X, Z, (tx, tz), w in doors:
+            dx, dz = p["x"] - X, p["z"] - Z
+            along, through = abs(dx * tz - dz * tx), abs(dx * tx + dz * tz)
+            e_al, e_th = (ez, ex) if tx else (ex, ez)
+            if along < w / 2 + 0.2 + e_al and through < 1.6 + e_th:
+                hit = True
+                break
+        if hit:
+            dropped += 1
+        else:
+            keep.append(p)
+    PLACED[:] = keep
+    print("Doorways: %d thresholds, %d pieces of furniture moved out of the way" % (len(doors), dropped))
+
+
+def exterior_faces(sh):
+    """Faces of the building models (written by build_buildings.py) that reach into a shell's
+    bounds, in the shell's local frame: the shell's walls, floors and ceilings are lifted off any
+    that they would otherwise share a plane with (see B.separate_coplanar)."""
+    lo, hi = sh.world_bounds()
+    path = os.path.join(B.ROOT, "Assets", "Data", "building_models.json")
+    out = []
+    for bm in json.load(open(path))["models"]:
+        a, b_ = bm["boundsMin"], bm["boundsMax"]
+        if a[0] > hi[0] + 1 or b_[0] < lo[0] - 1 or a[1] > hi[1] + 1 or b_[1] < lo[1] - 1:
+            continue
+        B.clear_scene()
+        bpy.ops.import_scene.fbx(filepath=os.path.join(B.ROOT, bm["fbx"]))
+        dx, dy = sh.px - bm["pivotX"], sh.pz - bm["pivotZ"]
+        for o in list(bpy.context.scene.objects):
+            if o.type != "MESH":
+                continue
+            mw = o.matrix_world
+            vs = [mw @ v.co for v in o.data.vertices]
+            for poly in o.data.polygons:
+                out.append([(vs[i].x + dx, vs[i].y + dy, vs[i].z) for i in poly.vertices])
+    B.clear_scene()
+    return out
 
 
 def shift_output(shell, props, lights, rooms, dx, dz):
@@ -2831,7 +2917,7 @@ def main():
     for bd in buildings:
         sh = bd["shell"]
         path = os.path.join(B.OUT_DIR, sh.name + ".fbx")
-        obj = export_model(sh, path)
+        obj = export_model(sh, path, exterior_faces(sh))
         print("%-30s %6d faces" % (sh.name, len(obj.data.polygons)))
         lo, hi = sh.world_bounds()
         shells.append({
@@ -2852,6 +2938,7 @@ def main():
         o = export_model(m, os.path.join(PROP_DIR, name + ".fbx"))
         props_out.append(dict(name=name, fbx="Assets/Models/Props/%s.fbx" % name, solid=solid))
         print("  prop %-20s %4d faces%s" % (name, len(o.data.polygons), "" if name in used else "  (unused)"))
+    clear_doorways(props_out)
     data = {
         "info": "Generated by tools/blender/build_interiors.py. Heights are relative to the building base.",
         "shells": shells,

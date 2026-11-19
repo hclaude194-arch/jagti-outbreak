@@ -579,12 +579,21 @@ SIGNS = []
 
 
 def place(name, X, Z, yaw, dy=0.0, gx=None, gz=None):
+    # Two of the same prop in one spot (a fence on the edge two courts share, a sign arm put up
+    # twice) would draw on top of each other and flicker: keep the first.
+    for p_ in PROPS_OUT[-400:]:
+        if p_["prop"] == name and abs(p_["x"] - X) < 0.4 and abs(p_["z"] - Z) < 0.4 and abs(p_["y"] - dy) < 0.2 \
+                and min((p_["yaw"] - yaw) % 360.0, (yaw - p_["yaw"]) % 360.0) < 1.0:
+            return
     PROPS_OUT.append(dict(prop=name, x=round(X, 3), z=round(Z, 3), y=round(dy, 3), yaw=round(yaw % 360.0, 2),
                           gx=round(X if gx is None else gx, 3), gz=round(Z if gz is None else gz, 3)))
 
 
 def sign(text, X, Z, y, yaw, size=0.12, gx=None, gz=None, color=(1.0, 1.0, 1.0)):
     """Text facing yaw (the direction its readers look from), y above the ground at (gx, gz)."""
+    for s_ in SIGNS[-200:]:
+        if s_["text"] == text and abs(s_["x"] - X) < 0.4 and abs(s_["z"] - Z) < 0.4 and abs(s_["y"] - y) < 0.2:
+            return
     SIGNS.append(dict(text=text, x=round(X, 3), z=round(Z, 3), y=round(y, 3), yaw=round(yaw % 360.0, 2), size=size,
                       gx=round(X if gx is None else gx, 3), gz=round(Z if gz is None else gz, 3), color=list(color)))
 
@@ -799,17 +808,29 @@ def court_walls():
         z0, z1 = a["z"] - a["depth"] / 2, a["z"] + a["depth"] / 2
         base = ground(a["x"], a["z"])
         # West: in front of the open hill side; north: under the fence along the paved lane.
-        for side, (A, B_, out) in {"W": ((x0 - 1.6, z0 - 1.0), (x0 - 1.6, z1 + 1.0), (-1.0, 0.0)),
-                                   "N": ((x0 - 1.0, z1 + 1.0), (x1 + 1.0, z1 + 1.0), (0.0, 1.0))}.items():
+        # Each piece stands at the toe of the bank (where the ground starts to rise above the
+        # court), so its face shows in full and the bank rises behind it.
+        for side, (A, B_, out) in {"W": ((x0, z0 - 1.0), (x0, z1 + 1.0), (-1.0, 0.0)),
+                                   "N": ((x0 - 1.0, z1), (x1 + 1.0, z1), (0.0, 1.0))}.items():
             L = math.dist(A, B_)
             n = max(1, round(L / 3.0))
             for i in range(n):
                 f = (i + 0.5) / n
                 X, Z = A[0] + (B_[0] - A[0]) * f, A[1] + (B_[1] - A[1]) * f
-                drop = ground(X + out[0] * 1.5, Z + out[1] * 1.5) - base
-                if drop > 0.8:
-                    place("Stone_Wall_High" if drop > 2.0 else "Stone_Wall", X, Z, 90.0 if side == "W" else 0.0,
+                toe = next((t / 10.0 for t in range(5, 60)
+                            if ground(X + out[0] * t / 10.0, Z + out[1] * t / 10.0) - base > 0.25), None)
+                if toe is None:
+                    continue
+                d = toe + 0.1
+                drop = max(ground(X + out[0] * (toe + t), Z + out[1] * (toe + t)) for t in (1.0, 2.0, 3.0)) - base
+                if drop <= 0.8:
+                    continue
+                if drop <= 2.0:
+                    place("Stone_Wall", X + out[0] * d, Z + out[1] * d, 90.0 if side == "W" else 0.0,
                           gx=a["x"], gz=a["z"])
+                    continue
+                place("Stone_Wall_High", X + out[0] * d, Z + out[1] * d, 90.0 if side == "W" else 0.0,
+                      gx=a["x"], gz=a["z"])
         place("Flood_Mast", x0 - 0.6, z1 - 1.0, 0.0, gx=a["x"], gz=a["z"])
 
 
