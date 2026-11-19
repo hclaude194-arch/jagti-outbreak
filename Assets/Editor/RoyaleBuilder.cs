@@ -20,6 +20,7 @@ namespace Jagti.EditorTools
         public string table;
         public float chance;
         public string room;
+        public float yaw;           // stashes only
     }
 
     [Serializable]
@@ -28,11 +29,12 @@ namespace Jagti.EditorTools
         public string info;
         public int layoutVersion;
         public LootPointData[] points;
+        public LootPointData[] stashes;
     }
 
     /// <summary>
     /// Battle royale scene setup (Phase 5A), called by CampusGreyboxBuilder after the NavMesh bake
-    /// in place of the zombie GameplayBuilder: the match referee, the haze, the helicopter, loot
+    /// in place of the zombie GameplayBuilder: the match referee, the haze, the sky bus, loot
     /// points snapped onto the floors, the player's match components, the map texture and the HUD.
     /// Materials are made here so the runtime code needs no Shader.Find (which fails in builds).
     /// </summary>
@@ -137,14 +139,27 @@ namespace Jagti.EditorTools
             loot.tierRings = rings;
             int points = FillLootPoints(loot, ground);
 
-            // ---------------------------------------------------------------- helicopter
-            var heliGo = new GameObject("Helicopter");
+            // ---------------------------------------------------------------- sky bus
+            var heliGo = new GameObject("Sky Bus");
             heliGo.transform.SetParent(br, false);
-            var heli = heliGo.AddComponent<Helicopter>();
-            heli.bodyMaterial = ProceduralAssets.LitMaterial("Heli_Body", new Color(0.16f, 0.27f, 0.26f), null, 0.45f);
-            heli.stripeMaterial = ProceduralAssets.LitMaterial("Heli_Stripe", new Color(0.92f, 0.9f, 0.84f), null, 0.4f);
-            heli.glassMaterial = ProceduralAssets.LitMaterial("Heli_Glass", new Color(0.08f, 0.12f, 0.16f), null, 0.92f);
-            heli.darkMaterial = ProceduralAssets.LitMaterial("Heli_Dark", new Color(0.08f, 0.08f, 0.09f), null, 0.3f);
+            var heli = heliGo.AddComponent<SkyBus>();
+            // Palette in SkyBusModel slot order: white, navy, glass, dark, saffron, yellow, red, green, metal.
+            heli.palette = new[]
+            {
+                ProceduralAssets.LitMaterial("SkyBus_White", new Color(0.93f, 0.93f, 0.9f), null, 0.35f),
+                ProceduralAssets.LitMaterial("SkyBus_Navy", new Color(0.09f, 0.13f, 0.3f), null, 0.4f),
+                ProceduralAssets.LitMaterial("SkyBus_Glass", new Color(0.08f, 0.12f, 0.16f), null, 0.92f),
+                ProceduralAssets.LitMaterial("SkyBus_Dark", new Color(0.07f, 0.07f, 0.08f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Saffron", new Color(0.98f, 0.55f, 0.12f), null, 0.15f),
+                ProceduralAssets.LitMaterial("SkyBus_Yellow", new Color(0.98f, 0.8f, 0.15f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Red", new Color(0.8f, 0.12f, 0.1f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Green", new Color(0.15f, 0.6f, 0.25f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Metal", new Color(0.42f, 0.43f, 0.45f), null, 0.5f),
+            };
+            var flame = ProceduralAssets.LitMaterial("SkyBus_Flame", new Color(1f, 0.6f, 0.2f), null, 0.1f);
+            flame.EnableKeyword("_EMISSION");
+            if (flame.HasProperty("_EmissionColor")) flame.SetColor("_EmissionColor", new Color(1f, 0.5f, 0.12f) * 4f);
+            heli.flameMaterial = flame;
 
             // ---------------------------------------------------------------- the player
             var pgo = player.gameObject;
@@ -170,6 +185,7 @@ namespace Jagti.EditorTools
             diver.canopy = canopies[0];
             var arsenal = pgo.AddComponent<PlayerArsenal>();
             arsenal.palette = palette;
+            arsenal.flashMaterial = UnlitMaterial("Muzzle_Flash", new Color(1f, 0.78f, 0.42f), FlashTexture(), Blend.Additive, 1f, true);
             arsenal.grenadeTemplate = GrenadeTemplate(br, palette, ParticleMaterial("Blast_Smoke", puffTex));
             arsenal.smokeTemplate = SmokeTemplate(br, palette, ParticleMaterial("Smoke_Screen", puffTex));
 
@@ -231,8 +247,10 @@ namespace Jagti.EditorTools
             hud.places = layout.places;
             hud.mover = mover;
             hud.placeLoot = RatePlaces(layout, loot);
+            loot.places = layout.places;
+            loot.placeRating = hud.placeLoot;
 
-            Debug.Log("[Jagti] Battle royale: " + points + " loot points, helicopter, haze over " + Mathf.RoundToInt(haze.startRadius) +
+            Debug.Log("[Jagti] Battle royale: " + points + " loot points, " + loot.stashPoints.Length + " stash spots, sky bus, haze over " + Mathf.RoundToInt(haze.startRadius) +
                       " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines.");
         }
 
@@ -528,32 +546,7 @@ namespace Jagti.EditorTools
             foreach (var p in list.points)
             {
                 Vector3 at;
-                if (p.zone >= 0)
-                {
-                    if (zones.zones == null || p.zone >= zones.zones.Length) { dropped++; continue; }
-                    var z = zones.zones[p.zone];
-                    float floor = ground(z.baseX, z.baseZ) + p.y;
-                    // Snap onto the floor (or a stair step or the raised rows of a case room).
-                    RaycastHit hit;
-                    if (!Physics.Raycast(new Vector3(p.x, floor + 1.5f, p.z), Vector3.down, out hit, 2.6f, ~0, QueryTriggerInteraction.Ignore))
-                    {
-                        dropped++;
-                        continue;
-                    }
-                    if (hit.point.y > floor + 0.9f) { dropped++; continue; }   // landed on furniture
-                    at = hit.point + Vector3.up * 0.01f;
-                }
-                else
-                {
-                    float g = ground(p.x, p.z);
-                    RaycastHit hit;
-                    at = new Vector3(p.x, g, p.z);
-                    if (Physics.Raycast(new Vector3(p.x, g + 3f, p.z), Vector3.down, out hit, 6f, ~0, QueryTriggerInteraction.Ignore))
-                    {
-                        if (hit.point.y > g + 1.2f) { dropped++; continue; }   // on a wall, bench or car
-                        at = hit.point + Vector3.up * 0.01f;
-                    }
-                }
+                if (!SnapPoint(p, zones, ground, out at)) { dropped++; continue; }
                 pos.Add(at);
                 tables.Add(p.table);
                 chances.Add(p.chance);
@@ -564,7 +557,61 @@ namespace Jagti.EditorTools
             loot.pointChances = chances.ToArray();
             loot.pointIndoor = indoor.ToArray();
             if (dropped > 0) Debug.Log("[Jagti] Loot: " + dropped + " points had no clear floor and were skipped.");
+
+            // Stash spots: the same snapping, plus the trunk's facing.
+            var sPos = new List<Vector3>();
+            var sYaw = new List<float>();
+            var sTables = new List<string>();
+            var sChances = new List<float>();
+            var sIndoor = new List<bool>();
+            int sDropped = 0;
+            if (list.stashes != null)
+                foreach (var p in list.stashes)
+                {
+                    Vector3 at;
+                    if (!SnapPoint(p, zones, ground, out at)) { sDropped++; continue; }
+                    sPos.Add(at);
+                    sYaw.Add(p.yaw);
+                    sTables.Add(p.table);
+                    sChances.Add(p.chance);
+                    sIndoor.Add(p.zone >= 0);
+                }
+            else
+                Debug.LogWarning("[Jagti] " + LootPath + " has no stashes; rerun tools/royale/build_loot_points.py.");
+            loot.stashPoints = sPos.ToArray();
+            loot.stashYaw = sYaw.ToArray();
+            loot.stashTables = sTables.ToArray();
+            loot.stashChances = sChances.ToArray();
+            loot.stashIndoor = sIndoor.ToArray();
+            if (sDropped > 0) Debug.Log("[Jagti] Loot: " + sDropped + " stash spots had no clear floor and were skipped.");
             return pos.Count;
+        }
+
+        /// <summary>Puts a loot point on the floor (indoors) or the ground; false when it lands on furniture or a wall.</summary>
+        static bool SnapPoint(LootPointData p, ZoneList zones, Func<float, float, float> ground, out Vector3 at)
+        {
+            at = Vector3.zero;
+            RaycastHit hit;
+            if (p.zone >= 0)
+            {
+                if (zones.zones == null || p.zone >= zones.zones.Length) return false;
+                var z = zones.zones[p.zone];
+                float floor = ground(z.baseX, z.baseZ) + p.y;
+                // Snap onto the floor (or a stair step or the raised rows of a case room).
+                if (!Physics.Raycast(new Vector3(p.x, floor + 1.5f, p.z), Vector3.down, out hit, 2.6f, ~0, QueryTriggerInteraction.Ignore))
+                    return false;
+                if (hit.point.y > floor + 0.9f) return false;   // landed on furniture
+                at = hit.point + Vector3.up * 0.01f;
+                return true;
+            }
+            float g = ground(p.x, p.z);
+            at = new Vector3(p.x, g, p.z);
+            if (Physics.Raycast(new Vector3(p.x, g + 3f, p.z), Vector3.down, out hit, 6f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.point.y > g + 1.2f) return false;   // on a wall, bench or car
+                at = hit.point + Vector3.up * 0.01f;
+            }
+            return true;
         }
 
         // ------------------------------------------------------------------ grenade
@@ -676,6 +723,28 @@ namespace Jagti.EditorTools
                     px[y * size + x] = new Color(1f, 1f, 1f, a);
                 }
             return ProceduralAssets.SaveTexture("Tex_Soft_Puff", size, px, true);
+        }
+
+        // A muzzle flash: a hot core with four spikes and a softer glow, white in the middle.
+        static Texture2D FlashTexture()
+        {
+            const int size = 64;
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                    float r = Mathf.Sqrt(u * u + v * v);
+                    float spikes = Mathf.Max(Mathf.Clamp01(1f - Mathf.Abs(u) * 9f) * Mathf.Clamp01(1f - Mathf.Abs(v)),
+                                             Mathf.Clamp01(1f - Mathf.Abs(v) * 9f) * Mathf.Clamp01(1f - Mathf.Abs(u)));
+                    float core = Mathf.Clamp01(1f - r * 2.2f);
+                    float glow = Mathf.Clamp01(1f - r) * Mathf.Clamp01(1f - r) * 0.5f;
+                    float a = Mathf.Clamp01(core + spikes * 0.8f + glow);
+                    float white = Mathf.Clamp01(core * 1.5f);
+                    // Premultiplied: the additive blend (One, One) ignores alpha.
+                    px[y * size + x] = new Color(a, Mathf.Lerp(0.85f, 1f, white) * a, Mathf.Lerp(0.6f, 1f, white) * a, a);
+                }
+            return ProceduralAssets.SaveTexture("Tex_Muzzle_Flash", size, px, true);
         }
 
         // Vertical streaks of thicker and thinner haze; tiles around the wall.

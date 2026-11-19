@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// The match referee. At the start it lays out the loot, picks the helicopter's line over the
+    /// The match referee. At the start it lays out the loot, picks the sky bus's line over the
     /// campus, creates the bots and gives each a landing spot, and starts the haze. During the match
     /// it keeps the kill feed and placements, sends supply drops, and ends the match when one player
     /// is left (or when the player falls). The match waits for the front menu (NetLobbyMenu): offline
@@ -23,12 +23,15 @@ namespace Jagti.Royale
             public string text;
             public float time;
             public bool involvesPlayer;
+            // The parts, for the HUD's kill feed: killer is null when nobody got the kill.
+            public string killer, victim, weapon;
+            public bool head, byPlayer, ofPlayer;
         }
 
         [Header("Scene parts (set by RoyaleBuilder)")]
         public Combatant player;
         public SkyDiver playerDiver;
-        public Helicopter helicopter;
+        public SkyBus helicopter;
         public HazeZone haze;
         public LootDirector loot;
 
@@ -169,7 +172,7 @@ namespace Jagti.Royale
             StartCount = Combatant.All.Count;
             if (playerDiver != null) playerDiver.Board();
             if (haze != null) haze.Begin(s + 7);
-            Announce("Board the helicopter. Press Space to jump.");
+            Announce("Board the sky bus. Press Space to jump.");
         }
 
         // ------------------------------------------------------------------ setup
@@ -253,7 +256,7 @@ namespace Jagti.Royale
             {
                 Vector3 p = pts != null && pts.Length > 0 ? pts[rng.Next(pts.Length)] : fallback;
                 p.y = HazeZone.GroundY(p.x, p.z);
-                // Prefer spots the helicopter passes close to (fewer long glides).
+                // Prefer spots the sky bus passes close to (fewer long glides).
                 if (helicopter != null)
                 {
                     Vector3 near = helicopter.PointAt(helicopter.TimeClosestTo(p));
@@ -416,7 +419,13 @@ namespace Jagti.Royale
             else if (weapon == NetMatch.LeftWeapon) text = victim.displayName + " left the match";
             else text = victim.displayName + " is out";
             bool mine = victim.isPlayer || (killer != null && killer.isPlayer);
-            feed.Add(new FeedLine { text = text, time = Time.time, involvesPlayer = mine });
+            bool credited = killer != null && killer != victim;
+            feed.Add(new FeedLine
+            {
+                text = text, time = Time.time, involvesPlayer = mine,
+                killer = credited ? killer.displayName : null, victim = victim.displayName, weapon = weapon, head = head,
+                byPlayer = credited && killer.isPlayer, ofPlayer = victim.isPlayer,
+            });
             if (feed.Count > 30) feed.RemoveAt(0);
             if (killer != null && killer.isPlayer) GameState.Kills = killer.Kills;
 

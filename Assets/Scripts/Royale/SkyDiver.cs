@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// The player's drop: ride the helicopter (look around, check the map), jump with Space,
+    /// The player's drop: ride the sky bus (look around, check the map), jump with Space,
     /// free-fall (W dives faster, S slows), open the glider with Space or automatically low down,
     /// then steer it with the mouse (W for speed, S to float) onto a roof, lawn or doorway.
     /// The camera pulls back behind the player's body for the drop and returns to first person on landing.
@@ -13,9 +13,9 @@ namespace Jagti.Royale
     [RequireComponent(typeof(FirstPersonController))]
     public class SkyDiver : MonoBehaviour
     {
-        public enum State { Waiting, InHelicopter, FreeFall, Glide, Landed }
+        public enum State { Waiting, Aboard, FreeFall, Glide, Landed }
 
-        public Helicopter helicopter;
+        public SkyBus helicopter;
         public HumanBody body;
 
         [Header("Body looks (the body is built at runtime)")]
@@ -74,13 +74,13 @@ namespace Jagti.Royale
             }
         }
 
-        /// <summary>Puts the player aboard; called by MatchDirector when the helicopter sets off.</summary>
+        /// <summary>Puts the player aboard; called by MatchDirector when the sky bus sets off.</summary>
         public void Board()
         {
-            Current = State.InHelicopter;
+            Current = State.Aboard;
             jumpLock = 2f;   // no accidental jump in the first seconds
             fpc.externalControl = true;
-            fpc.thirdPersonDistance = 16f;
+            fpc.thirdPersonDistance = 30f;   // far enough back to see the bus and its balloon
             controller.enabled = false;
             if (combatant != null) combatant.Landed = false;
             ShowBody(true, HumanBody.Pose.Stand);
@@ -88,11 +88,11 @@ namespace Jagti.Royale
 
         public void Jump()
         {
-            if (Current != State.InHelicopter) return;
+            if (Current != State.Aboard) return;
             Current = State.FreeFall;
             transform.position = helicopter.Door;
             controller.enabled = true;
-            velocity = helicopter.transform.forward * 20f;   // carried along by the helicopter at first
+            velocity = helicopter.transform.forward * 20f;   // carried along by the sky bus at first
             fpc.thirdPersonDistance = 5f;
             ShowBody(true, HumanBody.Pose.FreeFall);
             wind.Play();
@@ -137,7 +137,7 @@ namespace Jagti.Royale
             float dt = Time.deltaTime;
             switch (Current)
             {
-                case State.InHelicopter:
+                case State.Aboard:
                     if (helicopter == null) { Land(); break; }
                     transform.position = helicopter.Door;
                     jumpLock -= dt;

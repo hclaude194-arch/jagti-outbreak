@@ -27,6 +27,10 @@ namespace Jagti.Royale
         public float shoulderDistance = 2.4f;
 
         public string Prompt { get; private set; }
+        /// <summary>A closed stash in reach and in view (E opens it); Target is null then.</summary>
+        public LootStash StashTarget { get; private set; }
+        /// <summary>E is for loot or a stash just now (vehicles and zip lines wait).</summary>
+        public bool HasTarget { get { return Target != null || StashTarget != null; } }
         public LootDrop Target { get; private set; }
         public bool Aiming { get; private set; }
         public float ReloadProgress { get { return reloadTime > 0f ? 1f - reloadLeft / reloadTime : 0f; } }
@@ -58,6 +62,10 @@ namespace Jagti.Royale
         GameObject[] views = new GameObject[RoyaleItems.Guns.Length];
         Light flash;
         float flashT;
+        Transform flashSprite;         // crossed glowing quads at the muzzle (first person)
+        Vector2 sway;                  // view model lag behind the mouse
+        float sprintBlend, landDip, kickRoll, kickSize = 1f;
+        bool wasGrounded = true;
         readonly List<LootDrop> near = new List<LootDrop>();
         int shownGun = -2;
         int shotIndex;
@@ -92,6 +100,13 @@ namespace Jagti.Royale
             BuildViews();
         }
 
+        /// <summary>The field of view when not aiming (the settings menu changes it).</summary>
+        public void SetBaseFov(float fov)
+        {
+            baseFov = fov;
+            if (cam != null && aimBlend <= 0f) cam.fieldOfView = fov;
+        }
+
         void OnPlayerHit(bool head, bool kill)
         {
             HitMarker = 1f;
@@ -114,10 +129,12 @@ namespace Jagti.Royale
             HitMarker = Mathf.MoveTowards(HitMarker, 0f, Time.deltaTime * 3f);
             flashT -= Time.deltaTime;
             if (flash != null && flash.enabled && flashT <= 0f) flash.enabled = false;
+            if (flashSprite != null && flashSprite.gameObject.activeSelf && flashT <= 0f) flashSprite.gameObject.SetActive(false);
             if (!Active)
             {
                 Prompt = null;
                 Target = null;
+                StashTarget = null;
                 SetAim(false);
                 ShowView(-1);
                 if (!combatant.Alive && diver != null && diver.body != null && diver.Current == SkyDiver.State.Landed)
@@ -185,7 +202,11 @@ namespace Jagti.Royale
             if (Input.GetKeyDown(KeyCode.X) && gun != null) DropCurrent();
 
             FindTarget();
-            if (Input.GetKeyDown(KeyCode.E) && Target != null) PickUp(Target, true);
+            if (Input.GetKeyDown(KeyCode.E))
+            {
+                if (StashTarget != null) OpenStash(StashTarget);
+                else if (Target != null) PickUp(Target, true);
+            }
             AutoPickup();
 
             ShowView(gun != null && !InThirdPerson ? gun.def.id : -1);
@@ -260,6 +281,8 @@ namespace Jagti.Royale
             nextShot = Time.time + def.interval;
             gun.loaded--;
             kick = 1f;
+            kickSize = Mathf.Clamp(def.recoil / 2.5f, 0.45f, 1.6f);
+            kickRoll = Random.Range(-1f, 1f);
             Bloom = Mathf.Min(1f, Bloom + 0.25f);
 
             // The recoil pattern: count shots in this spray.
@@ -301,10 +324,31 @@ namespace Jagti.Royale
                 flash.enabled = true;
                 flashT = 0.045f;
                 flash.transform.position = InThirdPerson ? fpc.HeadPosition + dir * 0.9f - Vector3.up * 0.25f
-                                                         : viewRoot.TransformPoint(new Vector3(0f, 0.05f, 0.6f));
+                                                         : MuzzlePoint(def.id);
+                if (flashSprite != null && !InThirdPerson)
+                {
+                    // A fresh star each shot: turned, sized and placed at this gun's muzzle.
+                    flashSprite.position = MuzzlePoint(def.id);
+                    flashSprite.rotation = fpc.cameraPivot.rotation * Quaternion.Euler(0f, 0f, Random.Range(0f, 360f));
+                    float size = def.gunClass == GunClass.Shotgun || def.gunClass == GunClass.Marksman ? 1.5f : def.gunClass == GunClass.Sidearm ? 0.8f : 1f;
+                    flashSprite.localScale = Vector3.one * size * Random.Range(0.85f, 1.15f);
+                    flashSprite.gameObject.SetActive(true);
+                }
             }
             if (shells != null && def.gunClass != GunClass.Shotgun && def.burst == 0 && !def.bolt && def.id != 5 && !InThirdPerson) shells.Emit(1);
             if (gun.loaded == 0 && combatant.loadout.CountFor(gun) > 0) Invoke("StartReload", 0.3f);
+        }
+
+        /// <summary>The end of the shown gun's barrel (or its muzzle part), in world space.</summary>
+        Vector3 MuzzlePoint(int id)
+        {
+            var view = id >= 0 && id < views.Length ? views[id] : null;
+            if (view == null) return viewRoot.TransformPoint(new Vector3(0f, 0.05f, 0.6f));
+            var m = LootVisuals.MountsFor(id);
+            Vector3 at = float.IsNaN(m.muzzle.x) ? new Vector3(0.56f, 0.04f, 0.02f) : m.muzzle + new Vector3(0.02f, 0.04f, 0f);
+            var g = combatant.loadout.Current;
+            if (g != null && g.parts[(int)AttachmentSlot.Muzzle] == (int)AttachmentType.Compensator) at.x += 0.07f;
+            return view.transform.TransformPoint(at);
         }
 
         void BoltSound()
@@ -397,9 +441,23 @@ namespace Jagti.Royale
         {
             Prompt = null;
             Target = null;
+            StashTarget = null;
             var loot = LootDirector.Instance;
             if (loot == null) return;
             Transform eye = fpc.cameraPivot;
+            // A closed trunk in reach and roughly in view comes first.
+            var stash = loot.NearestClosedStash(transform.position, 2.2f);
+            if (stash != null)
+            {
+                Vector3 to = stash.position + Vector3.up * 0.3f - eye.position;
+                float dist = to.magnitude;
+                if (Vector3.Dot(eye.forward, to / Mathf.Max(0.01f, dist)) > 0.45f || dist < 1.2f)
+                {
+                    StashTarget = stash;
+                    Prompt = "[E] open the " + stash.Name.ToLower();
+                    return;
+                }
+            }
             loot.Near(transform.position, 2.6f, near);
             float best = -1f;
             foreach (var d in near)
@@ -422,6 +480,12 @@ namespace Jagti.Royale
                 if (!wants && Target.kind != ItemKind.Gun) verb = "full: ";
                 Prompt = "[E] " + verb + Target.Label;
             }
+        }
+
+        void OpenStash(LootStash s)
+        {
+            LootDirector.Instance.Open(s);
+            Say("Opened the " + s.Name.ToLower());
         }
 
         void PickUp(LootDrop d, bool manual)
@@ -547,6 +611,48 @@ namespace Jagti.Royale
             flash.color = new Color(1f, 0.8f, 0.45f);
             flash.shadows = LightShadows.None;
             flash.enabled = false;
+
+            if (flashMaterial != null)
+            {
+                var fs = new GameObject("Muzzle Flash Sprite");
+                fs.transform.SetParent(viewRoot, false);
+                fs.AddComponent<MeshFilter>().sharedMesh = FlashMesh();
+                var fr = fs.AddComponent<MeshRenderer>();
+                fr.sharedMaterial = flashMaterial;
+                fr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                fr.receiveShadows = false;
+                fs.SetActive(false);
+                flashSprite = fs.transform;
+            }
+        }
+
+        /// <summary>
+        /// Three crossed quads: one facing the camera (the star) and two along the barrel (the plume),
+        /// in a frame where +Z is forward.
+        /// </summary>
+        static Mesh FlashMesh()
+        {
+            var v = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var t = new List<int>();
+            System.Action<Vector3, Vector3, Vector3> quad = (c, a, b) =>
+            {
+                int k = v.Count;
+                v.Add(c - a - b); v.Add(c + a - b); v.Add(c + a + b); v.Add(c - a + b);
+                uv.Add(new Vector2(0f, 0f)); uv.Add(new Vector2(1f, 0f)); uv.Add(new Vector2(1f, 1f)); uv.Add(new Vector2(0f, 1f));
+                t.Add(k); t.Add(k + 1); t.Add(k + 2);
+                t.Add(k); t.Add(k + 2); t.Add(k + 3);
+            };
+            quad(Vector3.zero, Vector3.right * 0.09f, Vector3.up * 0.09f);
+            quad(Vector3.forward * 0.1f, Vector3.forward * 0.12f, Vector3.up * 0.05f);
+            quad(Vector3.forward * 0.1f, Vector3.forward * 0.12f, Vector3.right * 0.05f);
+            var mesh = new Mesh { name = "Muzzle Flash" };
+            mesh.SetVertices(v);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(t, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         void ShowView(int id)
@@ -561,17 +667,52 @@ namespace Jagti.Royale
         void AnimateView()
         {
             if (viewRoot == null) return;
-            kick = Mathf.MoveTowards(kick, 0f, Time.deltaTime * 9f);
+            float dt = Time.deltaTime;
+            kick = Mathf.MoveTowards(kick, 0f, dt * 9f);
             float speed = fpc.HorizontalSpeed;
-            bob += Time.deltaTime * speed * 1.9f;
+            bob += dt * speed * 1.9f;
             float b = Mathf.Clamp01(speed / 5f) * (1f - aimBlend * 0.8f);
+
+            // Sway: the gun lags a little behind the mouse, less when aiming.
+            if (Time.timeScale > 0f)
+            {
+                Vector2 target = new Vector2(-Input.GetAxis("Mouse X"), -Input.GetAxis("Mouse Y")) * 0.006f * (1f - aimBlend * 0.85f);
+                target = Vector2.ClampMagnitude(target, 0.03f);
+                sway = Vector2.Lerp(sway, target, dt * 9f);
+            }
+            // Sprinting carries the gun low and turned in; landing dips it.
+            bool sprinting = fpc.IsSprinting && aimBlend < 0.1f && !Reloading;
+            sprintBlend = Mathf.MoveTowards(sprintBlend, sprinting ? 1f : 0f, dt * 5f);
+            bool grounded = fpc.IsGrounded;
+            if (grounded && !wasGrounded) landDip = 1f;
+            wasGrounded = grounded;
+            landDip = Mathf.MoveTowards(landDip, 0f, dt * 4f);
+            float sp = Mathf.SmoothStep(0f, 1f, sprintBlend);
+
             Vector3 pos = Vector3.Lerp(HipPos, AimPos, aimBlend);
-            pos += new Vector3(Mathf.Cos(bob * 0.5f) * 0.012f, -Mathf.Abs(Mathf.Sin(bob * 0.5f)) * 0.016f, 0f) * b;
-            pos += new Vector3(0f, 0f, -0.07f) * kick;
-            if (Reloading) pos += new Vector3(0f, -0.14f, 0f) * Mathf.Sin(Mathf.PI * ReloadProgress);
+            pos += new Vector3(Mathf.Cos(bob * 0.5f) * 0.012f, -Mathf.Abs(Mathf.Sin(bob * 0.5f)) * 0.016f, 0f) * b * (1f + sp);
+            pos += new Vector3(0f, Mathf.Sin(Time.time * 1.6f) * 0.002f * (1f - aimBlend), 0f);   // breathing
+            pos += new Vector3(sway.x, sway.y, 0f);
+            pos += new Vector3(0f, 0f, -0.07f) * kick * kickSize;
+            pos += new Vector3(-0.06f, -0.07f, -0.06f) * sp;
+            pos += new Vector3(0f, -0.04f, 0f) * Mathf.Sin(Mathf.PI * landDip);
+
+            // Reloading: down and rolled while the magazine comes out, a slap as it goes home.
+            float rollR = 0f, pitchR = 0f;
+            if (Reloading)
+            {
+                float r = ReloadProgress;
+                float down = Mathf.Sin(Mathf.PI * Mathf.Clamp01(r / 0.9f));
+                pos += new Vector3(0f, -0.13f, -0.02f) * down;
+                rollR = 28f * down;
+                pitchR = -10f * down;
+                if (r > 0.6f && r < 0.75f) pos += new Vector3(0f, 0.015f * Mathf.Sin((r - 0.6f) / 0.15f * Mathf.PI), 0f);
+            }
             if (switchT > 0f) pos += new Vector3(0f, -0.3f * switchT / 0.35f, 0f);
             viewRoot.localPosition = pos;
-            viewRoot.localRotation = Quaternion.Euler(-kick * 7f, 0f, Reloading ? 25f * Mathf.Sin(Mathf.PI * ReloadProgress) : 0f);
+            viewRoot.localRotation = Quaternion.Euler(-kick * 7f * kickSize + pitchR + sp * 12f - sway.y * 120f,
+                                                      -sp * 30f + sway.x * 120f,
+                                                      rollR + kick * kickRoll * 3f * kickSize + sp * 14f);
         }
     }
 }

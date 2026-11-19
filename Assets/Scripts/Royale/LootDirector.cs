@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Jagti.Gameplay;
 
 namespace Jagti.Royale
 {
@@ -21,6 +22,10 @@ namespace Jagti.Royale
         /// <summary>Set by a bot heading for it, so two bots don't chase the same item.</summary>
         public Combatant claimedBy;
         public float claimUntil;
+        /// <summary>The stash it lies sealed in, if any: unseen and untouchable until the stash opens.</summary>
+        public LootStash stash;
+
+        public bool Sealed { get { return stash != null && !stash.open; } }
 
         public string Label
         {
@@ -40,6 +45,8 @@ namespace Jagti.Royale
     /// Items are plain data in a grid of cells, drawn with GPU instancing only near the camera and on its
     /// storey, so thousands of items cost a handful of draw calls. Also takes drops: swapped guns,
     /// spare armour, and everything a player carried when they fall.
+    /// Each match also fills some stash spots with trunks of better loot (LootStash) and picks two
+    /// named places for "rich pickings", where the floor loot is fuller and better.
     /// </summary>
     public class LootDirector : MonoBehaviour
     {
@@ -51,6 +58,20 @@ namespace Jagti.Royale
         public float[] pointChances;
         public bool[] pointIndoor;
 
+        [Header("Stashes (filled by RoyaleBuilder)")]
+        public Vector3[] stashPoints;
+        public float[] stashYaw;
+        public string[] stashTables;
+        public float[] stashChances;
+        public bool[] stashIndoor;
+        public const int StashItems = 3;
+
+        [Header("Rich pickings")]
+        public Jagti.World.PlaceData[] places;
+        public int[] placeRating;            // 0 light, 1 good, 2 rich (RoyaleBuilder.RatePlaces)
+        public float hotRadius = 75f;
+        public const int HotCount = 2;
+
         [Header("Look")]
         public Material[] palette;          // LootVisuals palette order
         public Material[] tierRings;        // one per tier
@@ -58,6 +79,13 @@ namespace Jagti.Royale
         public float storeyHeight = 3.0f;   // items further above or below than this are on another storey
 
         public int Spawned { get; private set; }
+
+        /// <summary>This match's stashes (filled spots only), in the same order on every machine.</summary>
+        public readonly List<LootStash> Stashes = new List<LootStash>();
+        /// <summary>This match's rich-pickings places (indices into places).</summary>
+        public readonly List<int> HotPlaces = new List<int>();
+        /// <summary>A stash opened on this machine (not raised for OpenRemote). NetMatch sends it on.</summary>
+        public System.Action<LootStash> StashOpened;
 
         /// <summary>
         /// Online: loot made here (drops) and changes made here (pickups; count 0 = gone). NetMatch sends
@@ -81,11 +109,27 @@ namespace Jagti.Royale
         readonly Matrix4x4[] chunk = new Matrix4x4[1023];
         float refreshTimer;
         float spin;
+        readonly List<LootStash> visibleStashes = new List<LootStash>();
+        readonly List<Matrix4x4> stashBodies = new List<Matrix4x4>(), stashLids = new List<Matrix4x4>(), stashGlows = new List<Matrix4x4>();
+        readonly List<GameObject> stashBlocks = new List<GameObject>();
+        int[] bodySubs, lidSubs;
+        AudioSource hum;
 
         void Awake()
         {
             Instance = this;
             for (int i = 0; i < 4; i++) ringBatches[i] = new List<Matrix4x4>();
+            var humGo = new GameObject("Stash Hum");
+            humGo.transform.SetParent(transform, false);
+            hum = humGo.AddComponent<AudioSource>();
+            hum.clip = SynthAudio.Get("stash_hum");
+            hum.loop = true;
+            hum.spatialBlend = 1f;
+            hum.rolloffMode = AudioRolloffMode.Linear;
+            hum.minDistance = 1.5f;
+            hum.maxDistance = 13f;
+            hum.volume = 0.35f;
+            hum.playOnAwake = false;
         }
 
         void OnDestroy()
@@ -100,37 +144,170 @@ namespace Jagti.Royale
             return (cx << 32) ^ (cz & 0xffffffffL);
         }
 
-        /// <summary>Rolls every point and lays out this match's loot.</summary>
+        /// <summary>
+        /// Rolls every point and lays out this match's loot: picks the rich-pickings places, rolls the floor
+        /// points (fuller and better inside those places), then fills stashes. Only seeded randomness and
+        /// the scene's colliders are used, so every machine online lays out the same loot.
+        /// </summary>
         public void SpawnAll(int seed)
         {
             cells.Clear();
             byId.Clear();
             Spawned = 0;
+            Stashes.Clear();
+            foreach (var b in stashBlocks) if (b != null) Destroy(b);
+            stashBlocks.Clear();
+            PickHotPlaces(seed);
             if (points == null) return;
             var rng = new System.Random(seed);
             BeginShared(1);
             for (int i = 0; i < points.Length; i++)
             {
+                Vector3 p = points[i];
+                bool hot = IsHot(p);
                 float chance = pointChances != null && i < pointChances.Length ? pointChances[i] : 0.5f;
+                if (hot) chance = Mathf.Min(1f, chance + 0.25f);
                 if (rng.NextDouble() > chance) continue;
                 string table = pointTables != null && i < pointTables.Length ? pointTables[i] : "residential";
-                ItemKind kind;
-                int value, count;
-                Tier tier;
-                RoyaleItems.Roll(table, rng, out kind, out value, out tier, out count);
-                Vector3 p = points[i];
                 bool indoor = pointIndoor != null && i < pointIndoor.Length && pointIndoor[i];
-                Add(p, (float)rng.NextDouble() * 360f, kind, value, tier, count).indoor = indoor;
-                // A gun comes with a box of its ammo beside it.
-                if (kind == ItemKind.Gun)
+                AddRolled(p, table, hot, indoor, null, rng);
+            }
+            if (stashPoints != null)
+                for (int i = 0; i < stashPoints.Length; i++)
                 {
-                    var def = RoyaleItems.Guns[value];
-                    int a = (int)def.ammo;
-                    Vector3 off = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f) * new Vector3(0.5f, 0f, 0f);
-                    Add(Snap(p + off, p.y), (float)rng.NextDouble() * 360f, ItemKind.Ammo, a, Tier.Common, RoyaleItems.AmmoBox[a]).indoor = indoor;
+                    float chance = stashChances != null && i < stashChances.Length ? stashChances[i] : 0.6f;
+                    if (rng.NextDouble() > chance) continue;
+                    var s = new LootStash
+                    {
+                        index = Stashes.Count,
+                        position = stashPoints[i],
+                        yaw = stashYaw != null && i < stashYaw.Length ? stashYaw[i] : 0f,
+                        table = stashTables != null && i < stashTables.Length ? stashTables[i] : "residential",
+                        indoor = stashIndoor != null && i < stashIndoor.Length && stashIndoor[i],
+                    };
+                    Stashes.Add(s);
+                    // The items wait in a fan in front of the trunk.
+                    for (int k = 0; k < StashItems; k++)
+                    {
+                        Vector3 dir = Quaternion.Euler(0f, s.yaw + (k - 1) * 38f, 0f) * Vector3.forward;
+                        AddRolled(Snap(s.position + dir * 0.95f, s.position.y), s.table, true, s.indoor, s, rng);
+                    }
+                    Block(s);
+                }
+            EndShared();
+        }
+
+        /// <summary>One roll of a table at p; a gun comes with a box of its ammo beside it.</summary>
+        void AddRolled(Vector3 p, string table, bool better, bool indoor, LootStash stash, System.Random rng)
+        {
+            ItemKind kind;
+            int value, count;
+            Tier tier;
+            RoyaleItems.Roll(table, rng, better, out kind, out value, out tier, out count);
+            var d = Add(p, (float)rng.NextDouble() * 360f, kind, value, tier, count);
+            d.indoor = indoor;
+            d.stash = stash;
+            if (stash != null) stash.contents.Add(d);
+            if (kind == ItemKind.Gun)
+            {
+                var def = RoyaleItems.Guns[value];
+                int a = (int)def.ammo;
+                Vector3 off = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f) * new Vector3(0.5f, 0f, 0f);
+                var box = Add(Snap(p + off, p.y), (float)rng.NextDouble() * 360f, ItemKind.Ammo, a, Tier.Common, RoyaleItems.AmmoBox[a]);
+                box.indoor = indoor;
+                box.stash = stash;
+                if (stash != null) stash.contents.Add(box);
+            }
+        }
+
+        /// <summary>A collider for a trunk, so players stand on it or walk round it.</summary>
+        void Block(LootStash s)
+        {
+            var go = new GameObject("Stash " + s.index);
+            go.transform.SetParent(transform, false);
+            go.transform.SetPositionAndRotation(s.position, Quaternion.Euler(0f, s.yaw, 0f));
+            var box = go.AddComponent<BoxCollider>();
+            box.center = new Vector3(0f, StashModel.Height / 2f, 0f);
+            box.size = new Vector3(StashModel.Width, StashModel.Height, StashModel.Depth);
+            stashBlocks.Add(go);
+        }
+
+        /// <summary>Two places with good or rich loot, from their own seeded stream.</summary>
+        void PickHotPlaces(int seed)
+        {
+            HotPlaces.Clear();
+            if (places == null || places.Length == 0) return;
+            var pool = new List<int>();
+            for (int i = 0; i < places.Length; i++)
+                if (placeRating == null || i >= placeRating.Length || placeRating[i] >= 1) pool.Add(i);
+            if (pool.Count < HotCount) { pool.Clear(); for (int i = 0; i < places.Length; i++) pool.Add(i); }
+            var r = new System.Random(seed * 7919 + 13);
+            while (HotPlaces.Count < HotCount && pool.Count > 0)
+            {
+                int k = r.Next(pool.Count);
+                int pick = pool[k];
+                pool.RemoveAt(k);
+                // Not two neighbours: spread them out.
+                bool close = false;
+                foreach (int h in HotPlaces)
+                {
+                    float dx = places[h].x - places[pick].x, dz = places[h].z - places[pick].z;
+                    if (dx * dx + dz * dz < (hotRadius * 2.5f) * (hotRadius * 2.5f)) close = true;
+                }
+                if (!close) HotPlaces.Add(pick);
+            }
+        }
+
+        public bool IsHot(Vector3 p)
+        {
+            foreach (int h in HotPlaces)
+            {
+                float dx = places[h].x - p.x, dz = places[h].z - p.z;
+                if (dx * dx + dz * dz < hotRadius * hotRadius) return true;
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------ stashes
+
+        /// <summary>The nearest closed stash within radius of p on p's storey (null if none).</summary>
+        public LootStash NearestClosedStash(Vector3 p, float radius)
+        {
+            LootStash best = null;
+            float bestD = radius * radius;
+            foreach (var s in Stashes)
+            {
+                if (s.open || Mathf.Abs(s.position.y - p.y) > storeyHeight) continue;
+                float dx = s.position.x - p.x, dz = s.position.z - p.z;
+                float d = dx * dx + dz * dz;
+                if (d < bestD)
+                {
+                    bestD = d;
+                    best = s;
                 }
             }
-            EndShared();
+            return best;
+        }
+
+        /// <summary>Opens a stash here: the lid swings up and its items are free to take.</summary>
+        public void Open(LootStash s)
+        {
+            if (s == null || s.open) return;
+            s.open = true;
+            s.openedAt = Time.time;
+            refreshTimer = 0f;
+            var clip = SynthAudio.Get("stash_open");
+            if (clip != null) AudioSource.PlayClipAtPoint(clip, s.position + Vector3.up * 0.4f, 0.9f);
+            if (!quiet && StashOpened != null) StashOpened(s);
+        }
+
+        /// <summary>Someone else opened a stash.</summary>
+        public void OpenRemote(int index)
+        {
+            if (index < 0 || index >= Stashes.Count) return;
+            quiet = true;
+            Open(Stashes[index]);
+            quiet = false;
         }
 
         /// <summary>
@@ -330,7 +507,7 @@ namespace Jagti.Royale
                     if (!cells.TryGetValue(key, out list)) continue;
                     foreach (var d in list)
                     {
-                        if (d.taken) continue;
+                        if (d.taken || d.Sealed) continue;
                         Vector3 dp = d.position - p;
                         if (Mathf.Abs(dp.y) > storeyHeight && (d.indoor || !outdoorAnyHeight)) continue;
                         dp.y = 0f;
@@ -352,8 +529,10 @@ namespace Jagti.Royale
             {
                 refreshTimer = 0.2f;
                 Near(cam.transform.position - Vector3.up * 1.4f, drawDistance, visible, true);
+                FindVisibleStashes(cam.transform.position - Vector3.up * 1.4f);
             }
             Draw();
+            DrawStashes();
         }
 
         void Draw()
@@ -362,7 +541,7 @@ namespace Jagti.Royale
             for (int i = 0; i < 4; i++) ringBatches[i].Clear();
             foreach (var d in visible)
             {
-                if (d.taken) continue;
+                if (d.taken || d.Sealed) continue;
                 int key = LootVisuals.Key(d.kind, d.value);
                 List<Matrix4x4> list;
                 if (!batches.TryGetValue(key, out list))
@@ -392,6 +571,76 @@ namespace Jagti.Royale
                 for (int i = 0; i < 4 && i < tierRings.Length; i++)
                     if (ringBatches[i].Count > 0 && tierRings[i] != null) DrawList(ring, 0, tierRings[i], ringBatches[i]);
             }
+        }
+
+        void FindVisibleStashes(Vector3 p)
+        {
+            visibleStashes.Clear();
+            float r2 = (drawDistance + 10f) * (drawDistance + 10f);
+            LootStash nearest = null;
+            float nearestD = 14f * 14f;
+            foreach (var s in Stashes)
+            {
+                Vector3 d = s.position - p;
+                if (s.indoor && Mathf.Abs(d.y) > storeyHeight) continue;
+                d.y = 0f;
+                float d2 = d.sqrMagnitude;
+                if (d2 > r2) continue;
+                visibleStashes.Add(s);
+                if (!s.open && d2 < nearestD)
+                {
+                    nearestD = d2;
+                    nearest = s;
+                }
+            }
+            // One humming source, parked on the nearest closed trunk.
+            if (hum == null || hum.clip == null) return;
+            if (nearest != null)
+            {
+                hum.transform.position = nearest.position + Vector3.up * 0.3f;
+                if (!hum.isPlaying) hum.Play();
+            }
+            else if (hum.isPlaying) hum.Stop();
+        }
+
+        void DrawStashes()
+        {
+            if (palette == null) return;
+            stashBodies.Clear();
+            stashLids.Clear();
+            stashGlows.Clear();
+            float now = Time.time;
+            foreach (var s in visibleStashes)
+            {
+                var m = Matrix4x4.TRS(s.position, Quaternion.Euler(0f, s.yaw, 0f), Vector3.one);
+                stashBodies.Add(m);
+                float swing = s.open ? Mathf.SmoothStep(0f, 1f, (now - s.openedAt) / 0.45f) * 108f : 0f;
+                stashLids.Add(m * Matrix4x4.TRS(StashModel.LidHinge, Quaternion.Euler(-swing, 0f, 0f), Vector3.one));
+                if (!s.open)
+                {
+                    float pulse = 3.4f + Mathf.Sin(now * 2.6f + s.index) * 0.15f;   // the ring is 0.55 m across, so about 1.9 m
+                    stashGlows.Add(Matrix4x4.TRS(s.position + Vector3.up * 0.006f, Quaternion.Euler(0f, spin * 0.6f + s.yaw, 0f), Vector3.one * pulse));
+                }
+            }
+            if (stashBodies.Count == 0) return;
+            var body = StashModel.Body();
+            var lid = StashModel.Lid();
+            if (bodySubs == null) bodySubs = UsedSubmeshes(body);
+            if (lidSubs == null) lidSubs = UsedSubmeshes(lid);
+            foreach (int sub in bodySubs)
+                if (sub < palette.Length && palette[sub] != null) DrawList(body, sub, palette[sub], stashBodies);
+            foreach (int sub in lidSubs)
+                if (sub < palette.Length && palette[sub] != null) DrawList(lid, sub, palette[sub], stashLids);
+            if (stashGlows.Count > 0 && tierRings != null && tierRings.Length > 3 && tierRings[3] != null)
+                DrawList(LootVisuals.Ring(), 0, tierRings[3], stashGlows);
+        }
+
+        static int[] UsedSubmeshes(Mesh mesh)
+        {
+            var used = new List<int>();
+            for (int i = 0; i < mesh.subMeshCount; i++)
+                if (mesh.GetSubMesh(i).indexCount > 0) used.Add(i);
+            return used.ToArray();
         }
 
         void DrawList(Mesh mesh, int sub, Material mat, List<Matrix4x4> list)

@@ -70,6 +70,7 @@ namespace Jagti.Royale
                 loot.idBase = session.LocalId << 20;
                 loot.Added += OnLootAdded;
                 loot.Changed += OnLootChanged;
+                loot.StashOpened += OnStashOpened;
             }
             Combatant.ForwardHit = OnForwardHit;
             Combatant.Damaged += OnDamaged;
@@ -84,6 +85,7 @@ namespace Jagti.Royale
             {
                 loot.Added -= OnLootAdded;
                 loot.Changed -= OnLootChanged;
+                loot.StashOpened -= OnStashOpened;
             }
             if (Combatant.ForwardHit == (System.Action<Combatant, float, bool, Combatant, string, Vector3, bool>)OnForwardHit) Combatant.ForwardHit = null;
             Combatant.Damaged -= OnDamaged;
@@ -148,7 +150,7 @@ namespace Jagti.Royale
                 switch (diver.Current)
                 {
                     case SkyDiver.State.Waiting:
-                    case SkyDiver.State.InHelicopter: s.hidden = true; break;
+                    case SkyDiver.State.Aboard: s.hidden = true; break;
                     case SkyDiver.State.FreeFall: s.pose = HumanBody.Pose.FreeFall; s.armed = false; break;
                     case SkyDiver.State.Glide: s.pose = HumanBody.Pose.Glide; s.armed = false; break;
                 }
@@ -287,6 +289,14 @@ namespace Jagti.Royale
             w.Byte(NetMsg.LootSet);
             w.Int(d.id);
             w.UShort((ushort)Mathf.Clamp(d.taken ? 0 : d.count, 0, 65535));
+            peer.Broadcast(w, true);
+        }
+
+        void OnStashOpened(LootStash s)
+        {
+            var w = peer.BeginMessage();
+            w.Byte(NetMsg.Stash);
+            w.UShort((ushort)s.index);
             peer.Broadcast(w, true);
         }
 
@@ -447,6 +457,14 @@ namespace Jagti.Royale
                         int id = r.Int();
                         int count = r.UShort();
                         if (!r.Failed && loot != null) loot.SetRemote(id, count);
+                    }
+                    break;
+
+                case NetMsg.Stash:
+                    {
+                        Relay(from, r, true);
+                        int index = r.UShort();
+                        if (!r.Failed && loot != null) loot.OpenRemote(index);
                     }
                     break;
 

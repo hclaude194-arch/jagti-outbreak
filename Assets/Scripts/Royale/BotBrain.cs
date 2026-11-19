@@ -6,7 +6,7 @@ using UnityEngine.AI;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// A computer opponent. It rides the helicopter, jumps near a building it picked, glides down,
+    /// A computer opponent. It rides the sky bus, jumps near a building it picked, glides down,
     /// then loots rooms for a gun, ammo, armour and heals, keeps ahead of the haze, heads for
     /// gunfire it hears when it feels strong, and fights whoever it sees: it picks the gun that suits
     /// the range, strafes, fires in bursts with aim that settles the longer it tracks you, reloads and
@@ -33,7 +33,7 @@ namespace Jagti.Royale
 
         Combatant me;
         NavMeshAgent agent;
-        Helicopter heli;
+        SkyBus heli;
         HazeZone haze;
         Combatant enemy;
         Vector3 lastSeen;
@@ -46,6 +46,7 @@ namespace Jagti.Royale
         float strafeTimer;
         float healCooldown;
         LootDrop goal;
+        LootStash stashGoal;
         Vector3 wanderGoal;
         bool hasWander;
         Vector3 heardAt;
@@ -102,8 +103,8 @@ namespace Jagti.Royale
             me.UnderFire = null;
         }
 
-        /// <summary>Sets the bot aboard the helicopter with its chosen landing spot.</summary>
-        public void Board(Helicopter h, HazeZone zone, Vector3 target, float jumpAt)
+        /// <summary>Sets the bot aboard the sky bus with its chosen landing spot.</summary>
+        public void Board(SkyBus h, HazeZone zone, Vector3 target, float jumpAt)
         {
             heli = h;
             haze = zone;
@@ -427,6 +428,19 @@ namespace Jagti.Royale
         {
             var loot = LootDirector.Instance;
             if (loot == null) return false;
+            // A trunk within reach gets opened on the way past.
+            var reach = loot.NearestClosedStash(transform.position, 1.8f);
+            if (reach != null)
+            {
+                loot.Open(reach);
+                if (reach == stashGoal) stashGoal = null;
+            }
+            if (stashGoal != null && !stashGoal.open && stashGoal.claimedBy == me && Time.time < stashGoal.claimUntil)
+            {
+                GoTo(stashGoal.position + stashGoal.Front * 0.8f, false);
+                return true;
+            }
+            stashGoal = null;
             if (goal != null && !goal.taken && goal.claimedBy == me && Time.time < goal.claimUntil)
             {
                 GoTo(goal.position, false);
@@ -447,6 +461,22 @@ namespace Jagti.Royale
                 {
                     best = score;
                     goal = d;
+                }
+            }
+            // A closed trunk nearby is worth about as much as a good gun.
+            var st = loot.NearestClosedStash(transform.position, 25f);
+            if (st != null && !(st.claimedBy != null && st.claimedBy != me && st.claimedBy.Alive && Time.time < st.claimUntil)
+                && (haze == null || haze.IsInside(st.position)))
+            {
+                float score = 16f / (4f + (st.position - transform.position).magnitude);
+                if (score > best)
+                {
+                    goal = null;
+                    stashGoal = st;
+                    st.claimedBy = me;
+                    st.claimUntil = Time.time + 20f;
+                    GoTo(st.position + st.Front * 0.8f, false);
+                    return true;
                 }
             }
             if (goal == null) return false;

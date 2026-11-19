@@ -99,6 +99,10 @@ namespace Jagti.Gameplay
                 case "crash": return Thud(name, 0.5f, 55f, 0.9f);
                 case "splash": return Wind(name, 0.45f, 0.8f);
                 case "zip": return Wind(name, 1.5f, 0.7f);
+                case "skybus_props": return Engine(name, 24f, 0.25f, 44);
+                case "burner": return Wind(name, 1.1f, 0.5f);
+                case "stash_open": return StashOpen(name);
+                case "stash_hum": return Shimmer(name);
                 case "vault": return Swing(name);
                 case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
                 default: return Click(name, 0.02f, 1000f);
@@ -343,6 +347,47 @@ namespace Jagti.Gameplay
                 int n = Mathf.Min(notes.Length - 1, (int)(t / step));
                 float local = t - n * step;
                 d[i] = (Mathf.Sin(2f * Mathf.PI * notes[n] * t) + 0.3f * Mathf.Sin(4f * Mathf.PI * notes[n] * t)) * Mathf.Exp(-local / 0.15f);
+            }
+            return Clip(name, d);
+        }
+
+        // A stash opening: a latch clack, a hinge creak, then a bright rising sparkle.
+        static AudioClip StashOpen(string name)
+        {
+            var d = Buffer(1.1f);
+            var r = new System.Random(57);
+            float[] notes = { 784f, 988f, 1175f, 1568f };
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float v = White(r) * Mathf.Exp(-t / 0.012f) * 0.8f;                                  // clack
+                if (t > 0.05f && t < 0.4f)                                                          // creak
+                {
+                    float c = t - 0.05f;
+                    v += Saw(c * (180f + 60f * Mathf.Sin(c * 23f))) * 0.18f * Mathf.Sin(Mathf.PI * c / 0.35f);
+                }
+                for (int n = 0; n < notes.Length; n++)                                              // sparkle
+                {
+                    float s0 = 0.3f + n * 0.08f;
+                    if (t < s0) continue;
+                    float l = t - s0;
+                    v += Mathf.Sin(2f * Mathf.PI * notes[n] * l) * Mathf.Exp(-l / 0.25f) * 0.35f;
+                }
+                d[i] = v;
+            }
+            return Clip(name, d);
+        }
+
+        // The hum a closed stash makes: two soft fifths with a slow shimmer, looping cleanly every 2 s.
+        static AudioClip Shimmer(string name)
+        {
+            var d = Buffer(2f);
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float wob = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 1.5f * t);
+                d[i] = (Mathf.Sin(2f * Mathf.PI * 440f * t) * 0.5f + Mathf.Sin(2f * Mathf.PI * 660f * t) * 0.35f
+                        + Mathf.Sin(2f * Mathf.PI * 1320f * t) * 0.12f * wob) * wob;
             }
             return Clip(name, d);
         }
