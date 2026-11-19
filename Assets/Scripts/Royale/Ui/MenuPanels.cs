@@ -30,6 +30,8 @@ namespace Jagti.Royale
 
             Heading(x, y, w, "SOUND AND SCREEN");
             y += 30f;
+            GameSettings.Graphics = HudKit.Choice(x, y, w, "Graphics", GameSettings.GraphicsNames, GameSettings.Graphics);
+            y += row;
             GameSettings.Volume = HudKit.Slider(3, x, y, w, "Volume", GameSettings.Volume, 0f, 1f, Mathf.RoundToInt(GameSettings.Volume * 100f) + "%");
             y += row;
             GameSettings.HudScale = HudKit.Slider(4, x, y, w, "HUD size", GameSettings.HudScale, 0.75f, 1.3f, Mathf.RoundToInt(GameSettings.HudScale * 100f) + "%");

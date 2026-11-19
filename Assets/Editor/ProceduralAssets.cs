@@ -258,6 +258,30 @@ namespace Jagti.EditorTools
             return mat;
         }
 
+        /// <summary>
+        /// A material on the wind shader (Assets/Shaders/JagtiFoliage.shader). Falls back to URP/Lit,
+        /// still but drawn, if that shader is missing or failed to compile on this computer.
+        /// flutter: leaf shake (0 for bark); bend: how far the plant leans (shrubs are short, so more).
+        /// </summary>
+        public static Material FoliageMaterial(string name, Color color, Texture2D texture, float flutter, float bend)
+        {
+            var shader = Shader.Find("Jagti/Foliage");
+            if (shader == null || !shader.isSupported || ShaderUtil.ShaderHasError(shader))
+            {
+                if (shader != null) Debug.LogWarning("[Jagti] Jagti/Foliage shader did not compile; trees use URP/Lit and stay still.");
+                return LitMaterial(name, color, texture);
+            }
+            var mat = new Material(shader) { name = name, enableInstancing = true };
+            mat.SetColor("_BaseColor", color);
+            if (texture != null) mat.SetTexture("_BaseMap", texture);
+            mat.SetFloat("_Flutter", flutter);
+            mat.SetFloat("_Bend", bend);
+            mat.SetFloat("_Translucency", flutter > 0f ? 0.35f : 0f);
+            EnsureFolder(Folder + "/Materials");
+            AssetDatabase.CreateAsset(mat, Folder + "/Materials/" + name + ".mat");
+            return mat;
+        }
+
         // ------------------------------------------------------------------ trees
 
         public enum TreeKind { Broadleaf = 0, Eucalyptus = 1, Pine = 2, Shrub = 3 }
@@ -268,12 +292,13 @@ namespace Jagti.EditorTools
             var leafTex = GroundTexture("Leaves", new Color(0.55f, 0.6f, 0.5f), new Color(0.85f, 0.88f, 0.8f), Color.white, 8, 0.6f, 40);
             var barkTex = GroundTexture("Bark", new Color(0.6f, 0.58f, 0.55f), new Color(0.85f, 0.83f, 0.8f), Color.white, 4, 0.5f, 41, true);
 
-            var bark = LitMaterial("Tree_Bark", new Color(0.36f, 0.28f, 0.21f), barkTex);
-            var paleBark = LitMaterial("Tree_Bark_Eucalyptus", new Color(0.76f, 0.72f, 0.64f), barkTex);
-            var leavesBroad = LitMaterial("Tree_Leaves_Broadleaf", new Color(0.24f, 0.36f, 0.13f), leafTex);
-            var leavesEuca = LitMaterial("Tree_Leaves_Eucalyptus", new Color(0.40f, 0.48f, 0.31f), leafTex);
-            var leavesPine = LitMaterial("Tree_Leaves_Pine", new Color(0.17f, 0.28f, 0.15f), leafTex);
-            var leavesShrub = LitMaterial("Tree_Leaves_Shrub", new Color(0.36f, 0.40f, 0.18f), leafTex);
+            // Bark and leaves share the wind shader (Jagti/Foliage), so the trunk bends with its crown.
+            var bark = FoliageMaterial("Tree_Bark", new Color(0.36f, 0.28f, 0.21f), barkTex, 0f, 1f);
+            var paleBark = FoliageMaterial("Tree_Bark_Eucalyptus", new Color(0.76f, 0.72f, 0.64f), barkTex, 0f, 1.2f);
+            var leavesBroad = FoliageMaterial("Tree_Leaves_Broadleaf", new Color(0.24f, 0.36f, 0.13f), leafTex, 1f, 1f);
+            var leavesEuca = FoliageMaterial("Tree_Leaves_Eucalyptus", new Color(0.40f, 0.48f, 0.31f), leafTex, 1f, 1.2f);
+            var leavesPine = FoliageMaterial("Tree_Leaves_Pine", new Color(0.17f, 0.28f, 0.15f), leafTex, 0.6f, 0.8f);
+            var leavesShrub = FoliageMaterial("Tree_Leaves_Shrub", new Color(0.36f, 0.40f, 0.18f), leafTex, 0.7f, 2.5f);
 
             EnsureFolder(Folder + "/Trees");
             return new[]
