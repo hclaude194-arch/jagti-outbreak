@@ -212,6 +212,7 @@ namespace Jagti.Royale
             LegendRow(px, ref cy, pw, "drop", new Color(1f, 0.32f, 0.22f), "Supply drop");
             LegendRow(px, ref cy, pw, "zip", new Color(1f, 0.6f, 0.15f), "Zip line");
             LegendRow(px, ref cy, pw, "car", new Color(0.55f, 0.85f, 1f), "Vehicle (near you)");
+            LegendRow(px, ref cy, pw, "heli", new Color(0.55f, 0.85f, 1f), "Helicopter");
             LegendRow(px, ref cy, pw, "loot", HudKit.Accent, "Loot: one to three dots");
             LegendRow(px, ref cy, pw, "star", HudKit.Accent, "Rich pickings this match");
 
@@ -299,8 +300,14 @@ namespace Jagti.Royale
             foreach (var v in Vehicle.All)
             {
                 if (v.Wrecked || (mover != null && mover.Riding == v)) continue;
-                if ((v.transform.position - me).sqrMagnitude > range * range) continue;
                 Vector2 s = toScreen(v.transform.position);
+                if (v.kind == Vehicle.Kind.Heli)
+                {
+                    // Always shown: it's a landmark worth heading for.
+                    HudKit.IconAt("heli", s.x, s.y, full ? 22f : 16f, new Color(0.55f, 0.85f, 1f));
+                    continue;
+                }
+                if ((v.transform.position - me).sqrMagnitude > range * range) continue;
                 HudKit.Fill(s.x - 5f, s.y - 4f, 10f, 8f, new Color(0.08f, 0.08f, 0.08f, 0.9f));
                 HudKit.Fill(s.x - 4f, s.y - 3f, 8f, 6f, new Color(0.55f, 0.85f, 1f));
             }

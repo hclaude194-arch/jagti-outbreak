@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// The scooter, the utility cart, the auto-rickshaw and the security patrol 4x4, built in code from the loot palette:
+    /// The scooter, the utility cart, the auto-rickshaw, the security patrol 4x4 and the rooftop helicopter, built in code from the loot palette:
     /// one mesh for the body (submeshes by palette slot), separate wheels that spin, and on the
     /// scooter a steering head (fork, front wheel, handlebar, headlamp) that turns.
     /// Model space: origin on the ground between the axles, +Z forward.
@@ -11,13 +11,15 @@ namespace Jagti.Royale
     public static class VehicleModels
     {
         const int Metal = LootVisuals.Metal, Black = LootVisuals.Black, Red = LootVisuals.Red,
-                  White = LootVisuals.White, Khaki = LootVisuals.Khaki, Blue = LootVisuals.Blue, Yellow = LootVisuals.Yellow;
+                  White = LootVisuals.White, Khaki = LootVisuals.Khaki, Blue = LootVisuals.Blue, Yellow = LootVisuals.Yellow,
+                  Green = LootVisuals.Green;
 
         public static void Build(Vehicle v, Material[] palette, int paint)
         {
             if (v.kind == Vehicle.Kind.Scooter) Scooter(v, palette, paint);
             else if (v.kind == Vehicle.Kind.Auto) Auto(v, palette, paint);
             else if (v.kind == Vehicle.Kind.Jeep) Jeep(v, palette, paint);
+            else if (v.kind == Vehicle.Kind.Heli) Heli(v, palette, paint);
             else Cart(v, palette, paint);
         }
 
@@ -376,6 +378,95 @@ namespace Jagti.Royale
             v.handL = new Vector3(0.22f, 1.42f, 0.36f);
             v.handR = new Vector3(0.54f, 1.42f, 0.36f);
             v.footLocal = new Vector3(0.15f, 0.72f, 0.62f);
+        }
+
+        // ------------------------------------------------------------------ helicopter (Kind.Heli)
+
+        // A light utility helicopter of no particular make: a rounded cabin with a big glazed nose, an
+        // engine hump, a tapering tail boom with a fin and tail rotor, skids, and a four-blade rotor.
+        // The rotor and the tail rotor are separate parts that spin. Paint is the body colour; the
+        // stripes are fixed red. About 9.6 m long, 9.4 m across the rotor.
+        static void Heli(Vehicle v, Material[] palette, int paint)
+        {
+            const float rotorY = 2.95f, rotorZ = 0.15f, blade = 4.7f;   // blade: hub to tip
+            var k = new MeshKit(LootVisuals.PaletteSize);
+            // Cabin, engine hump, belly.
+            k.slot = paint;
+            k.Ellipsoid(new Vector3(0f, 1.5f, 0.35f), new Vector3(0.98f, 0.92f, 1.75f), 16, 9);
+            k.Box(new Vector3(0f, 2.28f, -0.15f), new Vector3(0.95f, 0.5f, 1.9f), 0.8f, 0.85f);
+            k.Box(new Vector3(0f, 0.86f, 0.2f), new Vector3(1.2f, 0.22f, 2.2f), 1f, 0.9f);
+            // Glazed nose and side windows.
+            k.slot = Blue;
+            k.Ellipsoid(new Vector3(0f, 1.66f, 1.12f), new Vector3(0.9f, 0.74f, 1.08f), 16, 8, -20f, 90f);
+            k.Box(new Vector3(-0.93f, 1.72f, 0.05f), new Vector3(0.06f, 0.56f, 1.0f), 1f, 0.94f);
+            k.Box(new Vector3(0.93f, 1.72f, 0.05f), new Vector3(0.06f, 0.56f, 1.0f), 1f, 0.94f);
+            // Red band round the cabin and down the boom.
+            k.slot = Red;
+            k.Ellipsoid(new Vector3(0f, 1.5f, 0.35f), new Vector3(0.995f, 0.935f, 1.765f), 16, 2, -24f, -12f);
+            k.Box(new Vector3(0f, 1.76f, -2.6f), new Vector3(0.5f, 0.1f, 2.6f), 0.6f, 1f);
+            // Tail boom, fin, tailplane.
+            k.slot = paint;
+            k.Tube(new Vector3(0f, 1.78f, -0.9f), 0f, 4.7f, new Vector2(0.36f, 0.36f), new Vector2(0.13f, 0.13f), 12, true, new Vector3(-90f, 0f, 0f));
+            k.Box(new Vector3(0f, 2.35f, -5.4f), new Vector3(0.08f, 1.25f, 0.62f), 1f, 0.7f, new Vector3(-12f, 0f, 0f));
+            k.Box(new Vector3(0f, 1.8f, -4.75f), new Vector3(1.5f, 0.06f, 0.42f), 1f, 0.8f);
+            k.Box(new Vector3(-0.75f, 1.9f, -4.75f), new Vector3(0.04f, 0.26f, 0.36f));
+            k.Box(new Vector3(0.75f, 1.9f, -4.75f), new Vector3(0.04f, 0.26f, 0.36f));
+            // Exhaust, mast, landing light and the position lights.
+            k.slot = Black;
+            k.Tube(new Vector3(0.35f, 2.42f, -1.0f), 0f, 0.5f, new Vector2(0.12f, 0.12f), new Vector2(0.14f, 0.14f), 8, true, new Vector3(-100f, 0f, 0f));
+            k.Tube(new Vector3(-0.35f, 2.42f, -1.0f), 0f, 0.5f, new Vector2(0.12f, 0.12f), new Vector2(0.14f, 0.14f), 8, true, new Vector3(-100f, 0f, 0f));
+            k.slot = Metal;
+            k.Tube(new Vector3(0f, 2.5f, rotorZ), 0f, rotorY - 2.5f, new Vector2(0.09f, 0.09f), new Vector2(0.07f, 0.07f), 8, false);
+            k.slot = White;
+            k.Ellipsoid(new Vector3(0f, 0.8f, 1.5f), new Vector3(0.1f, 0.06f, 0.1f), 8, 4);
+            k.slot = Red;
+            k.Box(new Vector3(-0.79f, 1.82f, -4.75f), new Vector3(0.06f, 0.06f, 0.08f));
+            k.slot = Green;
+            k.Box(new Vector3(0.79f, 1.82f, -4.75f), new Vector3(0.06f, 0.06f, 0.08f));
+            // Skids on raked struts.
+            k.slot = Metal;
+            foreach (float sx in new[] { -1f, 1f })
+            {
+                k.Tube(new Vector3(sx * 0.95f, 0.06f, -1.25f), 0f, 2.75f, new Vector2(0.05f, 0.05f), new Vector2(0.05f, 0.05f), 8, true, new Vector3(90f, 0f, 0f));
+                k.Tube(new Vector3(sx * 0.95f, 0.06f, 1.5f), 0f, 0.36f, new Vector2(0.05f, 0.05f), new Vector2(0.05f, 0.05f), 8, true, new Vector3(30f, 0f, 0f));
+                k.Tube(new Vector3(sx * 0.95f, 0.06f, 0.95f), 0f, 0.86f, new Vector2(0.04f, 0.04f), new Vector2(0.04f, 0.04f), 6, false, new Vector3(0f, 0f, sx * 28f));
+                k.Tube(new Vector3(sx * 0.95f, 0.06f, -0.6f), 0f, 0.86f, new Vector2(0.04f, 0.04f), new Vector2(0.04f, 0.04f), 6, false, new Vector3(0f, 0f, sx * 28f));
+            }
+            // Seats and the instrument panel (seen through the nose from close by).
+            k.slot = Black;
+            k.Box(new Vector3(0.38f, 1.08f, 0.95f), new Vector3(0.5f, 0.12f, 0.5f));
+            k.Box(new Vector3(-0.38f, 1.08f, 0.95f), new Vector3(0.5f, 0.12f, 0.5f));
+            k.Box(new Vector3(0f, 1.3f, 1.62f), new Vector3(1.4f, 0.3f, 0.3f));
+            Part("Heli Body", v.transform, Vector3.zero, k.Finish("Helicopter", false), palette);
+
+            // Main rotor: hub and four blades, turning about the mast.
+            k = new MeshKit(LootVisuals.PaletteSize);
+            k.slot = Black;
+            k.Box(Vector3.zero, new Vector3(0.42f, 0.16f, 0.42f));
+            foreach (float a in new[] { 0f, 90f })
+                k.Box(new Vector3(0f, 0.04f, 0f), new Vector3(0.26f, 0.03f, blade * 2f), 1f, 1f, new Vector3(0f, a, 0f));
+            var rotor = Part("Main Rotor", v.transform, new Vector3(0f, rotorY, rotorZ), k.Finish("Helicopter Rotor", false), palette).transform;
+
+            // Tail rotor on the left of the fin, turning about the sideways axis.
+            k = new MeshKit(LootVisuals.PaletteSize);
+            k.slot = Black;
+            k.Box(Vector3.zero, new Vector3(0.12f, 0.14f, 0.14f));
+            k.Box(Vector3.zero, new Vector3(0.03f, 1.3f, 0.12f));
+            k.Box(Vector3.zero, new Vector3(0.03f, 0.12f, 1.3f));
+            var tail = Part("Tail Rotor", v.transform, new Vector3(-0.14f, 2.45f, -5.45f), k.Finish("Helicopter Tail Rotor", false), palette).transform;
+
+            v.rotor = rotor;
+            v.tailRotor = tail;
+            v.wheels = null;
+            v.wheelRadius = 0.3f;
+            v.wheelBase = 2.6f;
+            v.frontAxle = 1.3f;
+            v.halfTrack = 0.95f;
+            v.bodyHalf = new Vector3(1.0f, 1.3f, 2.2f);
+            v.seatLocal = new Vector3(0.38f, 1.14f, 0.95f);
+            v.handL = new Vector3(0.24f, 1.36f, 1.4f);
+            v.handR = new Vector3(0.52f, 1.36f, 1.4f);
+            v.footLocal = new Vector3(0.14f, 0.8f, 1.65f);
         }
     }
 }

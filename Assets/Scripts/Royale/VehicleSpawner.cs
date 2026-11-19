@@ -7,6 +7,7 @@ namespace Jagti.Royale
     /// Parks scooters, auto-rickshaws, utility carts and patrol 4x4s at the start of each match. RoyaleBuilder fills the
     /// candidate spots at build time (road edges and car parks, already cleared of buildings
     /// and props); each match picks a fresh random set, spread apart, with random paint.
+    /// A helicopter waits on every rooftop helipad.
     /// </summary>
     public class VehicleSpawner : MonoBehaviour
     {
@@ -21,6 +22,8 @@ namespace Jagti.Royale
         public float minGap = 25f;
         public Material[] palette;
         public Material smokeMaterial;
+        /// <summary>Rooftop pads that each get a helicopter.</summary>
+        public Helipad[] helipads;
 
         static readonly int[] Paints = { LootVisuals.Blue, LootVisuals.Red, LootVisuals.Olive, LootVisuals.Khaki, LootVisuals.White };
         static readonly int[] AutoPaints = { LootVisuals.Green, LootVisuals.Green, LootVisuals.Black, LootVisuals.Yellow };
@@ -28,6 +31,20 @@ namespace Jagti.Royale
 
         void Start()
         {
+            if (helipads != null)
+                foreach (var pad in helipads)
+                {
+                    if (pad == null) continue;
+                    var go = new GameObject("Helicopter");
+                    go.transform.SetParent(transform, false);
+                    go.transform.position = pad.Top + Vector3.up * 0.05f;
+                    go.transform.rotation = pad.transform.rotation;
+                    var heli = go.AddComponent<Vehicle>();
+                    heli.kind = Vehicle.Kind.Heli;
+                    heli.palette = palette;
+                    heli.smokeMaterial = smokeMaterial;
+                    heli.paint = LootVisuals.White;
+                }
             if (spots == null || spots.Length == 0) return;
             var rng = new System.Random(System.Environment.TickCount ^ 0x5bd1);
             var order = new List<int>();

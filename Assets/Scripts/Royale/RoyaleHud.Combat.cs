@@ -140,6 +140,7 @@ namespace Jagti.Royale
 
             DrawPrompt(cx, cy);
             DrawVehicle(w, h);
+            DrawLift(w, h);
             DrawHotbar(w, h);
             DrawWeaponPanel(w, h);
             DrawPickups(h);
@@ -412,9 +413,11 @@ namespace Jagti.Royale
             var v = mover.Riding;
             float pw = 300f, x = w / 2f - pw / 2f, y = h - M - 78f - 18f - 74f;
             HudKit.Panel(x, y, pw, 64f, HudKit.Ink, 8f);
-            HudKit.IconAt("wheel", x + 28f, y + 26f, 28f, HudKit.Text);
+            bool heli = v.kind == Vehicle.Kind.Heli;
+            HudKit.IconAt(heli ? "heli" : "wheel", x + 28f, y + 26f, 28f, HudKit.Text);
             string name = v.DisplayName.ToUpper();
             HudKit.Label(x + 50f, y + 6f, 150f, 22f, name, 16f, HudKit.TextDim, TextAnchor.MiddleLeft, true);
+            if (heli) HudKit.Label(x + 50f, y + 22f, 110f, 18f, "ALT " + Mathf.RoundToInt(v.Altitude) + " M", 13f, HudKit.Text, TextAnchor.MiddleLeft, true);
             HudKit.Label(x + 150f, y + 2f, 100f, 40f, Mathf.RoundToInt(Mathf.Abs(v.Speed) * 3.6f).ToString(), 36f, HudKit.Text, TextAnchor.MiddleRight, true);
             HudKit.Label(x + 254f, y + 14f, 40f, 22f, "KM/H", 13f, HudKit.TextDim, TextAnchor.MiddleLeft, true);
             float f = Mathf.Clamp01(v.Health / v.maxHealth);
@@ -424,7 +427,22 @@ namespace Jagti.Royale
             Color bc = v.Boosting ? HudKit.Text : v.Boost < 0.25f ? HudKit.WithAlpha(HudKit.Accent, 0.45f) : HudKit.Accent;
             HudKit.Bar(x + 50f, y + 51f, pw - 62f, 5f, v.Boost, bc, 0, 2f);
             HudKit.Label(x + 8f, y + 44f, 40f, 16f, "BOOST", 10f, HudKit.TextDim, TextAnchor.MiddleLeft, true);
-            HudKit.Hints(w / 2f, y - 24f, 22f, "SHIFT", "Boost", "H", "Horn", "SPACE", "Brake");
+            if (heli) HudKit.Hints(w / 2f, y - 24f, 22f, "SPACE", "Up", "CTRL", "Down", "SHIFT", "Boost");
+            else HudKit.Hints(w / 2f, y - 24f, 22f, "SHIFT", "Boost", "H", "Horn", "SPACE", "Brake");
+        }
+
+        /// <summary>During a lift ride: the floor display (arrow and floor) with a progress bar, and how to skip.</summary>
+        void DrawLift(float w, float h)
+        {
+            var lift = Lift.Active;
+            if (lift == null || mover == null || mover.InLift != lift) return;
+            float pw = 220f, x = w / 2f - pw / 2f, y = 96f;
+            HudKit.Panel(x, y, pw, 74f, HudKit.Ink, 8f);
+            HudKit.Label(x + 16f, y + 6f, 120f, 20f, "LIFT", 15f, HudKit.TextDim, TextAnchor.MiddleLeft, true);
+            HudKit.Label(x + 16f, y + 30f, 80f, 30f, lift.GoingUp ? "GOING UP" : "GOING DOWN", 16f, HudKit.Accent, TextAnchor.MiddleLeft, true);
+            HudKit.Label(x + 60f, y + 14f, pw - 76f, 52f, lift.FloorLabel, 46f, HudKit.Text, TextAnchor.MiddleRight, true);
+            HudKit.Bar(x + 16f, y + 64f, pw - 32f, 4f, lift.RideProgress, HudKit.Accent, 0, 2f);
+            HudKit.Hints(w / 2f, y + 92f, 22f, "SPACE", "Skip");
         }
 
         // ------------------------------------------------------------------ the drop
