@@ -759,6 +759,15 @@ def road_dist_at(x, z):
     return float(road_dist[i, j])
 
 
+def sd_at(x, z):
+    """Signed distance to the campus wall (negative inside) at a point."""
+    i = int(round((z - MIN_Z) / CELL))
+    j = int(round((x - MIN_X) / CELL))
+    if not (0 <= i < RES and 0 <= j < RES):
+        return 1e9
+    return float(sd[i, j])
+
+
 def clear_at(x, z, gap):
     """True when the point is clear of roads (plus gap), plots and hard areas."""
     i = int(round((z - MIN_Z) / CELL))
@@ -793,6 +802,32 @@ for name, width, pts in roads:
             tx, tz = x - dz * offset * side, z + dx * offset * side
             if clear_at(tx, tz, 2.5) and rng.random() < 0.9:
                 trees.append((tx + rng.normal(0, 0.4), tz + rng.normal(0, 0.4), kind, rng.uniform(0.85, 1.2)))
+
+# Verge planting (owner's photos, 2026-11-19): low clipped bushes in the kerbed strips along
+# both sides of the campus roads, and a belt of broadleaf trees on the hill side of the spine
+# road between the mess and the hostels further south.
+VERGE_SKIP = ("Highway", "Courtyard", "Plaza", "Paved", "Clock")
+for name, width, pts in roads:
+    if name.startswith(VERGE_SKIP) or width < 4.5:
+        continue
+    p = np.array(densify(pts, 1.0))
+    along = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))])
+    for s_ in np.arange(2.0, along[-1], 3.2):
+        x = np.interp(s_, along, p[:, 0])
+        z = np.interp(s_, along, p[:, 1])
+        k = min(np.searchsorted(along, s_), len(p) - 1)
+        d = p[k] - p[max(k - 1, 0)] if k > 0 else p[1] - p[0]
+        d = d / max(np.hypot(*d), 1e-6)
+        for side in (-1, 1):
+            tx, tz = x - d[1] * (width / 2 + 1.3) * side, z + d[0] * (width / 2 + 1.3) * side
+            if sd_at(tx, tz) < 0 and clear_at(tx, tz, 0.8) and rng.random() < 0.75:
+                trees.append((tx, tz, SHRUB, float(rng.uniform(0.45, 0.7))))
+spine_s = next(pts for name, width, pts in roads if name == "Spine Road South")
+for z in np.arange(-150.0, -545.0, -5.5):
+    for off in (9.0, 14.0, 19.0):
+        tx, tz = spine_s[0][0] - off + rng.normal(0, 1.2), z + rng.normal(0, 1.5)
+        if clear_at(tx, tz, 3.0) and rng.random() < 0.8:
+            trees.append((tx, tz, BROAD if rng.random() < 0.75 else EUCA, float(rng.uniform(0.7, 1.1))))
 
 # Scattered trees: sparse inside the campus, dense scrub forest in the ravines.
 step = 5.0

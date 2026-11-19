@@ -93,6 +93,11 @@ MATERIALS = {
     "Net": (0.2, 0.2, (0.92, 0.92, 0.90)),
     "Lamp_Glow": (1.0, 1.0, (1.0, 0.92, 0.75)),
     "Paint_Yellow": (1.0, 1.0, (0.92, 0.72, 0.10)),
+    # Street planting and banners (owner's photos, 2026-11-19).
+    "Flag_Pink": (1.0, 1.0, (0.86, 0.22, 0.58)),
+    "Flag_Purple": (1.0, 1.0, (0.52, 0.30, 0.78)),
+    "Shrub_Red": (0.5, 0.5, (0.48, 0.20, 0.13)),
+    "Rubble_Stone": (1.5, 1.5, (0.55, 0.52, 0.46)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 

@@ -164,7 +164,7 @@ water = material("Water", (0.10, 0.22, 0.26), 0.05)
 for r in layout["roads"]:
     p = r["points"]
     pts = [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
-    mat = paving if r["width"] < 4 or "path" in r.get("name", "").lower() else asphalt
+    mat = paving if r["width"] < 4 or "path" in r.get("name", "").lower() or r.get("name", "").startswith("Paved") else asphalt
     strip("Road", pts, r["width"], 0.12, mat)
 for w in layout.get("water", []):
     p = w["points"]
@@ -175,7 +175,7 @@ for pool in layout.get("pools", []):
     bpy.context.active_object.data.materials.append(water)
 
 # Courts and plazas from the layout's areas.
-area_mats = {"court": material("Court", (0.36, 0.45, 0.55)), "plaza": paving, "field": material("Field", (0.22, 0.42, 0.18)),
+area_mats = {"court": material("Court", (0.24, 0.42, 0.33)), "plaza": paving, "field": material("Field", (0.22, 0.42, 0.18)),
              "track": material("Track", (0.55, 0.25, 0.18)), "parking": asphalt}
 for a in layout["areas"]:
     m = area_mats.get(a.get("type"))
@@ -453,6 +453,12 @@ VIEWS = {
     "vipanan_forecourt": (-9, -97, 1.7, -36, -66, 2.5, 22),
     "mess_from_forecourt": (-6, -84, 1.7, -36, -118, 4, 22),
     "vipanan_aerial": (25, -128, 32, -30, -74, 0, 24),
+    # The owner's ground photos (2026-11-19): the lawn island in front of the mess, the road up
+    # to the mess from the hostels, the split to the girls' hostels and the courts below the hill.
+    "mess_island": (-4, -100, 1.7, -30, -112, 3, 24),
+    "road_up_to_mess": (9, -235, 1.7, 6, -150, 4, 26),
+    "girls_split": (5, -186, 2.5, 26, -214, 0, 28),
+    "courts_hill": (48, -250, 1.7, 0, -238, 6, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

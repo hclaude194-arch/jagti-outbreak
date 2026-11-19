@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 23
+VERSION = 24
 
 
 def to_world(x, y):
@@ -197,6 +197,10 @@ ROADS = [
     # road to Annapurna Mess, per the satellite), and from the spine road to the sports complex lobby.
     ("Plaza Shops Walk", 4, [[405, 994], [405, 1099]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
+    # The split to the girls' hostel side (owner's photos, 2026-11-19): a lane of interlocking
+    # pavers leaves the spine road between Girls Hostel A and the courts and turns north
+    # between the hostel and the tennis courts.
+    ("Paved Girls Hostel Lane", 4.5, [[425, 1203.35], [470, 1203.35], [470, 1124]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 

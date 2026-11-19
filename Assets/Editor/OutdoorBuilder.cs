@@ -66,6 +66,9 @@ namespace Jagti.EditorTools
             { "Badminton_Net", 120f }, { "Garden_Lamp", 140f }, { "Palm_Small", 140f }, { "Tennis_Net", 160f },
             { "Railing_Segment", 180f }, { "Fence_Panel", 200f }, { "Name_Board", 200f }, { "Basketball_Hoop", 200f },
             { "Lamp_Post", 260f },
+            { "Banner_Flag_Pink", 170f }, { "Banner_Flag_Yellow", 170f }, { "Banner_Flag_Purple", 170f },
+            { "Banner_Flag_Red", 170f }, { "Banner_Flag_Blue", 170f }, { "Shrub_Border", 110f }, { "Young_Tree", 140f },
+            { "Map_Board", 160f }, { "Stone_Wall", 220f }, { "Stone_Wall_High", 260f }, { "Flood_Mast", 400f },
         };
         const float DefaultCull = 180f;
         const float CoverCull = 450f;

@@ -346,6 +346,117 @@ def p_kerbed_bed():
     return m
 
 
+# ------------------------------------------------------------------ street planting and banners
+# From the owner's ground photos of the mess forecourt, the road up to the mess, the split to the
+# girls' hostels and the courts (2026-11-19).
+FLAG_COLOURS = [("Pink", "Flag_Pink"), ("Yellow", "Paint_Yellow"), ("Purple", "Flag_Purple"), ("Red", "Red_Paint"),
+                ("Blue", "Fabric")]
+
+
+def _banner(mat):
+    def fn():
+        m = new("Banner_Flag_" + next(c for c, mm in FLAG_COLOURS if mm == mat))
+        cyl(m, 0, 0, 0.11, 0.0, 0.3, "Concrete", seg=8)
+        cyl(m, 0, 0, 0.045, 0.3, 7.0, "Steel", seg=8)
+        cyl(m, 0, 0, 0.07, 7.0, 7.12, "Steel", seg=8)
+        # A tall narrow banner on a short top arm, its free edge cut on a slant.
+        bx(m, 0.04, 0.85, -0.02, 0.02, 6.86, 6.9, "Steel")
+        for k in range(6):
+            y1 = 6.85 - k * 0.55
+            x1 = 0.82 - 0.04 * k
+            bx(m, 0.06, x1, -0.008, 0.008, y1 - 0.55, y1, mat)
+        return m
+    return fn
+
+
+for _c, _mat in FLAG_COLOURS:
+    oprop("Banner_Flag_" + _c, solid=False)(_banner(_mat))
+
+
+@oprop("Shrub_Border")
+def p_shrub_border():
+    """2 m of a lawn island's edge: a black-and-white kerb in front (-Z) and a clipped border of
+    red-leaved and green shrubs behind it."""
+    m = new("Shrub_Border")
+    for i in range(4):
+        x0 = -1.0 + 0.5 * i
+        bx(m, x0, x0 + 0.5, -0.6, -0.42, 0.0, 0.2, "Ceramic" if i % 2 == 0 else "Plastic")
+    rnd = random.Random(17)
+    x = -1.0
+    while x < 0.99:
+        w = rnd.uniform(0.35, 0.5)
+        h = rnd.uniform(0.45, 0.65)
+        bx(m, x, min(1.0, x + w), -0.4, 0.25, 0.0, h, "Shrub_Red" if rnd.random() < 0.7 else "Foliage")
+        x += w
+    return m
+
+
+@oprop("Young_Tree")
+def p_young_tree():
+    """A young planted tree about 3.5 m high (frangipani and young neem in the beds): a thin
+    forked trunk and a few sparse leaf clusters."""
+    m = new("Young_Tree")
+    cyl(m, 0, 0, 0.06, 0.0, 1.6, "Wood", seg=6)
+    rnd = random.Random(23)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + rnd.uniform(-0.3, 0.3)
+        ex, ez = 0.6 * math.cos(a), 0.6 * math.sin(a)
+        obox(m, ex / 2, ez / 2, 0.36, 0.035, a, 1.6, 2.5 + 0.2 * k, "Wood")
+        cx, cz = ex * 1.15, ez * 1.15
+        bx(m, cx - 0.45, cx + 0.45, cz - 0.4, cz + 0.4, 2.5 + 0.2 * k, 3.1 + 0.25 * k, "Foliage")
+    return m
+
+
+@oprop("Map_Board", solid=True)
+def p_map_board():
+    """The campus's blue direction board with a map panel (photo at the girls' hostel split),
+    1.1 x 2.6 m on a concrete plinth, facing +Z."""
+    m = new("Map_Board")
+    bx(m, -0.65, 0.65, -0.25, 0.25, 0.0, 0.45, "Concrete")
+    bx(m, -0.55, 0.55, -0.08, 0.08, 0.45, 3.05, "Sign_Board")
+    bx(m, -0.45, 0.45, 0.08, 0.09, 0.6, 1.5, "Ceramic")
+    bx(m, -0.45, 0.45, 0.08, 0.09, 2.55, 2.85, "Paint_Yellow")
+    return m
+
+
+@oprop("Stone_Wall", solid=True)
+def p_stone_wall():
+    """3 m of low rubble-stone retaining wall along X (photos of the courts and the split),
+    1.4 m above its foot, battered back a little, with a concrete coping."""
+    m = new("Stone_Wall")
+    bx(m, -1.5, 1.5, -0.3, 0.3, -0.6, 0.7, "Rubble_Stone")
+    bx(m, -1.5, 1.5, -0.25, 0.25, 0.7, 1.32, "Rubble_Stone")
+    bx(m, -1.52, 1.52, -0.28, 0.28, 1.32, 1.42, "Concrete")
+    return m
+
+
+@oprop("Stone_Wall_High", solid=True)
+def p_stone_wall_high():
+    """3 m of the taller rubble-stone retaining wall, 2.8 m above its foot, for the deeper drops
+    beside the courts."""
+    m = new("Stone_Wall_High")
+    bx(m, -1.5, 1.5, -0.4, 0.4, -0.6, 1.2, "Rubble_Stone")
+    bx(m, -1.5, 1.5, -0.3, 0.3, 1.2, 2.72, "Rubble_Stone")
+    bx(m, -1.52, 1.52, -0.33, 0.33, 2.72, 2.82, "Concrete")
+    return m
+
+
+@oprop("Flood_Mast", solid=True)
+def p_flood_mast():
+    """Floodlight mast by the courts, 16 m, with a ring of lamps (photo of the courts)."""
+    m = new("Flood_Mast")
+    bx(m, -0.35, 0.35, -0.35, 0.35, 0.0, 0.5, "Concrete")
+    for k in range(5):
+        cyl(m, 0, 0, 0.17 - 0.025 * k, 0.5 + 3.1 * k, 0.5 + 3.1 * (k + 1), "Steel", seg=8)
+    cyl(m, 0, 0, 0.7, 16.0, 16.08, "Steel", seg=12)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        X, Z = 0.62 * math.cos(a), 0.62 * math.sin(a)
+        bx(m, X - 0.14, X + 0.14, Z - 0.14, Z + 0.14, 16.08, 16.38, "Metal")
+        bx(m, X - 0.12, X + 0.12, Z - 0.12, Z + 0.12, 16.07, 16.08, "Lamp_Glow")
+    return m
+
+
 # ------------------------------------------------------------------ terrain and layout queries
 TER = json.load(open(os.path.join(DATA, "campus_terrain.json")))
 RES = TER["heightmapResolution"]
@@ -606,6 +717,102 @@ def shops_walk_furniture():
             place("Planter_Box", Q[0], Q[1], 90.0)
 
 
+def street_flags():
+    """Tall banner flags along the spine road, the paved lane and the Vipanan forecourt, in
+    turns of colour (owner's photos, 2026-11-19)."""
+    k = 0
+    for r in ROADS:
+        if not r["name"].startswith(("Spine Road", "Paved")):
+            continue
+        poly = pts(r)
+        step = 22.0 if r["name"].startswith("Spine") else 14.0
+        for (P_, d) in along_poly(poly, step, step / 2):
+            for side in (-1, 1):
+                n = (-d[1] * side, d[0] * side)
+                Q = (P_[0] + n[0] * (r["width"] / 2 + 0.9), P_[1] + n[1] * (r["width"] / 2 + 0.9))
+                if clear(Q, pad=0.5, road_pad=0.3) and not taken(Q, 2.0):
+                    place("Banner_Flag_" + FLAG_COLOURS[k % len(FLAG_COLOURS)][0], Q[0], Q[1], yaw_to(d[0], d[1]))
+                    k += 1
+
+
+def along_poly(poly, step, start):
+    """(point, unit direction) every step metres along a polyline."""
+    out = []
+    seg = [math.dist(poly[i], poly[i + 1]) for i in range(len(poly) - 1)]
+    s_ = start
+    acc = 0.0
+    for i, L in enumerate(seg):
+        while s_ <= acc + L and L > 1e-6:
+            t = (s_ - acc) / L
+            a, b_ = poly[i], poly[i + 1]
+            out.append(((a[0] + (b_[0] - a[0]) * t, a[1] + (b_[1] - a[1]) * t), ((b_[0] - a[0]) / L, (b_[1] - a[1]) / L)))
+            s_ += step
+        acc += L
+    return out
+
+
+def mess_island():
+    """The lawn island in front of Annapurna Mess (owner's photos): a black-and-white kerb and a
+    clipped red-and-green shrub border all round, young trees and palms on the lawn, and flags
+    along its front."""
+    mess = next(b for b in layout["buildings"] if b["name"] == "Annapurna Mess")
+    plaza = next(a for a in layout["areas"] if a["type"] == "plaza")
+    x0, x1 = plaza["x"] - plaza["width"] / 2 + 1.0, plaza["x"] + plaza["width"] / 2 - 1.0
+    z1 = plaza["z"] - plaza["depth"] / 2 - 2.6               # clear of the forecourt's beds
+    z0 = mess["z"] + mess["depth"] / 2 + 1.6                 # clear of the mess's fins
+    for side, (A, B_) in {"N": ((x0, z1), (x1, z1)), "S": ((x1, z0), (x0, z0)),
+                          "W": ((x0, z0), (x0, z1)), "E": ((x1, z1), (x1, z0))}.items():
+        L = math.dist(A, B_)
+        n = max(1, round(L / 2.0))
+        d = ((B_[0] - A[0]) / L, (B_[1] - A[1]) / L)
+        out = (-d[1], d[0])                                  # outward from the island
+        for i in range(n):
+            f = (i + 0.5) / n
+            # The prop's kerb is on its -Z side: turn +Z inwards so the kerb faces the drive.
+            place("Shrub_Border", A[0] + (B_[0] - A[0]) * f, A[1] + (B_[1] - A[1]) * f, yaw_to(-out[0], -out[1]))
+    cz = (z0 + z1) / 2
+    for k, X in enumerate([x0 + 3.0 + i * (x1 - x0 - 6.0) / 3 for i in range(4)]):
+        place("Young_Tree" if k % 2 == 0 else "Palm_Small", X, cz + (0.6 if k % 2 else -0.6), (k * 71.0) % 360.0)
+    for k, X in enumerate([x0 + 1.5 + i * 5.0 for i in range(int((x1 - x0 - 1.0) / 5.0) + 1)]):
+        place("Banner_Flag_" + FLAG_COLOURS[k % len(FLAG_COLOURS)][0], X, z1 - 0.9, 90.0)
+
+
+def girls_split():
+    """The split to the girls' hostel side (owner's photos): a kerbed island with young trees in
+    the corner between the spine road and the paved lane, and the blue map board."""
+    lane = next(r for r in ROADS if r["name"].startswith("Paved Girls"))
+    spine = next(r for r in ROADS if r["name"] == "Spine Road South")
+    sx = pts(spine)[0][0] + spine["width"] / 2
+    lz = pts(lane)[0][1] - lane["width"] / 2
+    place("Kerbed_Bed", sx + 6.5, lz - 2.2, 0.0)
+    place("Young_Tree", sx + 5.0, lz - 2.2, 30.0)
+    place("Map_Board", sx + 1.6, lz - 4.6, 270.0)
+
+
+def court_walls():
+    """The courts by the hostels sit below the spine road and the paved lane (owner's photos):
+    a low rubble-stone retaining wall along each such side, at court level, and floodlight
+    masts on the hill side."""
+    cs = [a for a in layout["areas"] if a["type"] == "court" and court_kind(a) == "sports" and a["width"] < 30]
+    for a in cs:
+        x0, x1 = a["x"] - a["width"] / 2, a["x"] + a["width"] / 2
+        z0, z1 = a["z"] - a["depth"] / 2, a["z"] + a["depth"] / 2
+        base = ground(a["x"], a["z"])
+        # West: in front of the open hill side; north: under the fence along the paved lane.
+        for side, (A, B_, out) in {"W": ((x0 - 1.6, z0 - 1.0), (x0 - 1.6, z1 + 1.0), (-1.0, 0.0)),
+                                   "N": ((x0 - 1.0, z1 + 1.0), (x1 + 1.0, z1 + 1.0), (0.0, 1.0))}.items():
+            L = math.dist(A, B_)
+            n = max(1, round(L / 3.0))
+            for i in range(n):
+                f = (i + 0.5) / n
+                X, Z = A[0] + (B_[0] - A[0]) * f, A[1] + (B_[1] - A[1]) * f
+                drop = ground(X + out[0] * 1.5, Z + out[1] * 1.5) - base
+                if drop > 0.8:
+                    place("Stone_Wall_High" if drop > 2.0 else "Stone_Wall", X, Z, 90.0 if side == "W" else 0.0,
+                          gx=a["x"], gz=a["z"])
+        place("Flood_Mast", x0 - 0.6, z1 - 1.0, 0.0, gx=a["x"], gz=a["z"])
+
+
 def vipanan_forecourt():
     """Kerbed planting beds round Vipanan's paved forecourt (owner's video and photo): a row
     along the road side with a gap for the drive in, and two along the south edge by the mess."""
@@ -782,7 +989,7 @@ def court_kind(a):
     return "sports"
 
 
-def fence_round(x0, x1, z0, z1):
+def fence_round(x0, x1, z0, z1, west=True):
     for (A, B_, yaw) in (((x0, z0), (x1, z0), 0.0), ((x1, z1), (x0, z1), 0.0),
                          ((x0, z1), (x0, z0), 90.0), ((x1, z0), (x1, z1), 90.0)):
         L = math.dist(A, B_)
@@ -790,8 +997,8 @@ def fence_round(x0, x1, z0, z1):
         for i in range(n):
             f = (i + 0.5) / n
             X, Z = A[0] + (B_[0] - A[0]) * f, A[1] + (B_[1] - A[1]) * f
-            if yaw == 90.0 and A[0] == x0 and i == n // 2:
-                continue                                # a gate on the west side
+            if yaw == 90.0 and A[0] == x0 and (i == n // 2 or not west):
+                continue                                # a gate on the west side, or no fence there
             place("Fence_Panel", X, Z, yaw)
 
 
@@ -819,8 +1026,8 @@ def courts():
                 else:
                     place("Tennis_Net", a["x"] + s_ * a["width"] / 4, a["z"], 0.0)
         else:
-            if a["width"] < 30:      # the three courts by the hostels: fenced all round
-                fence_round(x0, x1, z0, z1)
+            if a["width"] < 30:      # the three courts by the hostels: open to the hill on the west (photo)
+                fence_round(x0, x1, z0, z1, west=False)
             if (sports and a is sports[0]) or a["width"] >= 30:
                 if long_x:
                     place("Basketball_Hoop", a["x"] - a["width"] / 2 + 0.4, a["z"], 90.0)
@@ -875,11 +1082,15 @@ def shop_signs():
 def main():
     os.makedirs(I.PROP_DIR, exist_ok=True)
     courts()
+    court_walls()
     vipanan_forecourt()
+    mess_island()
+    girls_split()
     shops_walk_furniture()
     name_boards()
     signposts()
     lamp_posts()
+    street_flags()
     hostel_furniture()
     path_lights_and_benches()
     lawn_benches()
