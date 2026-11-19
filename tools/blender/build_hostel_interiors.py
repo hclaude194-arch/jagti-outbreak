@@ -717,7 +717,7 @@ def connector_gaps(m, H, lv):
                     Line(m, (fac - HW, z_), (fac + HW, z_), (0.0, d)).rect(0, 2 * HW, f, f + DOOR_H + 0.1, 0.0, "Wall_Paint")
 
 
-DOOR_W = 0.9
+DOOR_W = 1.1   # room doorways: the player capsule (0.7 m plus skin) caught on 0.9 m frames
 OPEN_KINDS = ("stair", "slot", "passage", "lobby")
 TILED = ("washroom", "bath", "pantry", "laundry")
 
