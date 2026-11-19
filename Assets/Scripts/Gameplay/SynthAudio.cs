@@ -65,6 +65,42 @@ namespace Jagti.Gameplay
                 case "groan1": return Groan(name, 1.6f, 78f, 21);
                 case "groan2": return Groan(name, 2.0f, 66f, 22);
                 case "groan3": return Groan(name, 1.3f, 92f, 23);
+                // Battle royale sounds.
+                case "smg": return Shot(name, 0.3f, 0.035f, 95f, 0.6f);
+                case "rifle": return Shot(name, 0.6f, 0.05f, 75f, 1.1f);
+                case "dmr": return Shot(name, 1.1f, 0.07f, 55f, 1.5f);
+                case "explosion": return Shot(name, 2.2f, 0.25f, 32f, 2.5f);
+                case "whiz": return Whiz(name);
+                case "haze_tick": return Thud(name, 0.25f, 60f, 0.5f);
+                case "rotor": return Rotor(name);
+                case "wind": return Wind(name, 2.0f, 0.06f);
+                case "whoosh": return Swing(name);
+                case "canopy": return Wind(name, 0.6f, 0.25f);
+                case "land": return Thud(name, 0.3f, 70f, 0.6f);
+                case "kill_confirm": return Chime(name);
+                case "hit_head": return Click(name, 0.12f, 1900f);
+                case "equip": return Reload(name);
+                case "bandage": return Wind(name, 0.5f, 0.4f);
+                case "clink": return Click(name, 0.08f, 2600f);
+                case "death_grunt": return Hurt(name);
+                case "alert": return Tones(name, new[] { 660f, 880f, 660f, 880f }, 0.18f);
+                case "revolver": return Shot(name, 0.75f, 0.06f, 58f, 1.3f);
+                case "carbine": return Shot(name, 0.45f, 0.045f, 85f, 0.9f);
+                case "double": return Shot(name, 0.95f, 0.12f, 44f, 1.15f);
+                case "lmg": return Shot(name, 0.55f, 0.05f, 68f, 1.05f);
+                case "sniper": return Shot(name, 1.6f, 0.08f, 42f, 2.1f);
+                case "suppressed": return Thud(name, 0.16f, 210f, 0.85f);
+                case "bolt": return Reload(name);
+                case "armour_break": return Tones(name, new[] { 1500f, 1100f, 700f }, 0.05f);
+                case "smoke_pop": return Wind(name, 1.4f, 0.55f);
+                case "heartbeat": return Thud(name, 0.5f, 48f, 0.1f);
+                case "engine_scooter": return Engine(name, 31f, 0.55f, 41);
+                case "engine_cart": return Engine(name, 22f, 0.35f, 42);
+                case "crash": return Thud(name, 0.5f, 55f, 0.9f);
+                case "splash": return Wind(name, 0.45f, 0.8f);
+                case "zip": return Wind(name, 1.5f, 0.7f);
+                case "vault": return Swing(name);
+                case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
                 default: return Click(name, 0.02f, 1000f);
             }
         }
@@ -211,6 +247,102 @@ namespace Jagti.Gameplay
                 lp += (White(r) - lp) * 0.1f;
                 float env = Mathf.Exp(-t / 0.12f) * Mathf.Clamp01(t / 0.01f);
                 d[i] = (Saw(f * t) * 0.6f + lp * 0.8f) * env;
+            }
+            return Clip(name, d);
+        }
+
+        // A bullet passing close by: a short, falling hiss.
+        static AudioClip Whiz(string name)
+        {
+            var d = Buffer(0.18f);
+            var r = new System.Random(77);
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float cutoff = Mathf.Lerp(0.6f, 0.08f, t / 0.18f);
+                lp += (White(r) - lp) * cutoff;
+                float env = Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / 0.18f));
+                d[i] = lp * env * env;
+            }
+            return Clip(name, d);
+        }
+
+        // Rotor thump: low noise bursts at the blade rate over a turbine whine. Loops seamlessly
+        // because it is a whole number of blade passes.
+        static AudioClip Rotor(string name)
+        {
+            const float bladeRate = 19f;
+            int passes = 38;
+            var d = Buffer(passes / bladeRate);
+            var r = new System.Random(19);
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float ph = (t * bladeRate) % 1f;
+                lp += (White(r) - lp) * 0.08f;
+                float thump = lp * Mathf.Exp(-ph / 0.18f) * 2.2f + Mathf.Sin(2f * Mathf.PI * 2f * bladeRate * t) * Mathf.Exp(-ph / 0.1f) * 0.6f;
+                float whine = Mathf.Sin(2f * Mathf.PI * 1520f * t) * 0.05f;
+                d[i] = thump + whine;
+            }
+            return Clip(name, d);
+        }
+
+        // A small engine for looping: firing pulses at the base rate with a buzzy saw and exhaust noise.
+        // Played with pitch rising with speed. Exactly a whole number of firing cycles, so it loops cleanly.
+        static AudioClip Engine(string name, float fireHz, float buzz, int seed)
+        {
+            int cycles = Mathf.RoundToInt(fireHz * 1.0f);
+            var d = Buffer(cycles / fireHz);
+            var r = new System.Random(seed);
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float ph = (t * fireHz) % 1f;
+                lp += (White(r) - lp) * 0.12f;
+                float pulse = Mathf.Exp(-ph / 0.12f);
+                float saw = Saw(t * fireHz * 2f) * buzz + Saw(t * fireHz * 4f) * buzz * 0.4f;
+                d[i] = (saw * 0.5f + lp * 1.6f) * (0.35f + pulse) * 0.6f;
+            }
+            return Clip(name, d);
+        }
+
+        // Rushing air: low-passed noise with a slow swell (loops when it is used as a bed).
+        static AudioClip Wind(string name, float seconds, float bright)
+        {
+            var d = Buffer(seconds);
+            var r = new System.Random(name.Length * 5);
+            float lp = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float u = t / seconds;
+                lp += (White(r) - lp) * (bright + 0.04f * Mathf.Sin(2f * Mathf.PI * u * 3f));
+                float env = name == "wind" ? 1f : Mathf.Sin(Mathf.PI * u);
+                d[i] = lp * env;
+            }
+            // Fade the ends together so the loop has no click.
+            int fade = Mathf.Min(d.Length / 4, Rate / 20);
+            for (int i = 0; i < fade; i++)
+            {
+                float k = i / (float)fade;
+                d[i] *= k;
+                d[d.Length - 1 - i] *= k;
+            }
+            return Clip(name, d);
+        }
+
+        static AudioClip Tones(string name, float[] notes, float step)
+        {
+            var d = Buffer(notes.Length * step + 0.3f);
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                int n = Mathf.Min(notes.Length - 1, (int)(t / step));
+                float local = t - n * step;
+                d[i] = (Mathf.Sin(2f * Mathf.PI * notes[n] * t) + 0.3f * Mathf.Sin(4f * Mathf.PI * notes[n] * t)) * Mathf.Exp(-local / 0.15f);
             }
             return Clip(name, d);
         }

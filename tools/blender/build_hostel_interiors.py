@@ -38,9 +38,7 @@ EPS = 1e-6
 HOSTELS = [
     ("Brahmaputra_Hostel", "Brahmaputra", ["Brahmaputra Hostel", "Brahmaputra Hostel - South"]),
     ("Hostel_U", "Hostel U", ["Hostel U - West", "Hostel U - North", "Hostel U - East"]),
-    ("Hostel_Chain_1", "Chain Block 1", ["Hostel Chain 1"]),
-    ("Hostel_Chain_2", "Chain Block 2", ["Hostel Chain 2"]),
-    ("Hostel_Chain_3", "Chain Block 3", ["Hostel Chain 3"]),
+    ("Hostel_Chain", "Chain Block", ["Hostel Chain 1", "Hostel Chain 2", "Hostel Chain 3"]),
     ("Sindhu_Hostel", "Sindhu", ["Sindhu Hostel - North", "Sindhu Hostel - Step 1", "Sindhu Hostel - West",
                                  "Sindhu Hostel - Step 2", "Sindhu Hostel - South"]),
 ]
@@ -62,6 +60,7 @@ class Side:
         self.windows = []      # (a0, a1) window openings
         self.door = None       # (a0, a1) ground-floor entrance opening
         self.door_bay = None   # (a0, a1) the whole bay of the entrance
+        self.door_window = None  # (a0, a1) the window over the entrance on the upper floors
         self.slots = []        # (a0, a1, centre) jali stair slots
         self.cuts = set()      # bay boundaries, slot edges and the ends of the visible stretches
         self.visible = []      # (a0, a1) stretches with a facade (not buried in another wing)
@@ -127,11 +126,13 @@ def facade_sides(m, rects, k):
                     sd.cuts.update((a(b0), a(b1)))
                     if bw < 2.0:
                         continue
+                    glass = span(*B.hostel_glass(b0, b1, i, bays))
                     if door_bay and abs(b0 - door_bay[0]) < 1e-6:
                         sd.door = span(b0 + 0.5, b1 - 0.5)
                         sd.door_bay = span(b0, b1)
+                        sd.door_window = glass      # the bay's window on the upper floors
                         continue
-                    sd.windows.append(span(b0 + 0.55, b1 - 0.55))
+                    sd.windows.append(glass)
     for sd in sides.values():
         sd.cuts = sorted(sd.cuts)
         sd.windows.sort()
@@ -662,13 +663,14 @@ def outer_walls(m, H, P, lv):
         ax = AXIS[s]
         base = A[ax]
         ops = []
+        wz0, wz1 = zf + B.HOSTEL_WIN_Z[0], zf + B.HOSTEL_WIN_Z[1]
         for w0, w1 in sd.windows:
-            ops.append((w0 - base, w1 - base, zf + 0.9, zf + FLOOR - 0.55, False))
+            ops.append((w0 - base, w1 - base, wz0, wz1, False))
         if sd.door is not None:
             if lv == 0:
                 ops.append((sd.door[0] - base, sd.door[1] - base, f, B.HOSTEL_DOOR_TOP, True))
             else:
-                ops.append((sd.door[0] + 0.05 - base, sd.door[1] - 0.05 - base, zf + 0.9, zf + FLOOR - 0.55, False))
+                ops.append((sd.door_window[0] - base, sd.door_window[1] - base, wz0, wz1, False))
         for a0, a1, _ in sd.slots:
             ops.append((a0 - base, a1 - base, f - 0.01, c + 0.01, True))
         for side, a in P.connectors:

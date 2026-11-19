@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 14
+VERSION = 16
 
 
 def to_world(x, y):
@@ -78,9 +78,11 @@ BUILDINGS = [
     ("Hostel U - West", "hostels", 462, 1078, 16, 40, 7, "box"),
     ("Hostel U - North", "hostels", 478, 1078, 43, 18, 7, "box"),
     ("Hostel U - East", "hostels", 521, 1078, 14, 40, 7, "box"),
-    ("Hostel Chain 1", "hostels", 440, 1118, 26, 22, 7, "box"),
-    ("Hostel Chain 2", "hostels", 434, 1144, 26, 22, 7, "box"),
-    ("Hostel Chain 3", "hostels", 437, 1170, 28, 22, 7, "box"),
+    # The chain is one stepped building (satellite view and the institute's model): its blocks
+    # touch, and Chain 1 meets Hostel U's west wing at a corner.
+    ("Hostel Chain 1", "hostels", 436, 1118, 26, 22, 7, "box"),
+    ("Hostel Chain 2", "hostels", 434, 1140, 26, 22, 7, "box"),
+    ("Hostel Chain 3", "hostels", 437, 1162, 28, 22, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),

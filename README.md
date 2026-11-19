@@ -1,11 +1,87 @@
 # Jagti Outbreak
 
-An original zombie survival game set on the IIM Jammu campus at Jagti, built in Unity 6 (Universal Render Pipeline) and tuned to run on a laptop with Intel Iris Xe graphics.
+An original battle royale (with the earlier zombie survival mode kept as a second mode) set on the IIM Jammu campus at Jagti, built in Unity 6 (Universal Render Pipeline) and tuned to run on a laptop with Intel Iris Xe graphics.
 
 - Plan: https://claude.ai/artifact/7T3xj4y35T2h2AhZ9Ptzqj
+- Battle royale phase plan: https://claude.ai/artifact/QAzo7ieAC4QWkLMhU9QijF
 - 2D vision map (layout reference): https://claude.ai/artifact/HmWJswKQuVajR4iMNxvyMN
 
-## Current phase: 4D, shops, medical centre, sports complex and outdoor detail
+## Current phase: 5F, online play (untested in Unity)
+
+Up to 8 people play one match together on the same network, with bots filling the rest of the 30 places. No account, package or server is needed: one player hosts and the others join.
+
+- **Front menu:** the game now opens on a menu. **Enter** (or *Play against bots*) starts a match against bots as before; *Play again* after a match goes straight into the next one.
+- **Hosting:** type a name and press *Host a game*. The lobby shows this computer's addresses and the port (UDP 7777). Windows may ask whether to let Unity (or the built game) through the firewall the first time: allow it on private networks.
+- **Joining:** *Find games on this network* lists games hosted on the same Wi-Fi; or type the host's address and press *Join*. The lobby shows who is in and who is still loading; the host picks the bot difficulty and starts the match when everyone is ready.
+- **Over the internet:** everyone joins the same virtual LAN (any VPN app that puts the computers on one network), or the host forwards UDP port 7777 on their router and friends join the router's public address. A relay service that needs neither is a later step.
+- **In the match:** everyone rides the same helicopter on the same line, finds the same loot, and sees the same haze circles and supply crates. Other players move, crouch, aim, glide and hang from zip lines as you see them; gunfire, tracers, grenades and smoke show on every screen; picked-up and dropped loot changes for everyone; the kill feed, placements and the winner are the same for all.
+- **Esc** opens the menu but the match carries on (you can't pause for everyone). After you are out, the results screen says how many are still in. The host's *Back to the lobby* takes everyone back for the next match; anyone can leave at any time (if the host leaves, the others return to the front menu; if a player drops, they count as out).
+- Scooters and carts are left out of online matches for now (zip lines work).
+
+How it works: `Assets/Scripts/Net` is a small UDP transport written for this game (`NetPeer`, with messages that are either sent once or resent until acknowledged and delivered in order) and `tools/net/net_test.cs` tests it on this computer with 30% of packets thrown away. `Assets/Scripts/Royale/Online` holds the rest: `NetSession` (connection and lobby; it survives the scene reload between matches), `NetLobbyMenu` (the front menu), `NetMatch` (keeps the match in step) and `NetPuppet` (draws someone whose machine is elsewhere, a tenth of a second behind, smoothed). Every machine runs the match from the host's seed; the host runs the bots; each player's own machine decides the hits they take (armour, health) and tells everyone the result.
+
+Known limits: two players grabbing the same item in the same instant can both get it; hits are trusted (it is a game among friends); the guns other players hold show without their attachments.
+
+## Phase 5E: map for battle
+
+- **Cover on open ground:** about 170 pieces of works-site cover across the campus lawns and open slopes: stacks of concrete drain pipes, pallets of bricks, black water tanks on a plinth, cable drums, cement bags and broken lengths of sandstone garden wall. `tools/royale/build_cover.py` measured how far every 4 m of open ground is from anything that stops a bullet (buildings, tree trunks, solid street furniture) and placed small sites at the most exposed spots until almost nothing is more than 20 m from cover (1,512 exposed spots before, 102 after, mostly on slopes too steep to build on). They are built before the NavMesh bake, so bots walk round them and use them in their cover search. The athletics field, courts and roads stay clear, and the main roads already have avenue trees.
+- **Landing spots:** every named place is rated by the loot around it (light, good or rich), shown as dots on the full map. Walking, gliding or driving into a place shows its name and rating.
+- **Full map (M):** bold place names, a 100 m grid with lettered columns and numbered rows for calling out positions, and a marker you place with a click (right-click clears it). The marker shows on the minimap, on a compass strip under the top bar with its distance, and over the world where it stands. The mouse is free while the map is open; you can still move.
+- **Compass:** a heading strip under the top bar (N, E, S, W and every 15 degrees).
+- **Performance:** small outdoor things are hidden past a set distance (bollards 90 m, bins and benches about 110 to 120 m, signs and railings 140 to 200 m, lamp posts 260 m, sign text 60 m, cover 450 m), checked a slice at a time each frame, with a few metres of give so nothing flickers. This cuts the draw calls when looking across the campus. Loot was already drawn only within 55 m and far bots already update less often.
+
+`tools/royale/build_cover.py --preview` draws the open-ground map before and after; `--render` renders the cover models.
+
+## Phase 5D: getting around
+
+- **Scooters and utility carts** parked along the campus roads and in the car park, a fresh random set each match (about nine scooters and five carts, in random colours). Press **E** beside one to ride: **W/S** throttle and reverse, **A/D** steer, **Space** brake, **E** to get off (below about 30 km/h). The scooter is quick (about 80 km/h) and leans into turns; the cart is slower (about 55 km/h) but tougher. You sit on them with your hands on the bars or wheel and your feet on the board or pedals.
+- **Vehicle damage:** bullets, grenades, hard landings and crashes wear them down; the panel at the bottom shows health and speed. A wrecked vehicle blows up (hurting anyone close), burns and smokes. Riding into people hurts them, and engines are loud enough for bots to hear. You can't shoot while riding, and your rider is still hittable.
+- **Zip lines:** steel towers on the steeper slopes (up to five lines, placed where the cable clears the ground, buildings and trees), shown as orange dotted lines on the map. Press **E** at either tower: downhill is fast, uphill a small motor pulls you; **S** slows you, **Space** lets go (you drop and take fall damage if high).
+- **Vaulting and climbing:** **Space** in front of a low wall, railing, sill or crate vaults over it if there is room beyond, or climbs on top of anything up to about 1.9 m.
+- **Water:** the campus has no ponds, only the water channels, the cascade basins and the fountain, so there is no swimming; you wade through them more slowly, and the splashing can be heard.
+- Vehicles show on the minimap and the full map within range.
+- Bots don't use vehicles, zip lines or vaulting yet (they walk the NavMesh); they do get out of the way of parked vehicles.
+
+`tools/royale/preview_vehicles.py` renders the scooter, cart and a zip line from the C# model code; `tools/royale/preview_getting_around.py` maps where the zip lines and parking spots should go.
+
+## Phase 5C: arsenal and feel
+
+- **Ten guns**, all original, named after places in Jammu: Ravi P9 and Basohli .45 (sidearms), Chenab SMG, Banihal 12 pump and Bhaderwah Double (shotguns), Tawi AR, the three-round-burst Ujh Carbine and the 75-round Udhampur LMG (rifles), Jhelum DMR and the bolt-action Pir Panjal (marksman). Each has its own model, sound, handling and aim-in time. The LMG, the DMR and the bolt-action rifle are rarer, and turn up more in better tiers and in supply crates.
+- **Recoil patterns:** each gun climbs and drifts the same way every spray, so you can learn it and pull against it. Crouching, aiming, a fore grip and a compensator all tame it.
+- **Attachments**, fitted automatically to the right gun when you pick them up and shown on the gun in your hands and on the bots: red dot, 2x sight, 4x and 8x scopes, compensator, suppressor (quieter, fewer tracers, heard from closer), fore grip and extended magazine. They drop beside a gun when you drop or swap it.
+- **Camera:** over the right shoulder by default with your own body visible, and first person when you aim (V switches). Shots in third person go from your head to what the crosshair covers, and the camera pulls in rather than going through walls. **C** or **Ctrl** crouches (steadier aim, smaller target, lower view).
+- **Smoke grenades (4):** a thick screen for about twenty seconds that bots can't see or shoot through. Bots throw them too when caught hurt in the open.
+- **Feedback:** damage numbers over the people you hit (yellow for headshots, blue when armour soaked it), an armour-broken call-out and sound, an elimination banner, a crosshair that opens as you fire, red dot reticles, spent cases flicking out, a red frame and heartbeat at low health.
+
+`tools/royale/preview_guns.py` renders the gun and attachment models straight from the C# model code.
+
+## Phase 5B: opponents
+
+The bots are now people worth fighting.
+
+- **Bodies:** each bot is a jointed person (16 bones, one skinned mesh, a few draw calls) with a face, hair, short sleeves, belt and shoes, and a mix of skin tones, shirts and hair. Feet are placed by leg IK as they walk, run, crouch and crouch-walk; both hands hold the real gun model (arm IK), low at the ready or up at the shoulder when aiming. They flinch when hit and fall when killed. Vests, helmets and backpacks show their level (khaki, olive, black; pouches, brims, visors, bigger packs). Far bodies update less often and stop casting shadows.
+- **Cover and corners:** in a fight a bot searches the walkable edges around it (walls, low walls, buses, furniture) for a spot the enemy can't see. Behind low cover it crouches to hide and stands to shoot; behind a corner it hides, then steps out to fire and back. It reloads and heals in cover, and moves on if it is flanked.
+- **Reacting to gunfire:** shots passing close make a bot duck, turn towards the shooter and spoil its aim. It hears fights from further away at higher difficulty, creeps in crouched when close, crouches for long rifle shots, and lobs grenades (with the right arc, flatter indoors) at anyone hiding from it.
+- **Difficulty:** Recruit, Regular or Veteran, chosen in the pause menu or on the results screen (applies from the next match). It sets skill spread, reaction time, aim, how often bots use cover and grenades, and how far they see and hear.
+- **Budget:** thinking is shared out (six bots think per frame, two cover searches per frame), bots far from you think less often and skip obstacle avoidance.
+
+`tools/royale/preview_bodies.py` renders the bodies in Blender (a port of the body code) to check them without Unity.
+
+## Phase 5A: battle royale match core
+
+The game is now a last-one-standing match on the whole campus, against 29 bots. Build it with **Jagti > Build Campus** (the layout version rose to 15, so the scene rebuilds); **Jagti > Game Mode** switches between Battle Royale (default) and Zombie Survival before a build.
+
+- **Drop:** a helicopter crosses the campus on a random line. Space jumps (you are pushed out at the far edge), W dives, S slows; the glider opens with Space below 500 m or by itself at 130 m. Steer with the mouse and W/S onto a roof, lawn or doorway. The camera follows from behind until you land.
+- **Loot:** 3,374 loot spots on free floor in every room (`tools/royale/build_loot_points.py`), about half filled each match. What a room holds depends on what it is: hostel rooms, classrooms, offices, the mess, the medical centre, the sports complex, stores and the bank strong room. Items come in four tiers (grey, green, blue, gold rings).
+- **Arsenal:** five original guns (Ravi P9 sidearm, Chenab SMG, Banihal 12 shotgun, Tawi AR, Jhelum DMR with a scope), four ammo types, vests and helmets at levels 1 to 3, backpacks, bandages, medkits, a chai flask that heals over time, and grenades. 1 to 3 or the wheel select, LMB fires, RMB aims, R reloads, E picks up, X drops, Q heals, Z drinks chai, G throws.
+- **The haze:** six rounds close a brown haze onto a random safe circle on walkable ground. Outside it you lose health every second, more each round, and armour does not help.
+- **Bots:** 29 bots drop with you, loot the nearest rooms, move with the haze, hear shots and fight with reaction time and aim error by skill.
+- **Supply drops:** two crates fall by parachute with red smoke during rounds 2 and 4, holding gold gear.
+- **HUD:** players left, kills, haze timer, kill feed, minimap and a full map (M) drawn from the terrain and layout, health and armour, slots, prompts, and a results screen with your placement.
+
+Everything is made in code (bodies, helicopter, guns, sounds), as before. Nothing in this phase has been run in Unity yet.
+
+## Phase 4D: shops, medical centre, sports complex and outdoor detail
 
 The last group of buildings can now be entered, and the campus outside has street furniture.
 

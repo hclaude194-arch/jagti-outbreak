@@ -167,53 +167,21 @@
    ]
   },
   {
-   "name": "Hostel_Chain_1",
-   "fbx": "Assets/Models/Buildings/Hostel_Chain_1.fbx",
-   "pivotX": 39.0,
+   "name": "Hostel_Chain",
+   "fbx": "Assets/Models/Buildings/Hostel_Chain.fbx",
+   "pivotX": 35.0,
    "pivotZ": -133.0,
    "boundsMin": [
-    26.0,
-    -144.0
-   ],
-   "boundsMax": [
-    52.0,
-    -122.0
-   ],
-   "replaces": [
-    "Hostel Chain 1"
-   ]
-  },
-  {
-   "name": "Hostel_Chain_2",
-   "fbx": "Assets/Models/Buildings/Hostel_Chain_2.fbx",
-   "pivotX": 33.0,
-   "pivotZ": -159.0,
-   "boundsMin": [
     20.0,
-    -170.0
-   ],
-   "boundsMax": [
-    46.0,
-    -148.0
-   ],
-   "replaces": [
-    "Hostel Chain 2"
-   ]
-  },
-  {
-   "name": "Hostel_Chain_3",
-   "fbx": "Assets/Models/Buildings/Hostel_Chain_3.fbx",
-   "pivotX": 37.0,
-   "pivotZ": -185.0,
-   "boundsMin": [
-    23.0,
-    -196.0
+    -188.0
    ],
    "boundsMax": [
     51.0,
-    -174.0
+    -122.0
    ],
    "replaces": [
+    "Hostel Chain 1",
+    "Hostel Chain 2",
     "Hostel Chain 3"
    ]
   },
