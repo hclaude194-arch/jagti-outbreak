@@ -26,7 +26,11 @@ namespace Jagti.World
         public Light[] lights;
         public int[] lightLevels;
 
+        /// <summary>Hides every interior at once (the lift's cutaway shows the building as a frame instead).</summary>
+        public static bool Hidden;
+
         bool drawn = true;
+        bool wasHidden;
         Vector3[] centres;
         float timer;
         Transform viewer;
@@ -43,6 +47,7 @@ namespace Jagti.World
         void Update()
         {
             timer -= Time.deltaTime;
+            if (Hidden != wasHidden) { wasHidden = Hidden; timer = 0f; }
             if (timer > 0f) return;
             timer = 0.25f;
 
@@ -53,7 +58,7 @@ namespace Jagti.World
                 viewer = cam.transform;
             }
             Vector3 p = viewer.position;
-            bool near = p.x > min.x - margin && p.x < max.x + margin && p.z > min.y - margin && p.z < max.y + margin;
+            bool near = !Hidden && p.x > min.x - margin && p.x < max.x + margin && p.z > min.y - margin && p.z < max.y + margin;
             int level = CurrentLevel(p.y);
             if (near || drawn) SetDrawn(near, level, p);
 

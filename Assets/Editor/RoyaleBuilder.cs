@@ -206,8 +206,15 @@ namespace Jagti.EditorTools
             FillWater(mover, layout);
 
             var blastSmoke = ParticleMaterial("Wreck_Smoke", puffTex);
-            int vehicleSpots = PlaceVehicles(layout, br, palette, blastSmoke, ground);
+            var helipad = PlaceHelipad(layout, br, palette, ground);
+            int vehicleSpots = PlaceVehicles(layout, br, palette, blastSmoke, ground, helipad);
             int zipLines = PlaceZipLines(layout, br, ground);
+            // Lifts to the roofs: the cutaway shows the building as a see-through shell (additive, so it
+            // costs little) with a glowing frame of floors and columns.
+            var liftGhost = UnlitMaterial("Lift_Ghost", new Color(0.03f, 0.075f, 0.1f), null, Blend.Additive, 1f, true);
+            var liftFrame = UnlitMaterial("Lift_Frame", new Color(0.18f, 0.7f, 1f), null, Blend.Additive, 1f, true);
+            var liftHot = UnlitMaterial("Lift_Frame_Hot", new Color(1f, 0.78f, 0.35f), null, Blend.Additive, 1f, true);
+            int lifts = PlaceLifts(layout, br, palette, liftGhost, liftFrame, liftHot, ground);
 
             // ---------------------------------------------------------------- referee and HUD
             var dirGo = new GameObject("Match Director");
@@ -253,7 +260,8 @@ namespace Jagti.EditorTools
             loot.placeRating = hud.placeLoot;
 
             Debug.Log("[Jagti] Battle royale: " + points + " loot points, " + loot.stashPoints.Length + " stash spots, sky bus, haze over " + Mathf.RoundToInt(haze.startRadius) +
-                      " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines.");
+                      " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines, " +
+                      (helipad != null ? "a rooftop helipad, " : "no helipad, ") + lifts + " lifts.");
         }
 
         // ------------------------------------------------------------------ landing spots
@@ -330,7 +338,7 @@ namespace Jagti.EditorTools
         /// (about one per 90 m) and a few bays in each car park, each on solid ground with nothing in the
         /// way. VehicleSpawner picks a random spread of them each match.
         /// </summary>
-        static int PlaceVehicles(CampusLayout layout, Transform br, Material[] palette, Material smoke, Func<float, float, float> ground)
+        static int PlaceVehicles(CampusLayout layout, Transform br, Material[] palette, Material smoke, Func<float, float, float> ground, Helipad helipad)
         {
             Physics.SyncTransforms();
             var spots = new List<Vector4>();
@@ -412,6 +420,7 @@ namespace Jagti.EditorTools
             spawner.parking = parking.ToArray();
             spawner.palette = palette;
             spawner.smokeMaterial = smoke;
+            spawner.helipads = helipad != null ? new[] { helipad } : new Helipad[0];
             return spots.Count;
         }
 
@@ -508,6 +517,408 @@ namespace Jagti.EditorTools
                 built++;
             }
             if (built == 0) Debug.LogWarning("[Jagti] No zip line sites found (" + sites.Count + " tower sites, " + pairs.Count + " pairs).");
+            return built;
+        }
+
+        // ------------------------------------------------------------------ helipad and lifts
+
+        [Serializable]
+        class RoomData
+        {
+            public string name;
+            public string kind;
+            public float[] rect;    // x0, x1, z0, z1
+            public int level;
+            public int zone;
+        }
+
+        [Serializable]
+        class LiftSource
+        {
+            public InteriorZoneData[] zones;
+            public RoomData[] rooms;
+            public PropData[] props;
+        }
+
+        /// <summary>The top surface at (x, z) if it is level and between lo and hi (so nothing else is above it).</summary>
+        static bool RoofAt(float x, float z, float lo, float hi, out float y)
+        {
+            y = 0f;
+            var hits = Physics.RaycastAll(new Vector3(x, hi + 30f, z), Vector3.down, hi - lo + 60f, ~0, QueryTriggerInteraction.Ignore);
+            float top = float.NegativeInfinity;
+            Vector3 n = Vector3.zero;
+            foreach (var h in hits)
+                if (h.point.y > top) { top = h.point.y; n = h.normal; }
+            if (float.IsNegativeInfinity(top) || n.y < 0.95f) return false;
+            if (top < lo || top > hi) return false;
+            y = top;
+            return true;
+        }
+
+        /// <summary>A level square of roof (half-size h) round (x, z), all at one height.</summary>
+        static bool FlatRoof(float x, float z, float h, float lo, float hi, out float y)
+        {
+            if (!RoofAt(x, z, lo, hi, out y)) return false;
+            for (int c = 0; c < 4; c++)
+            {
+                float yc;
+                if (!RoofAt(x + ((c & 1) == 0 ? -h : h), z + ((c & 2) == 0 ? -h : h), lo, hi, out yc) || Mathf.Abs(yc - y) > 0.12f) return false;
+            }
+            return true;
+        }
+
+        static BuildingModelList ModelList()
+        {
+            var json = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Data/building_models.json");
+            return json != null ? JsonUtility.FromJson<BuildingModelList>(json.text) : null;
+        }
+
+        /// <summary>
+        /// The helipad on the academic block's roof: on the deep south wing, east of its middle stair head
+        /// (the roof there is bare, 38 m deep). The first level, clear 16 m square near that spot wins.
+        /// </summary>
+        static Helipad PlaceHelipad(CampusLayout layout, Transform br, Material[] palette, Func<float, float, float> ground)
+        {
+            Physics.SyncTransforms();
+            BuildingData wing = null;
+            foreach (var b in layout.buildings) if (b.name == "Academic Block - South Wing") wing = b;
+            var models = ModelList();
+            BuildingModelInfo model = null;
+            if (models != null && models.models != null)
+                foreach (var m in models.models) if (m.name == "Academic_Block") model = m;
+            if (wing == null || model == null) { Debug.LogWarning("[Jagti] No academic block south wing: no helipad."); return null; }
+            float expect = ground(model.pivotX, model.pivotZ) + wing.height;
+            const float size = 15f;
+            foreach (float dx in new[] { 0f, 1.5f, -1.5f, 3f, -3f, 4.5f, -4.5f, 6f, -6f })
+                foreach (float dz in new[] { 0f, 2f, -2f })
+                {
+                    float x = wing.x + 21.5f + dx, z = wing.z + dz;
+                    float y;
+                    if (!FlatRoof(x, z, size / 2f + 0.3f, expect - 1.2f, expect + 1.6f, out y)) continue;
+                    if (Physics.CheckBox(new Vector3(x, y + 0.3f + 3f, z), new Vector3(size / 2f + 0.3f, 3f, size / 2f + 0.3f), Quaternion.identity, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    var go = new GameObject("Helipad");
+                    go.transform.SetParent(br, false);
+                    go.transform.SetPositionAndRotation(new Vector3(x, y, z), Quaternion.Euler(0f, 90f, 0f));
+                    var pad = go.AddComponent<Helipad>();
+                    pad.size = size;
+                    pad.palette = palette;
+                    return pad;
+                }
+            Debug.LogWarning("[Jagti] No clear spot for the helipad on the academic block's roof.");
+            return null;
+        }
+
+        static float LiftRoomWeight(string kind)
+        {
+            switch (kind)
+            {
+                case "lobby": case "foyer": return 3f;
+                case "waiting": return 2.5f;
+                case "stair": return 2f;
+                case "corridor": case "gallery": return 1.5f;
+                case "passage": case "common": return 1f;
+                default: return 0f;
+            }
+        }
+
+        static bool InWing(List<Vector4> wings, List<bool> round, float x, float z, float margin, out int which)
+        {
+            which = -1;
+            for (int i = 0; i < wings.Count; i++)
+            {
+                var w = wings[i];
+                float hx = w.z / 2f - margin, hz = w.w / 2f - margin;
+                if (hx <= 0f || hz <= 0f) continue;
+                float dx = x - w.x, dz = z - w.y;
+                bool inside = round[i] ? (dx * dx) / (hx * hx) + (dz * dz) / (hz * hz) < 1f : Mathf.Abs(dx) < hx && Mathf.Abs(dz) < hz;
+                if (inside && (which < 0 || w.z * w.w < wings[which].z * wings[which].w)) which = i;
+            }
+            return which >= 0;
+        }
+
+        /// <summary>
+        /// A stretch of wall for the lift doors at the edge point p of a room (inward normal n): solid and
+        /// flat for 1.6 m across and 2.2 m up, the floor in front at ground-floor level, and room to stand
+        /// with nothing in the way (furniture colliders, or any prop from interiors.json).
+        /// </summary>
+        static bool LiftWall(Vector2 p, Vector2 n, float floor0, List<PropData> props, out Vector3 face, out float yaw)
+        {
+            face = Vector3.zero;
+            yaw = 0f;
+            var nn = new Vector3(n.x, 0f, n.y);
+            var side = Vector3.Cross(Vector3.up, nn);
+            var inside = new Vector3(p.x + n.x * 0.8f, floor0, p.y + n.y * 0.8f);
+            RaycastHit hit;
+            if (!Physics.Raycast(inside + Vector3.up * 1.5f, Vector3.down, out hit, 2.5f, ~0, QueryTriggerInteraction.Ignore)) return false;
+            float fy = hit.point.y;
+            if (Mathf.Abs(fy - floor0) > 0.5f || hit.normal.y < 0.9f) return false;
+            float d0 = -1f;
+            foreach (float lat in new[] { -0.8f, 0f, 0.8f })
+                foreach (float h in new[] { 0.3f, 1.2f, 2.2f })
+                {
+                    var o = inside + side * lat;
+                    o.y = fy + h;
+                    if (!Physics.Raycast(o, -nn, out hit, 1.6f, ~0, QueryTriggerInteraction.Ignore)) return false;
+                    if (Vector3.Dot(hit.normal, nn) < 0.9f) return false;
+                    if (d0 < 0f) d0 = hit.distance;
+                    else if (Mathf.Abs(hit.distance - d0) > 0.06f) return false;
+                }
+            face = inside - nn * d0;
+            face.y = fy;
+            var front = face + nn * 0.95f;
+            if (Physics.CheckBox(new Vector3(front.x, fy + 1.1f, front.z), new Vector3(0.8f, 0.85f, 0.75f), Quaternion.LookRotation(nn), ~0, QueryTriggerInteraction.Ignore))
+                return false;
+            foreach (var pr in props)
+            {
+                float dx = pr.x - front.x, dz = pr.z - front.z;
+                if (dx * dx + dz * dz < 1.2f * 1.2f) return false;
+                dx = pr.x - face.x; dz = pr.z - face.z;
+                if (dx * dx + dz * dz < 1.0f * 1.0f) return false;
+            }
+            yaw = Mathf.Atan2(nn.x, nn.z) * Mathf.Rad2Deg;
+            return true;
+        }
+
+        /// <summary>
+        /// Where the lift's head hut goes on the roof: the nearest level, clear 2.6 m spot to the shaft
+        /// that is the top of this building (inside its model's bounds, at least two storeys up, not on
+        /// solar panels or under a canopy), turned so there is roof to step out onto in front of its doors.
+        /// </summary>
+        static bool LiftHead(Vector3 shaft, Vector2 bmin, Vector2 bmax, float lo, float hi, out Vector3 top, out float yaw)
+        {
+            top = Vector3.zero;
+            yaw = 0f;
+            Func<float, float, float, bool> inside = (x, z, m) => x > bmin.x + m && x < bmax.x - m && z > bmin.y + m && z < bmax.y - m;
+            foreach (float r in new[] { 0f, 1.5f, 3f, 4.5f, 6f, 7.5f, 9f, 10.5f, 12f })
+                for (int a = 0; a < (r == 0f ? 1 : 16); a++)
+                {
+                    float ang = a * 22.5f * Mathf.Deg2Rad;
+                    float x = shaft.x + Mathf.Sin(ang) * r, z = shaft.z + Mathf.Cos(ang) * r;
+                    if (!inside(x, z, 1.6f)) continue;
+                    float y;
+                    if (!FlatRoof(x, z, 1.4f, lo, hi, out y)) continue;
+                    if (Physics.CheckBox(new Vector3(x, y + 0.15f + 1.45f, z), new Vector3(1.4f, 1.45f, 1.3f), Quaternion.identity, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    foreach (float face in new[] { 0f, 90f, 180f, 270f })
+                    {
+                        var f = Quaternion.Euler(0f, face, 0f) * Vector3.forward;
+                        var c = new Vector3(x, y, z) + f * (Lift.HutD / 2f + 0.9f);
+                        float yc;
+                        if (!inside(c.x, c.z, 0.5f)) continue;
+                        if (!FlatRoof(c.x, c.z, 0.5f, lo, hi, out yc) || Mathf.Abs(yc - y) > 0.15f) continue;
+                        if (Physics.CheckBox(new Vector3(c.x, y + 1.1f, c.z), new Vector3(0.6f, 0.85f, 0.6f), Quaternion.identity, ~0, QueryTriggerInteraction.Ignore)) continue;
+                        top = new Vector3(x, y, z);
+                        yaw = face;
+                        return true;
+                    }
+                }
+            return false;
+        }
+
+        const float LiftDeckHeight = 1.3f;
+
+        /// <summary>
+        /// A raised steel deck for the lift's head where the roof is covered in solar panels (the girls'
+        /// hostels): a 3 x 4.6 m spot where nothing on the roof stands more than 1.15 m high and nothing at
+        /// all is above that. Returns the hut's floor on the deck.
+        /// </summary>
+        static bool LiftDeck(Vector3 shaft, Vector2 bmin, Vector2 bmax, float roofY, out Vector3 top, out float yaw)
+        {
+            top = Vector3.zero;
+            yaw = 0f;
+            foreach (float r in new[] { 0f, 1.5f, 3f, 4.5f, 6f, 7.5f, 9f })
+                for (int a = 0; a < (r == 0f ? 1 : 16); a++)
+                {
+                    float ang = a * 22.5f * Mathf.Deg2Rad;
+                    float x = shaft.x + Mathf.Sin(ang) * r, z = shaft.z + Mathf.Cos(ang) * r;
+                    foreach (float face in new[] { 0f, 90f, 180f, 270f })
+                    {
+                        var rot = Quaternion.Euler(0f, face, 0f);
+                        bool ok = true;
+                        for (int i = -2; i <= 2 && ok; i++)
+                            for (int j = -2; j <= 2 && ok; j++)
+                            {
+                                Vector3 q = new Vector3(x, 0f, z) + rot * new Vector3(i * 0.75f, 0f, j * 1.15f);
+                                if (q.x < bmin.x + 0.8f || q.x > bmax.x - 0.8f || q.z < bmin.y + 0.8f || q.z > bmax.y - 0.8f) { ok = false; break; }
+                                if (!RoofTopBetween(q.x, q.z, roofY - 0.3f, roofY + 1.15f)) ok = false;
+                            }
+                        if (!ok) continue;
+                        if (Physics.CheckBox(new Vector3(x, roofY + LiftDeckHeight + 0.1f + 1.6f, z), new Vector3(1.6f, 1.6f, 2.4f), rot, ~0, QueryTriggerInteraction.Ignore)) continue;
+                        var f = rot * Vector3.forward;
+                        top = new Vector3(x, roofY + LiftDeckHeight, z) - f * 1.1f;
+                        yaw = face;
+                        return true;
+                    }
+                }
+            return false;
+        }
+
+        /// <summary>The highest thing at (x, z) is between lo and hi (whatever its slope: a tilted panel will do).</summary>
+        static bool RoofTopBetween(float x, float z, float lo, float hi)
+        {
+            var hits = Physics.RaycastAll(new Vector3(x, hi + 30f, z), Vector3.down, hi - lo + 60f, ~0, QueryTriggerInteraction.Ignore);
+            float top = float.NegativeInfinity;
+            foreach (var h in hits) top = Mathf.Max(top, h.point.y);
+            return top >= lo && top <= hi;
+        }
+
+        /// <summary>
+        /// Lifts in every building of three storeys or more that has an interior: doors on a free stretch
+        /// of wall in a ground-floor lobby, foyer or corridor (the shaft behind that wall, inside the
+        /// building), and a head hut on the roof above. The academic block's interior already has lift doors
+        /// beside each pavilion stair, so its four lifts start there; other buildings get one (two if big).
+        /// </summary>
+        static int PlaceLifts(CampusLayout layout, Transform br, Material[] palette, Material ghost, Material glow, Material hot, Func<float, float, float> ground)
+        {
+            Physics.SyncTransforms();
+            var json = AssetDatabase.LoadAssetAtPath<TextAsset>(InteriorPath);
+            var models = ModelList();
+            if (json == null || models == null || models.models == null) return 0;
+            var src = JsonUtility.FromJson<LiftSource>(json.text);
+            if (src == null || src.zones == null || src.rooms == null) return 0;
+            var byName = new Dictionary<string, BuildingData>();
+            foreach (var b in layout.buildings) byName[b.name] = b;
+            var modelByName = new Dictionary<string, BuildingModelInfo>();
+            foreach (var m in models.models) modelByName[m.name] = m;
+            var landmarks = GameObject.Find("Campus/Buildings/Landmarks");
+            var interiors = GameObject.Find("Campus/Buildings/Interiors");
+            var root = new GameObject("Lifts").transform;
+            root.SetParent(br, false);
+            int built = 0;
+
+            for (int zi = 0; zi < src.zones.Length; zi++)
+            {
+                var zone = src.zones[zi];
+                if (zone.maxLevel < 2) continue;
+                string modelName = zone.shell.EndsWith("_Interior") ? zone.shell.Substring(0, zone.shell.Length - "_Interior".Length) : zone.shell;
+                BuildingModelInfo model;
+                if (!modelByName.TryGetValue(modelName, out model) || model.replaces == null) continue;
+                var wings = new List<Vector4>();
+                var tops = new List<float>();
+                var round = new List<bool>();
+                foreach (var name in model.replaces)
+                {
+                    BuildingData b;
+                    if (!byName.TryGetValue(name, out b)) continue;
+                    wings.Add(new Vector4(b.x, b.z, b.width, b.depth));
+                    tops.Add(b.height);
+                    round.Add(b.shape == "cylinder");
+                }
+                if (wings.Count == 0) continue;
+                float highest = 0f;
+                foreach (var tp in tops) highest = Mathf.Max(highest, tp);
+                var bmin = new Vector2(model.boundsMin[0], model.boundsMin[1]);
+                var bmax = new Vector2(model.boundsMax[0], model.boundsMax[1]);
+                float storey = layout.floorHeight > 0f ? layout.floorHeight : 3.4f;
+                float baseY = ground(zone.baseX, zone.baseZ);
+                float floor0 = baseY + zone.floorOffset;
+                // What stands on the ground floor up to door height (ceiling lights and fans don't count).
+                var props = new List<PropData>();
+                var cands = new List<KeyValuePair<float, Vector4>>();
+                var existing = new HashSet<Vector3>();
+                if (src.props != null)
+                    foreach (var pr in src.props)
+                    {
+                        if (pr.zone != zi || pr.level != 0) continue;
+                        if (pr.prop == "Lift_Door")
+                        {
+                            // Lift doors the interior already has (beside the academic block's pavilion stairs): use them first.
+                            var at = new Vector3(pr.x, baseY + pr.y, pr.z);
+                            existing.Add(at);
+                            cands.Add(new KeyValuePair<float, Vector4>(10f, new Vector4(at.x, at.y, at.z, pr.yaw)));
+                        }
+                        if (pr.y > zone.floorOffset + 2.3f || pr.prop.Contains("Light") || pr.prop.Contains("Fan") || pr.prop == "Exit_Sign") continue;
+                        props.Add(pr);
+                    }
+
+                // The best spot on each candidate room's walls.
+                foreach (var room in src.rooms)
+                {
+                    if (room.zone != zi || room.level != 0 || room.rect == null || room.rect.Length < 4) continue;
+                    float weight = LiftRoomWeight(room.kind);
+                    if (weight <= 0f) continue;
+                    float x0 = room.rect[0], x1 = room.rect[1], z0 = room.rect[2], z1 = room.rect[3];
+                    var edges = new[]
+                    {
+                        new Vector4(x0, z0, x1, z0), new Vector4(x1, z1, x0, z1), new Vector4(x0, z1, x0, z0), new Vector4(x1, z0, x1, z1),
+                    };
+                    var normals = new[] { new Vector2(0f, 1f), new Vector2(0f, -1f), new Vector2(1f, 0f), new Vector2(-1f, 0f) };
+                    float best = float.MinValue;
+                    Vector4 bestSpot = Vector4.zero;
+                    for (int e = 0; e < 4; e++)
+                    {
+                        var a = new Vector2(edges[e].x, edges[e].y);
+                        var b = new Vector2(edges[e].z, edges[e].w);
+                        float len = (b - a).magnitude;
+                        if (len < 2.2f) continue;
+                        var dir = (b - a) / len;
+                        int tried = 0;
+                        for (float t = 1.0f; t <= len - 1.0f && tried < 60; t += 0.5f, tried++)
+                        {
+                            Vector3 face;
+                            float yaw;
+                            if (!LiftWall(a + dir * t, normals[e], floor0, props, out face, out yaw)) continue;
+                            // The shaft behind the wall must be inside the building.
+                            var shaft = face - new Vector3(normals[e].x, 0f, normals[e].y) * 1.05f;
+                            int wi;
+                            if (!InWing(wings, round, shaft.x, shaft.z, 0.3f, out wi)) continue;
+                            float score = weight + 0.3f * (1f - Mathf.Abs(t - len / 2f) / (len / 2f));
+                            if (score > best) { best = score; bestSpot = new Vector4(face.x, face.y, face.z, yaw); }
+                        }
+                    }
+                    if (best > float.MinValue) cands.Add(new KeyValuePair<float, Vector4>(best, bestSpot));
+                }
+                cands.Sort((p, q) => q.Key.CompareTo(p.Key));
+
+                float area = (zone.max[0] - zone.min[0]) * (zone.max[1] - zone.min[1]);
+                int want = existing.Count > 0 ? existing.Count : area > 6000f ? 2 : 1;
+                var chosen = new List<Vector3>();
+                foreach (var c in cands)
+                {
+                    if (chosen.Count >= want) break;
+                    var face = new Vector3(c.Value.x, c.Value.y, c.Value.z);
+                    bool far = true;
+                    foreach (var o in chosen) if ((o - face).sqrMagnitude < 28f * 28f) far = false;
+                    if (!far) continue;
+                    var shaft = face - Quaternion.Euler(0f, c.Value.w, 0f) * Vector3.forward * 1.05f;
+                    Vector3 head;
+                    float headYaw;
+                    // The main roof first; failing that (a roof covered in solar panels) a raised steel deck over the
+                    // panels; failing that a higher roof close by (the academic block's corner pavilions).
+                    float deck = 0f;
+                    if (!LiftHead(shaft, bmin, bmax, baseY + 2f * storey, baseY + highest + 1.6f, out head, out headYaw))
+                    {
+                        if (LiftDeck(shaft, bmin, bmax, baseY + highest, out head, out headYaw)) deck = LiftDeckHeight;
+                        else if (!LiftHead(shaft, bmin, bmax, baseY + 2f * storey, baseY + highest + 4.5f, out head, out headYaw)) continue;
+                    }
+                    chosen.Add(face);
+
+                    var go = new GameObject("Lift - " + zone.name + " " + chosen.Count);
+                    go.transform.SetParent(root, false);
+                    go.transform.position = face;
+                    var lift = go.AddComponent<Lift>();
+                    lift.building = zone.name;
+                    lift.bottom = face;
+                    lift.bottomYaw = c.Value.w;
+                    lift.top = head;
+                    lift.topYaw = headYaw;
+                    lift.baseY = baseY;
+                    lift.floorOffset = zone.floorOffset;
+                    lift.levelHeight = layout.floorHeight > 0f ? layout.floorHeight : 3.4f;
+                    lift.wings = wings.ToArray();
+                    lift.wingTops = tops.ToArray();
+                    lift.roundWings = round.ToArray();
+                    lift.buildingRoot = landmarks != null ? landmarks.transform.Find(modelName.Replace('_', ' ')) : null;
+                    lift.interiorRoot = interiors != null ? interiors.transform.Find("Interior - " + zone.name) : null;
+                    lift.palette = palette;
+                    lift.ghost = ghost;
+                    lift.glow = glow;
+                    lift.glowHot = hot;
+                    lift.buildGroundDoors = !existing.Contains(face);
+                    lift.deck = deck;
+                    built++;
+                }
+                if (chosen.Count == 0) Debug.LogWarning("[Jagti] No lift spot found in " + zone.name + " (" + cands.Count + " wall spots, none with a roof spot above).");
+            }
             return built;
         }
 

@@ -13,10 +13,14 @@ namespace Jagti.Royale
     /// edges and lands hard. It stops at walls (and is damaged by a fast crash), knocks over
     /// anyone it hits at speed, and can be shot or blown up: at zero health it bursts into flames,
     /// hurting whoever is near. Engine noise carries, so bots hear you coming.
+    /// The helicopter (Kind.Heli, on the academic block's roof pad) shares the riding, damage and HUD
+    /// but flies instead: the rotor spools up once you're aboard, W/S fly forward and back, A/D turn,
+    /// Space climbs, Ctrl descends, Shift boosts. Let go of the controls and it hovers; leave it and it
+    /// settles to the ground. You can get out when it is within a few metres of whatever is below.
     /// </summary>
     public class Vehicle : MonoBehaviour
     {
-        public enum Kind { Scooter, Cart, Auto, Jeep }
+        public enum Kind { Scooter, Cart, Auto, Jeep, Heli }
 
         public static readonly List<Vehicle> All = new List<Vehicle>();
 
@@ -31,6 +35,8 @@ namespace Jagti.Royale
         [HideInInspector] public Transform steerPivot;
         [HideInInspector] public float wheelRadius, wheelBase, frontAxle, halfTrack;
         [HideInInspector] public Vector3 bodyHalf, seatLocal, handL, handR, footLocal;
+        // Helicopter only: the rotors that spin.
+        [HideInInspector] public Transform rotor, tailRotor;
 
         public float maxSpeed = 22f;
         public float maxReverse = 4f;
@@ -56,6 +62,7 @@ namespace Jagti.Royale
                     case Kind.Scooter: return "scooter";
                     case Kind.Auto: return "auto-rickshaw";
                     case Kind.Jeep: return "patrol 4x4";
+                    case Kind.Heli: return "helicopter";
                     default: return "utility cart";
                 }
             }
@@ -64,6 +71,15 @@ namespace Jagti.Royale
         public Transform Seat { get; private set; }
         /// <summary>Which way the vehicle points on the map, in degrees (no pitch or roll).</summary>
         public float Heading { get { return heading; } }
+        /// <summary>Helicopter: height above whatever is below it (0 when sitting on the ground or a roof).</summary>
+        public float Altitude { get; private set; }
+        /// <summary>Helicopter: rotor speed, 0 (stopped) to 1 (flying speed).</summary>
+        public float Spool { get { return spool; } }
+        /// <summary>Whether the rider may step off now: slow on the ground, or a helicopter low and slow.</summary>
+        public bool CanExit
+        {
+            get { return kind == Kind.Heli ? Altitude < 3.5f && Mathf.Abs(Speed) < 6f : Mathf.Abs(Speed) < 9f; }
+        }
 
         float steer, vy, lean, noiseT, crashCooldown, hornT;
         // The heading is kept here, not read back from the transform: the body's tilt is smoothed, but
@@ -73,6 +89,9 @@ namespace Jagti.Royale
         Combatant lastRunOver;
         float lastRunOverTime;
         bool airborne;
+        // Helicopter state.
+        Vector3 vel;
+        float spool, groundBelow, ceiling;
         AudioSource engine;
         BoxCollider box;
         NavMeshObstacle obstacle;
@@ -109,6 +128,14 @@ namespace Jagti.Royale
                 maxHealth = 640f;
                 cornerGrip = 9f;
             }
+            else if (kind == Kind.Heli)
+            {
+                // A light utility helicopter: quick, tough-ish, but loud and easy to spot.
+                maxSpeed = 32f;
+                maxReverse = 9f;
+                acceleration = 7f;
+                maxHealth = 900f;
+            }
             Health = maxHealth;
             Boost = 1f;
             VehicleModels.Build(this, palette, paint);
@@ -129,16 +156,18 @@ namespace Jagti.Royale
             Seat = seat;
 
             engine = gameObject.AddComponent<AudioSource>();
-            engine.clip = SynthAudio.Get(kind == Kind.Scooter ? "engine_scooter" : kind == Kind.Auto ? "engine_auto" : kind == Kind.Jeep ? "engine_jeep" : "engine_cart");
+            engine.clip = SynthAudio.Get(kind == Kind.Scooter ? "engine_scooter" : kind == Kind.Auto ? "engine_auto" : kind == Kind.Jeep ? "engine_jeep" : kind == Kind.Heli ? "rotor" : "engine_cart");
             engine.loop = true;
             engine.spatialBlend = 1f;
-            engine.minDistance = 4f;
-            engine.maxDistance = 90f;
+            engine.minDistance = kind == Kind.Heli ? 10f : 4f;
+            engine.maxDistance = kind == Kind.Heli ? 260f : 90f;
             engine.rolloffMode = AudioRolloffMode.Linear;
             engine.volume = 0f;
             engine.playOnAwake = false;
             heading = transform.eulerAngles.y;
             SettleOnGround();
+            // The helicopter's ceiling: well above the highest roofs, below the sky bus.
+            ceiling = transform.position.y + 140f;
         }
 
         // ------------------------------------------------------------------ riders
@@ -258,8 +287,13 @@ namespace Jagti.Royale
 
         void Update()
         {
-            if (Wrecked) return;
             float dt = Time.deltaTime;
+            if (Wrecked)
+            {
+                if (kind == Kind.Heli && Altitude > 0.01f) Fly(0f, 0f, 0f, dt);   // a shot-down helicopter falls
+                return;
+            }
+            if (kind == Kind.Heli) { UpdateHeli(dt); return; }
             crashCooldown -= dt;
             float throttle = 0f, steerIn = 0f;
             bool brake = false, boost = false;
@@ -408,6 +442,190 @@ namespace Jagti.Royale
             if (wheels != null) foreach (var w in wheels) if (w != null) w.Rotate(spin, 0f, 0f, Space.Self);
             if (steerPivot != null) steerPivot.localRotation = Quaternion.Euler(0f, steer, 0f);
             if (steeredWheels != null) foreach (var w in steeredWheels) if (w != null) w.localRotation = Quaternion.Euler(0f, steer, 0f);
+        }
+
+        // ------------------------------------------------------------------ flying (Kind.Heli)
+
+        void UpdateHeli(float dt)
+        {
+            float fwd = 0f, turn = 0f, climb = 0f;
+            bool boost = false;
+            if (Driver != null && !Driver.Alive) Exit();
+            if (Driver != null && Driver.isPlayer && !GameState.Paused)
+            {
+                fwd = Input.GetAxisRaw("Vertical");
+                turn = Input.GetAxisRaw("Horizontal");
+                if (Input.GetKey(KeyCode.Space)) climb += 1f;
+                if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C)) climb -= 1f;
+                boost = Input.GetKey(KeyCode.LeftShift) && fwd > 0.1f;
+            }
+            if (boostLocked && Boost > 0.25f) boostLocked = false;
+            Boosting = boost && !boostLocked && Boost > 0f && Altitude > 1f;
+            if (Boosting)
+            {
+                Boost = Mathf.Max(0f, Boost - dt / 5f);
+                if (Boost <= 0f) boostLocked = true;
+            }
+            else Boost = Mathf.Min(1f, Boost + dt / 8f);
+            // Parked with the rotor stopped: nothing to do.
+            if (Driver == null && spool <= 0f && Altitude <= 0.01f) { engine.volume = 0f; return; }
+            Fly(fwd, turn, climb, dt);
+
+            engine.pitch = 0.55f + spool * 0.5f + (Boosting ? 0.12f : 0f) + Mathf.Abs(climb) * 0.04f;
+            engine.volume = spool * 0.85f;
+            if (spool > 0.02f && !engine.isPlaying) engine.Play();
+            if (spool <= 0f && engine.isPlaying) engine.Stop();
+            noiseT -= dt;
+            if (spool > 0.2f && noiseT <= 0f)
+            {
+                noiseT = 0.6f;
+                NoiseEvents.Emit(transform.position, 80f + spool * 120f);
+            }
+        }
+
+        /// <summary>
+        /// Arcade flight. Velocity eases toward what the stick asks for (forward speed along the heading,
+        /// climb rate from Space/Ctrl), so letting go hovers. Without a pilot (or once shot down) the rotor
+        /// winds down and it sinks, then drops. The body tilts with the speed and banks into turns; a
+        /// sphere round the cabin and a wider one at rotor height stop it at walls, and fast knocks hurt.
+        /// </summary>
+        void Fly(float fwdIn, float turnIn, float climbIn, float dt)
+        {
+            bool powered = Driver != null && Driver.Alive && !Wrecked;
+            crashCooldown -= dt;
+            spool = Mathf.MoveTowards(spool, powered ? 1f : 0f, dt / (powered ? 2.2f : 6f));
+            bool flying = spool > 0.8f;
+            bool onGround = Altitude <= 0.05f;
+
+            // Turning: a slow pivot on the skids once the rotor is up to speed, quicker in the air.
+            float yawRate = flying ? turnIn * (onGround ? 35f : 75f) : 0f;
+            heading = Mathf.Repeat(heading + yawRate * dt, 360f);
+            Quaternion flat = Quaternion.Euler(0f, heading, 0f);
+            Vector3 f = flat * Vector3.forward;
+
+            float top = Boosting ? maxSpeed * 1.45f : maxSpeed;
+            Vector3 hv = new Vector3(vel.x, 0f, vel.z);
+            Vector3 want = flying && !onGround ? f * (fwdIn > 0f ? fwdIn * top : fwdIn * maxReverse) : Vector3.zero;
+            float accel = Mathf.Abs(fwdIn) > 0.1f ? (Boosting ? acceleration * 1.6f : acceleration) : acceleration * 0.55f;
+            if (onGround) accel = 12f;   // skids grip
+            hv = Vector3.MoveTowards(hv, want, accel * dt);
+
+            if (flying)
+            {
+                float wantVy = climbIn * (climbIn > 0f ? 7f : 6f);
+                if (transform.position.y > ceiling && wantVy > 0f) wantVy = 0f;
+                vel.y = Mathf.MoveTowards(vel.y, wantVy, 9f * dt);
+            }
+            else
+            {
+                // Sinking as the rotor slows; a free fall once it has stopped.
+                float hold = Mathf.Clamp01(spool / 0.8f);
+                vel.y = Mathf.Max(-28f, vel.y - 9.81f * (1f - hold * 0.85f) * dt);
+                if (hold > 0.5f) vel.y = Mathf.Max(vel.y, -3f);
+            }
+            vel = new Vector3(hv.x, vel.y, hv.z);
+
+            Vector3 pos = transform.position;
+            Vector3 step = vel * dt;
+            if (step.sqrMagnitude > 1e-8f) step = Collide(pos, step);
+            pos += step;
+
+            // Ground and roofs: settle onto the highest surface below the skids.
+            groundBelow = SurfaceBelow(pos);
+            if (pos.y <= groundBelow + 0.02f)
+            {
+                if (vel.y < -7f)
+                {
+                    Ballistics.SoundAt(pos, "crash", 0.9f);
+                    TakeHit((-vel.y - 7f) * 14f, null);
+                    if (Driver != null) Driver.ReceiveHit((-vel.y - 7f) * 3f, false, null, "a hard landing", pos, true);
+                }
+                pos.y = groundBelow;
+                if (vel.y < 0f) vel.y = 0f;
+            }
+            Altitude = Mathf.Max(0f, pos.y - groundBelow);
+            Speed = new Vector2(vel.x, vel.z).magnitude * Mathf.Sign(Vector3.Dot(vel, f) + 0.001f);
+
+            // Tilt: nose down with forward speed and while speeding up, bank into turns; level on the ground.
+            float pitch = 0f, roll = 0f;
+            if (Altitude > 0.3f)
+            {
+                float along = Vector3.Dot(hv, f);
+                pitch = Mathf.Clamp(along / maxSpeed * 11f + fwdIn * 6f, -12f, 18f);
+                roll = -yawRate / 75f * 14f;
+            }
+            float k = 1f - Mathf.Exp(-4f * dt);
+            tiltPitch = Mathf.Lerp(tiltPitch, pitch, k);
+            tiltRoll = Mathf.Lerp(tiltRoll, roll, k);
+            transform.SetPositionAndRotation(pos, Quaternion.Euler(tiltPitch, heading, tiltRoll));
+
+            if (rotor != null) rotor.Rotate(0f, spool * 1300f * dt, 0f, Space.Self);
+            if (tailRotor != null) tailRotor.Rotate(spool * 2400f * dt, 0f, 0f, Space.Self);
+        }
+
+        /// <summary>Moves as far along the step as the cabin and the rotor disc allow; knocks at speed hurt.</summary>
+        Vector3 Collide(Vector3 pos, Vector3 step)
+        {
+            RaycastHit hit;
+            if (!Cast(pos, step, out hit)) return step;
+            float into = -Vector3.Dot(vel, hit.normal);
+            if (into > 9f && crashCooldown <= 0f)
+            {
+                crashCooldown = 0.6f;
+                Ballistics.SoundAt(hit.point, "crash", 1f);
+                TakeHit((into - 7f) * 16f, null);
+                if (Driver != null) Driver.ReceiveHit((into - 9f) * 2.5f, false, null, "crash", hit.point, true);
+            }
+            // Stop at the surface, bounce off a little and slide along it with what is left.
+            Vector3 upto = step.normalized * Mathf.Max(0f, hit.distance - 0.05f);
+            if (into > 0f) vel += hit.normal * into * 1.25f;
+            Vector3 rest = step - upto;
+            rest -= hit.normal * Vector3.Dot(rest, hit.normal);
+            if (Cast(pos + upto, rest, out hit)) rest = Vector3.zero;
+            return upto + rest;
+        }
+
+        /// <summary>Sweeps the cabin (a sphere) and the rotor disc (a wide sphere) against walls and overhangs.</summary>
+        bool Cast(Vector3 pos, Vector3 step, out RaycastHit best)
+        {
+            best = new RaycastHit();
+            float len = step.magnitude;
+            if (len < 1e-5f) return false;
+            Vector3 dir = step / len;
+            bool any = false;
+            for (int s = 0; s < 2; s++)
+            {
+                Vector3 c = pos + Vector3.up * (s == 0 ? 1.5f : 2.95f);
+                float r = s == 0 ? 1.15f : 3.4f;
+                int n = Physics.SphereCastNonAlloc(c, r, dir, hits, len + 0.05f, ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < n; i++)
+                {
+                    var h = hits[i];
+                    if (h.distance <= 0f || h.collider.transform.IsChildOf(transform)) continue;
+                    if (Driver != null && h.collider.transform.IsChildOf(Driver.transform)) continue;
+                    if (h.normal.y > 0.6f) continue;   // floors and roofs: the landing below handles those
+                    if (h.collider.GetComponentInParent<Combatant>() != null) continue;
+                    if (!any || h.distance < best.distance) { best = h; any = true; }
+                }
+            }
+            return any;
+        }
+
+        /// <summary>The highest surface under the helicopter that is not above its skids (ground, roof, pad).</summary>
+        float SurfaceBelow(Vector3 at)
+        {
+            int n = Physics.RaycastNonAlloc(at + Vector3.up * 1.0f, Vector3.down, hits, 800f, ~0, QueryTriggerInteraction.Ignore);
+            float best = float.NegativeInfinity;
+            for (int i = 0; i < n; i++)
+            {
+                var c = hits[i].collider;
+                if (c.transform.IsChildOf(transform) || hits[i].normal.y < 0.3f) continue;
+                if (c.GetComponentInParent<Combatant>() != null) continue;
+                float y = hits[i].point.y;
+                if (y > at.y + 0.6f) continue;
+                if (y > best) best = y;
+            }
+            return float.IsNegativeInfinity(best) ? at.y - 800f : best;
         }
 
         /// <summary>How hard it is cornering, -1 to 1 (sideways acceleration over the grip; + is a right turn).</summary>

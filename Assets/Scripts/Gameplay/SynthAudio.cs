@@ -108,6 +108,8 @@ namespace Jagti.Gameplay
                 case "horn_low": return Horn(name, 330f, 0.5f);
                 case "stash_hum": return Shimmer(name);
                 case "vault": return Swing(name);
+                case "lift_hum": return Engine(name, 12f, 0.12f, 47);
+                case "lift_ding": return Tones(name, new[] { 1046f, 784f }, 0.32f);
                 case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
                 default: return Click(name, 0.02f, 1000f);
             }

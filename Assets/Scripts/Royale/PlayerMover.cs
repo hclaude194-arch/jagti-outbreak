@@ -8,14 +8,15 @@ namespace Jagti.Royale
     /// How the player gets around beyond walking:
     /// Space at a low wall, railing, ledge or window sill vaults over it (or climbs onto it when it is
     /// chest high); E next to a scooter or cart gets on (E again gets off); E at a zip line tower clips
-    /// on (S slows, Space lets go). Wading through the terrace channels and basins slows you and
+    /// on (S slows, Space lets go); E at a lift's doors rides it to the roof or back down (Lift.cs runs
+    /// the cutaway). The rooftop helicopter is ridden like the other vehicles (see Vehicle). Wading through the terrace channels and basins slows you and
     /// splashes (bots hear it). While riding or on the zip line the camera stays behind you and your
     /// guns are put away; a hit area travels with you so you can still be shot.
     /// </summary>
     [RequireComponent(typeof(FirstPersonController))]
     public class PlayerMover : MonoBehaviour
     {
-        public enum Mode { OnFoot, Vaulting, Riding, Zipping }
+        public enum Mode { OnFoot, Vaulting, Riding, Zipping, Lift }
 
         /// <summary>Water channel segments (x0, z0, x1, z1) with their widths, and round pools (x, z, radius).</summary>
         public Vector4[] channels;
@@ -27,6 +28,8 @@ namespace Jagti.Royale
         public Mode State { get; private set; }
         public string Prompt { get; private set; }
         public Vehicle Riding { get; private set; }
+        /// <summary>The lift being ridden, if any.</summary>
+        public Lift InLift { get; private set; }
         public bool Wading { get; private set; }
 
         FirstPersonController fpc;
@@ -84,6 +87,7 @@ namespace Jagti.Royale
                 case Mode.Vaulting: Vault(dt); break;
                 case Mode.Riding: Ride(dt); break;
                 case Mode.Zipping: Zip(dt); break;
+                case Mode.Lift: if (InLift == null) ForceExit(); break;   // the lift runs the ride
             }
         }
 
@@ -129,12 +133,17 @@ namespace Jagti.Royale
                     end = z.EndNear(transform.position, 2.4f);
                     if (end >= 0) { line = z; break; }
                 }
+            Lift lift = null;
+            bool liftUp = true;
+            if (near == null && line == null) lift = Lift.Near(transform.position, out liftUp);
             bool lootFirst = arsenal != null && arsenal.HasTarget;
-            if (near != null) Prompt = "[E] ride the " + near.DisplayName;
+            if (near != null) Prompt = near.kind == Vehicle.Kind.Heli ? "[E] fly the helicopter" : "[E] ride the " + near.DisplayName;
             else if (line != null) Prompt = "[E] zip line" + (end == 0 ? " (downhill)" : " (uphill)");
+            else if (lift != null) Prompt = liftUp ? "[E] take the lift to the roof" : "[E] take the lift down";
             if (lootFirst || !Input.GetKeyDown(KeyCode.E)) return;
             if (near != null) GetOn(near);
             else if (line != null) ClipOn(line, end);
+            else if (lift != null) EnterLift(lift, liftUp);
         }
 
         bool InWater(Vector3 p)
@@ -271,7 +280,7 @@ namespace Jagti.Royale
             if (fpc.Crouching) fpc.SetCrouch(false);
             controller.enabled = false;
             fpc.externalControl = true;
-            fpc.thirdPersonDistance = v.kind == Vehicle.Kind.Scooter ? 4.6f : v.kind == Vehicle.Kind.Jeep ? 7f : 6f;
+            fpc.thirdPersonDistance = v.kind == Vehicle.Kind.Scooter ? 4.6f : v.kind == Vehicle.Kind.Jeep ? 7f : v.kind == Vehicle.Kind.Heli ? 12f : 6f;
             fpc.cameraIgnore = v.transform;
             transform.SetParent(v.Seat, false);
             transform.localPosition = Vector3.zero;
@@ -287,8 +296,11 @@ namespace Jagti.Royale
         void Ride(float dt)
         {
             if (Riding == null || Riding.Wrecked) { ForceExit(); return; }
-            Prompt = "[E] get off      W/S throttle   A/D steer   Space brake   Shift boost   H horn";
-            if (Input.GetKeyDown(KeyCode.E) && Mathf.Abs(Riding.Speed) < 9f) GetOff();
+            if (Riding.kind == Vehicle.Kind.Heli)
+                Prompt = Riding.Spool < 0.8f ? "Rotor spinning up..." : Riding.CanExit ? "[E] get out      W/S fly   A/D turn   Space up   Ctrl down   Shift boost"
+                       : "W/S fly   A/D turn   Space up   Ctrl down   Shift boost      (get low to get out)";
+            else Prompt = "[E] get off      W/S throttle   A/D steer   Space brake   Shift boost   H horn";
+            if (Input.GetKeyDown(KeyCode.E) && Riding.CanExit) GetOff();
         }
 
         /// <summary>
@@ -337,8 +349,17 @@ namespace Jagti.Royale
         /// <summary>Puts the player back on foot right away (wrecked vehicle, death).</summary>
         public void ForceExit()
         {
+            if (State == Mode.Lift)
+            {
+                var l = InLift;
+                InLift = null;
+                if (l != null) l.Abort();   // calls LeaveLift, which is harmless now
+                if (State == Mode.OnFoot) return;
+            }
             if (State == Mode.Riding)
             {
+                // Thrown out of a helicopter high up: the fall hurts.
+                if (Riding != null && Riding.kind == Vehicle.Kind.Heli && Riding.Altitude > 4f) fallFrom = transform.position.y;
                 if (Riding != null) Riding.Exit();
                 Riding = null;
                 transform.SetParent(null, true);
@@ -364,6 +385,26 @@ namespace Jagti.Royale
             fpc.externalControl = false;
             fpc.thirdPersonDistance = 0f;
             fpc.Teleport(at);
+        }
+
+        // ------------------------------------------------------------------ lifts
+
+        void EnterLift(Lift lift, bool goingUp)
+        {
+            InLift = lift;
+            State = Mode.Lift;
+            if (fpc.Crouching) fpc.SetCrouch(false);
+            controller.enabled = false;
+            fpc.externalControl = true;
+            lift.Begin(this, goingUp);
+        }
+
+        /// <summary>Called by the lift at the end of the ride (or when it is cut short): back on foot there.</summary>
+        public void LeaveLift(Vector3 at, float yaw)
+        {
+            InLift = null;
+            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            Release(at);
         }
 
         // ------------------------------------------------------------------ zip line

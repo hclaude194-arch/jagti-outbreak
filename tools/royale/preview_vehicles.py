@@ -6,6 +6,7 @@ of forms: MeshKit calls, const/var declarations, foreach over literal arrays, fo
 place matrices) and runs them with the numpy MeshKit port from preview_bodies.py. Keep the model
 code in those simple forms so this keeps working.
 Run: python tools/royale/preview_vehicles.py  (writes tools/royale/preview/vehicles.png)
+     --fleet renders all four road vehicles, --heli the rooftop helicopter; --fast renders at half size.
 """
 import bpy  # noqa: F401
 import math
@@ -318,7 +319,10 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     fleet = "--fleet" in sys.argv
-    if fleet:
+    heli = "--heli" in sys.argv
+    if heli:
+        build_vehicles((0, 0, 0), "Heli", WHITE, -140)
+    elif fleet:
         # All four kinds side by side, turned a little towards the camera.
         build_vehicles((-5.2, 0, 0), "Scooter", RED, -150)
         build_vehicles((-2.4, 0, 0), "Auto", GREEN, -150)
@@ -329,7 +333,7 @@ def main():
         build_vehicles((1.4, 0, 0.2), "Cart", OLIVE)
         build_vehicles((-3.2, 0, 1.5), "Scooter", BLUE)
     n0 = len(PARTS)
-    if not fleet:
+    if not fleet and not heli:
         build_zip((7.5, 3.0, 6.0), (2.0, 0.0, 30.0))
     for kit, _ in PARTS[n0:]:
         kit.zip = True
@@ -343,7 +347,7 @@ def main():
     hill = bpy.data.meshes.new("hill")
 
     hv = [(3, -3, 0), (12, -3, 0), (12, 3, 3.0), (3, 3, 3.0), (3, 9, 3.0), (12, 9, 3.0), (3, 14, 0), (12, 14, 0)]
-    if fleet:
+    if fleet or heli:
         hv = [(v[0] + 40, v[1] + 40, v[2]) for v in hv]   # out of the picture
     hill.from_pydata(hv, [], [(0, 1, 2, 3), (3, 2, 5, 4), (4, 5, 7, 6)])
     ho = bpy.data.objects.new("hill", hill); sc.collection.objects.link(ho)
@@ -357,6 +361,15 @@ def main():
     sc.render.engine = "CYCLES"; sc.cycles.samples = 48
     sc.render.resolution_x, sc.render.resolution_y = 1600, 900
     os.makedirs(OUT, exist_ok=True)
+    if "--fast" in sys.argv:
+        sc.cycles.samples = 12
+        sc.render.resolution_x, sc.render.resolution_y = 800, 450
+    if heli:
+        co.location = (9.0, -9.5, 4.2); co.rotation_euler = (math.radians(78), 0, math.radians(42)); cam.lens = 32
+        sc.render.filepath = os.path.join(OUT, "helicopter.png")
+        bpy.ops.render.render(write_still=True)
+        print("wrote", OUT)
+        return
     if fleet:
         co.location = (0.2, -12.5, 3.8); co.rotation_euler = (math.radians(76), 0, math.radians(0)); cam.lens = 30
         sc.render.filepath = os.path.join(OUT, "vehicles_fleet.png")

@@ -48,6 +48,8 @@ namespace Jagti.Player
         public Transform headMarker;
         /// <summary>Colliders under this are ignored when pulling the third-person camera in (the vehicle being ridden).</summary>
         [HideInInspector] public Transform cameraIgnore;
+        /// <summary>Set while something else flies the camera (the lift's cutaway); the view is left alone.</summary>
+        [HideInInspector] public bool cameraHeld;
         /// <summary>C or Left Ctrl toggles crouching (battle royale only).</summary>
         [HideInInspector] public bool crouchEnabled;
 
@@ -183,7 +185,7 @@ namespace Jagti.Player
 
         void UpdateCamera()
         {
-            if (cameraPivot == null) return;
+            if (cameraPivot == null || cameraHeld) return;
             recoilPitch = Mathf.Lerp(recoilPitch, 0f, Time.deltaTime * 9f);
             recoilYaw = Mathf.Lerp(recoilYaw, 0f, Time.deltaTime * 9f);
             shake = Mathf.MoveTowards(shake, 0f, Time.deltaTime * 2.5f);
