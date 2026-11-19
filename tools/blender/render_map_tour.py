@@ -443,6 +443,8 @@ VIEWS = {
     "amphitheatre_aerial": (158, 345, 26, 186, 278, -2, 24),
     "mess_road": (-48, 6, 1.8, -50, -90, 3, 26),
     "oval_loop": (-104, 12, 22, -106, -90, 0, 26),
+    "spine_mess": (6, 6, 1.8, 2, -150, 1, 26),
+    "mess_front_aerial": (60, -40, 40, -20, -120, 0, 26),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

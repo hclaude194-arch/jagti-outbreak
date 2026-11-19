@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 20
+VERSION = 21
 
 
 def to_world(x, y):
@@ -181,9 +181,6 @@ ROADS = [
     ("Oval Loop", 5, [[298, 991]] + [[309.5 + 11.5 * math.cos(math.radians(a)), 1099 + 11.5 * math.sin(math.radians(a))]
                                      for a in range(180, -1, -15)] + [[321, 991]], False),
     ("Faculty Lane", 4, [[309.5, 1110.5], [304, 1135], [302, 1160]], True),
-    # The lane up onto the mess terrace (satellite): from the central road south between the faculty
-    # front row and the shopping blocks to Annapurna Mess's west door.
-    ("Mess Road", 5, [[356, 991], [356, 1099], [358, 1112]], False),
     ("Walled Residence Drive", 4, [[405, 936], [392, 936]], False),
     ("Brahmaputra Drive", 4, [[405, 700], [392, 702], [384, 740], [388, 763]], True),
     # Cross-shaped garden paths in the academic courtyard (campus model).
@@ -193,9 +190,9 @@ ROADS = [
     ("Courtyard Path East-West", 4.0, [[467, 715], [511, 715]], False),
     ("Courtyard Path Loop", 3.0, [[475, 694], [503, 694], [503, 736], [475, 736], [475, 694]], False),
     ("Courtyard Centre Square", 9.0, [[489, 710], [489, 720]], False),
-    # Paved walks (Phase 4D): past the shop fronts of the shopping and medical blocks and on to
-    # Annapurna Mess's west door, and from the spine road to the sports complex lobby.
-    ("Plaza Shops Walk", 4, [[405, 994], [405, 1099], [358, 1099], [358, 1115]], False),
+    # Paved walks (Phase 4D): the pavement along the shop fronts beside the spine road (the only
+    # road to Annapurna Mess, per the satellite), and from the spine road to the sports complex lobby.
+    ("Plaza Shops Walk", 4, [[405, 994], [405, 1099]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]

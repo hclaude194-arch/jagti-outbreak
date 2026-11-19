@@ -65,7 +65,7 @@ namespace Jagti.EditorTools
             { "Park_Bench", 120f }, { "Sign_Arm", 120f }, { "Sign_Post", 140f }, { "Volleyball_Net", 160f },
             { "Badminton_Net", 120f }, { "Garden_Lamp", 140f }, { "Palm_Small", 140f }, { "Tennis_Net", 160f },
             { "Railing_Segment", 180f }, { "Fence_Panel", 200f }, { "Name_Board", 200f }, { "Basketball_Hoop", 200f },
-            { "Lamp_Post", 260f }, { "Retaining_Wall", 400f },
+            { "Lamp_Post", 260f },
         };
         const float DefaultCull = 180f;
         const float CoverCull = 450f;
