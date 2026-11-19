@@ -6,7 +6,7 @@ namespace Jagti.Royale
 {
     /// <summary>
     /// The player's drop: ride the sky bus (look around, check the map), jump with Space,
-    /// free-fall (W dives faster, S slows), open the glider with Space or automatically low down,
+    /// free-fall (W pitches forward and covers ground, S holds back and falls slower), open the glider with Space or automatically low down,
     /// then steer it with the mouse (W for speed, S to float) onto a roof, lawn or doorway.
     /// The camera pulls back behind the player's body for the drop and returns to first person on landing.
     /// </summary>
@@ -83,7 +83,24 @@ namespace Jagti.Royale
             fpc.thirdPersonDistance = 30f;   // far enough back to see the bus and its balloon
             controller.enabled = false;
             if (combatant != null) combatant.Landed = false;
-            ShowBody(true, HumanBody.Pose.Stand);
+            // Everyone rides inside the bus: no body standing in the air behind it.
+            ShowBody(false, HumanBody.Pose.Stand);
+            FollowBus();
+        }
+
+        /// <summary>
+        /// Aboard, the player rides at the middle of the bus, so the camera circles the bus itself. This
+        /// runs after everything has moved (LateUpdate as well as Update), so the view doesn't lag the bus
+        /// by a frame and shake.
+        /// </summary>
+        void FollowBus()
+        {
+            if (helicopter != null) transform.position = helicopter.transform.position;
+        }
+
+        void LateUpdate()
+        {
+            if (Current == State.Aboard) FollowBus();
         }
 
         public void Jump()
@@ -139,7 +156,7 @@ namespace Jagti.Royale
             {
                 case State.Aboard:
                     if (helicopter == null) { Land(); break; }
-                    transform.position = helicopter.Door;
+                    FollowBus();
                     jumpLock -= dt;
                     if ((jumpLock <= 0f && live && Input.GetKeyDown(KeyCode.Space)) || helicopter.Progress >= 0.985f) Jump();
                     break;
@@ -191,9 +208,11 @@ namespace Jagti.Royale
         {
             float v = live ? Input.GetAxisRaw("Vertical") : 0f;
             float h = live ? Input.GetAxisRaw("Horizontal") : 0f;
+            // W tips the body forward: faster down and much more ground covered; S spreads out to
+            // hang back and fall slower; A/D slide sideways. No keys: drift slowly the way you face.
             float down = v > 0.1f ? diveSpeed : v < -0.1f ? fallSpeed * 0.8f : fallSpeed;
-            Vector3 wish = transform.forward * (v > 0.1f ? fallForward * 0.6f : v < -0.1f ? fallForward * 1.2f : fallForward)
-                         + transform.right * h * 8f;
+            float ahead = v > 0.1f ? fallForward * 1.6f : v < -0.1f ? -fallForward * 0.25f : fallForward * 0.35f;
+            Vector3 wish = transform.forward * ahead + transform.right * h * 10f;
             Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
             flat = Vector3.MoveTowards(flat, wish, 12f * dt);
             velocity = new Vector3(flat.x, Mathf.MoveTowards(velocity.y, -down, 30f * dt), flat.z);

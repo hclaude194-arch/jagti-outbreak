@@ -269,8 +269,11 @@ namespace Jagti.Royale
                 if (crowded) continue;
                 NavMeshHit hit;
                 if (!NavMesh.SamplePosition(p, out hit, 12f, NavMesh.AllAreas)) continue;
-                // Land in the open (bots glide straight down and must not pass through a roof).
-                if (Physics.Raycast(hit.position + Vector3.up, Vector3.up, 120f) && attempt < 28) continue;
+                // Land in the open (bots glide straight down and must not pass through a roof). Look down
+                // from high above: a ray cast upward from inside a building misses one-sided roof meshes.
+                RaycastHit top;
+                if (Physics.Raycast(hit.position + Vector3.up * 150f, Vector3.down, out top, 160f, ~0, QueryTriggerInteraction.Ignore)
+                    && top.point.y > hit.position.y + 1.5f && attempt < 28) continue;
                 return hit.position;
             }
             return fallback;
