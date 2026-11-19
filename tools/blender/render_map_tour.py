@@ -175,20 +175,35 @@ for pool in layout.get("pools", []):
     bpy.context.active_object.data.materials.append(water)
 
 # Courts and plazas from the layout's areas.
+def pill_outline(cx, cz, w, d, seg):
+    """Outline of a pill (running track): half circles of radius min(w, d)/2 on the long axis."""
+    r = min(w, d) / 2
+    hx, hz = w / 2 - r, d / 2 - r
+    out = []
+    for end, (ox, oz, a0) in enumerate(((hx, hz, 0.0), (-hx, -hz, math.pi)) if hz > 0 else ((hx, 0.0, -math.pi / 2), (-hx, 0.0, math.pi / 2))):
+        for i in range(seg + 1):
+            t = a0 + math.pi * i / seg
+            out.append((cx + ox + r * math.cos(t), cz + oz + r * math.sin(t)))
+    return out
+
+
 area_mats = {"court": material("Court", (0.24, 0.42, 0.33)), "plaza": paving, "field": material("Field", (0.22, 0.42, 0.18)),
              "track": material("Track", (0.55, 0.25, 0.18)), "parking": asphalt}
 for a in layout["areas"]:
     m = area_mats.get(a.get("type"))
     if m is None:
         continue
-    if a.get("shape") == "ellipse":
+    if a.get("shape") in ("ellipse", "pill"):
         # Track ring and field: flat discs laid on the ground (the field sits on top).
         k = 64
         rx, rz = a["width"] / 2, a["depth"] / 2
         bm = bmesh.new()
         lift = 0.10 if a["type"] == "track" else 0.14
-        ring = [bm.verts.new((a["x"] + rx * math.cos(2 * math.pi * i / k), a["z"] + rz * math.sin(2 * math.pi * i / k),
-                              ground(a["x"], a["z"]) + lift)) for i in range(k)]
+        if a["shape"] == "pill":
+            pts = pill_outline(a["x"], a["z"], a["width"], a["depth"], 24)
+        else:
+            pts = [(a["x"] + rx * math.cos(2 * math.pi * i / k), a["z"] + rz * math.sin(2 * math.pi * i / k)) for i in range(k)]
+        ring = [bm.verts.new((px_, pz_, ground(a["x"], a["z"]) + lift)) for px_, pz_ in pts]
         bm.faces.new(ring)
         me = bpy.data.meshes.new("Ellipse")
         bm.to_mesh(me)
@@ -459,6 +474,9 @@ VIEWS = {
     "road_up_to_mess": (9, -235, 1.7, 6, -150, 4, 26),
     "girls_split": (5, -186, 2.5, 26, -214, 0, 28),
     "courts_hill": (48, -250, 1.7, 0, -238, 6, 24),
+    # 2026-11-19 fixes: the pill-shaped running track and a roof stair (Girls Hostel B).
+    "track_aerial": (190, -190, 75, 103, -265, 0, 26),
+    "roof_stair": (66, -62, 4, 52, -84, 10, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

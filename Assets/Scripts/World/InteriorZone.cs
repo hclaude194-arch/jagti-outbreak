@@ -14,7 +14,10 @@ namespace Jagti.World
     {
         public Vector2 min;               // world X, Z
         public Vector2 max;
-        public float margin = 10f;        // start drawing this far outside the walls
+        public float margin = 16f;        // start drawing the furniture this far outside the walls
+        public float shellMargin = 60f;   // the shell (inner walls, floors, stairs) from further out,
+                                          // so walls never pop in at the doorway or are missing when
+                                          // the player arrives fast (landing, vehicle, zip line)
         public float lightRadius = 24f;
         public float baseY;               // the building's base height
         public float levelHeight = 3.4f;  // storey height
@@ -27,6 +30,7 @@ namespace Jagti.World
         public int[] lightLevels;
 
         bool drawn = true;
+        bool shellDrawn = true;
         Vector3[] centres;
         float timer;
         Transform viewer;
@@ -36,7 +40,7 @@ namespace Jagti.World
             centres = new Vector3[renderers.Length];
             for (int i = 0; i < renderers.Length; i++)
                 if (renderers[i] != null) centres[i] = renderers[i].bounds.center;
-            SetDrawn(false, 0, Vector3.zero);
+            SetDrawn(false, false, 0, Vector3.zero);
             foreach (var l in lights) if (l != null) l.enabled = false;
         }
 
@@ -44,7 +48,7 @@ namespace Jagti.World
         {
             timer -= Time.deltaTime;
             if (timer > 0f) return;
-            timer = 0.25f;
+            timer = 0.1f;
 
             if (viewer == null)
             {
@@ -54,8 +58,9 @@ namespace Jagti.World
             }
             Vector3 p = viewer.position;
             bool near = p.x > min.x - margin && p.x < max.x + margin && p.z > min.y - margin && p.z < max.y + margin;
+            bool nearShell = p.x > min.x - shellMargin && p.x < max.x + shellMargin && p.z > min.y - shellMargin && p.z < max.y + shellMargin;
             int level = CurrentLevel(p.y);
-            if (near || drawn) SetDrawn(near, level, p);
+            if (near || drawn || nearShell != shellDrawn) SetDrawn(near, nearShell, level, p);
 
             float r2 = lightRadius * lightRadius;
             for (int i = 0; i < lights.Length; i++)
@@ -83,17 +88,18 @@ namespace Jagti.World
             return itemLevel < 0 || Mathf.Abs(itemLevel - cameraLevel) <= 1;
         }
 
-        void SetDrawn(bool on, int level, Vector3 camera)
+        void SetDrawn(bool on, bool shellOn, int level, Vector3 camera)
         {
             drawn = on;
+            shellDrawn = shellOn;
             float n2 = neighbourRadius * neighbourRadius;
             for (int i = 0; i < renderers.Length; i++)
             {
                 var r = renderers[i];
                 if (r == null) continue;
                 int l = LevelOf(rendererLevels, i);
-                bool show = on && (l < 0 || l == level ||
-                                   (Mathf.Abs(l - level) == 1 && (centres[i] - camera).sqrMagnitude < n2));
+                bool show = l < 0 ? shellOn
+                          : on && (l == level || (Mathf.Abs(l - level) == 1 && (centres[i] - camera).sqrMagnitude < n2));
                 if (r.enabled != show) r.enabled = show;
             }
         }

@@ -133,7 +133,8 @@ def partition(m, A, B_, z0, z1, doors=(), t=PART, mat="Wall_Paint", trim=True):
     L = math.hypot(dx, dz)
     n = (-dz / L, dx / L)
     ln = Line(m, A, B_, n)
-    holes = [(c - w / 2, c + w / 2, z0, z0 + DOOR_H) for c, w in doors]
+    # At least 1.1 m: narrower room doorways caught the player's capsule.
+    holes = [(c - max(w, 1.1) / 2, c + max(w, 1.1) / 2, z0, z0 + DOOR_H) for c, w in doors]
     ln.wall(0, L, z0, z1, t / 2, mat, holes, 1.0)
     ln.wall(0, L, z0, z1, -t / 2, mat, holes, -1.0)
     for s0, s1, h0, h1 in holes:

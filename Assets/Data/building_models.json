@@ -80,7 +80,7 @@
    "pivotZ": -119.0,
    "boundsMin": [
     -51.0,
-    -151.0
+    -154.3
    ],
    "boundsMax": [
     -6.0,
@@ -152,7 +152,7 @@
    ],
    "boundsMax": [
     -14.0,
-    226.0
+    229.3
    ],
    "replaces": [
     "Brahmaputra Hostel - East Wing",
@@ -171,7 +171,7 @@
    ],
    "boundsMax": [
     60.0,
-    -383.0
+    -379.7
    ],
    "replaces": [
     "Sindhu Hostel A - North Wing",
@@ -185,7 +185,7 @@
    "pivotX": 40.0,
    "pivotZ": -476.0,
    "boundsMin": [
-    20.0,
+    16.7,
     -541.0
    ],
    "boundsMax": [
@@ -208,7 +208,7 @@
     -202.0
    ],
    "boundsMax": [
-    48.0,
+    51.3,
     -108.0
    ],
    "replaces": [
@@ -228,7 +228,7 @@
    ],
    "boundsMax": [
     121.0,
-    -82.0
+    -78.7
    ],
    "replaces": [
     "Girls Hostel B - West Wing",
@@ -242,7 +242,7 @@
    "pivotX": -36.0,
    "pivotZ": -39.0,
    "boundsMin": [
-    -44.0,
+    -47.3,
     -54.0
    ],
    "boundsMax": [
@@ -263,7 +263,7 @@
     -355.0
    ],
    "boundsMax": [
-    49.0,
+    52.3,
     -301.0
    ],
    "replaces": [
@@ -405,7 +405,7 @@
     -130.0
    ],
    "boundsMax": [
-    168.0,
+    171.3,
     -102.0
    ],
    "replaces": [
@@ -423,7 +423,7 @@
    ],
    "boundsMax": [
     209.0,
-    -278.0
+    -274.7
    ],
    "replaces": [
     "East Block 2"

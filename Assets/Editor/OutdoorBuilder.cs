@@ -70,6 +70,42 @@ namespace Jagti.EditorTools
             { "Banner_Flag_Red", 170f }, { "Banner_Flag_Blue", 170f }, { "Shrub_Border", 110f }, { "Young_Tree", 140f },
             { "Map_Board", 160f }, { "Stone_Wall", 220f }, { "Stone_Wall_High", 260f }, { "Flood_Mast", 400f },
         };
+        /// <summary>A box collider round the part of a prop the player can walk into: the
+        /// footprint of everything up to 2.2 m above its base, taken up to the prop's full height.
+        /// A box round the whole mesh reached out under a lamp post's arm, a hoop's backboard or a
+        /// floodlight head, and players stuck on thin air there.</summary>
+        static void FitBaseCollider(MeshRenderer r)
+        {
+            var filter = r.GetComponent<MeshFilter>();
+            var box = r.gameObject.AddComponent<BoxCollider>();
+            if (filter == null || filter.sharedMesh == null) return;
+            var verts = filter.sharedMesh.vertices;
+            if (verts.Length == 0) return;
+            // Which local axis points up in the world (the FBX import may turn the axes).
+            Vector3 up = r.transform.InverseTransformDirection(Vector3.up);
+            int ax = 0;
+            for (int k = 1; k < 3; k++) if (Mathf.Abs(up[k]) > Mathf.Abs(up[ax])) ax = k;
+            float sign = up[ax] >= 0f ? 1f : -1f;
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (var v in verts) { lo = Mathf.Min(lo, v[ax] * sign); hi = Mathf.Max(hi, v[ax] * sign); }
+            float scaleUp = Mathf.Max(1e-4f, Mathf.Abs(r.transform.lossyScale[ax]));
+            float cut = lo + 2.2f / scaleUp;
+            var bmin = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+            var bmax = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+            foreach (var v in verts)
+            {
+                if (v[ax] * sign > cut) continue;
+                bmin = Vector3.Min(bmin, v);
+                bmax = Vector3.Max(bmax, v);
+            }
+            if (bmin.x > bmax.x) return;
+            // Full height on the up axis, the base footprint on the other two.
+            bmin[ax] = sign > 0f ? lo : -hi;
+            bmax[ax] = sign > 0f ? hi : -lo;
+            box.center = (bmin + bmax) / 2f;
+            box.size = Vector3.Max(bmax - bmin, new Vector3(0.05f, 0.05f, 0.05f));
+        }
+
         const float DefaultCull = 180f;
         const float CoverCull = 450f;
         const float SignTextCull = 60f;
@@ -138,7 +174,7 @@ namespace Jagti.EditorTools
                     {
                         cullRenderers.Add(r);
                         cullDistances.Add(cull);
-                        if (model.solid) r.gameObject.AddComponent<BoxCollider>();
+                        if (model.solid) FitBaseCollider(r);
                         r.shadowCastingMode = model.shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
                         GameObjectUtility.SetStaticEditorFlags(r.gameObject,
                             StaticEditorFlags.BatchingStatic | StaticEditorFlags.ContributeGI | StaticEditorFlags.OccludeeStatic);
