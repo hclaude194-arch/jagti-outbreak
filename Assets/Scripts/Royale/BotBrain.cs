@@ -6,7 +6,7 @@ using UnityEngine.AI;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// A computer opponent. It rides the helicopter, jumps near a building it picked, glides down,
+    /// A computer opponent. It rides the sky bus, jumps near a building it picked, glides down,
     /// then loots rooms for a gun, ammo, armour and heals, keeps ahead of the haze, heads for
     /// gunfire it hears when it feels strong, and fights whoever it sees: it picks the gun that suits
     /// the range, strafes, fires in bursts with aim that settles the longer it tracks you, reloads and
@@ -33,7 +33,7 @@ namespace Jagti.Royale
 
         Combatant me;
         NavMeshAgent agent;
-        Helicopter heli;
+        SkyBus heli;
         HazeZone haze;
         Combatant enemy;
         Vector3 lastSeen;
@@ -102,8 +102,8 @@ namespace Jagti.Royale
             me.UnderFire = null;
         }
 
-        /// <summary>Sets the bot aboard the helicopter with its chosen landing spot.</summary>
-        public void Board(Helicopter h, HazeZone zone, Vector3 target, float jumpAt)
+        /// <summary>Sets the bot aboard the sky bus with its chosen landing spot.</summary>
+        public void Board(SkyBus h, HazeZone zone, Vector3 target, float jumpAt)
         {
             heli = h;
             haze = zone;

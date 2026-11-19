@@ -97,7 +97,7 @@ namespace Jagti.Royale
             }
         }
 
-        /// <summary>The whole campus (M): places with their loot, the haze, the helicopter's line, and a marker to click.</summary>
+        /// <summary>The whole campus (M): places with their loot, the haze, the sky bus's line, and a marker to click.</summary>
         void DrawFullMap(float w, float h)
         {
             if (mapTexture == null) return;
@@ -150,8 +150,8 @@ namespace Jagti.Royale
                 ev.Use();
             }
 
-            // The helicopter's line while people are still aboard.
-            if (director.helicopter != null && director.helicopter.Flying && diver != null && diver.Current == SkyDiver.State.InHelicopter)
+            // The sky bus's line while people are still aboard.
+            if (director.helicopter != null && director.helicopter.Flying && diver != null && diver.Current == SkyDiver.State.Aboard)
             {
                 var heli = director.helicopter;
                 for (int i = 0; i <= 40; i++)

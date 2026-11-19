@@ -225,7 +225,7 @@ namespace Jagti.Royale
         }
 
         /// <summary>The named place the player is in (nearest within 110 m); a new one is announced
-        /// once the player is out of the helicopter.</summary>
+        /// once the player is out of the sky bus.</summary>
         void TrackArea()
         {
             if (places == null || player == null) return;
@@ -239,7 +239,7 @@ namespace Jagti.Royale
             }
             if (best == areaIndex) return;
             areaIndex = best;
-            bool flying = diver != null && diver.Current == SkyDiver.State.InHelicopter;
+            bool flying = diver != null && diver.Current == SkyDiver.State.Aboard;
             if (best >= 0 && !flying && player.Alive) areaTime = Time.time;
         }
 
@@ -476,7 +476,7 @@ namespace Jagti.Royale
         void DrawHazeWarning(float w)
         {
             if (haze == null || !haze.Running || player == null || !player.Alive || haze.IsInside(player.transform.position)) return;
-            if (diver != null && diver.Current == SkyDiver.State.InHelicopter) return;
+            if (diver != null && diver.Current == SkyDiver.State.Aboard) return;
             Vector2 to = haze.Centre - new Vector2(player.transform.position.x, player.transform.position.z);
             float dist = Mathf.Max(0f, to.magnitude - haze.Radius);
             float y = M + 66f, pw = 380f, x = w / 2f - pw / 2f;

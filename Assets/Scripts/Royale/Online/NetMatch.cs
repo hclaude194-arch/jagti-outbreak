@@ -148,7 +148,7 @@ namespace Jagti.Royale
                 switch (diver.Current)
                 {
                     case SkyDiver.State.Waiting:
-                    case SkyDiver.State.InHelicopter: s.hidden = true; break;
+                    case SkyDiver.State.Aboard: s.hidden = true; break;
                     case SkyDiver.State.FreeFall: s.pose = HumanBody.Pose.FreeFall; s.armed = false; break;
                     case SkyDiver.State.Glide: s.pose = HumanBody.Pose.Glide; s.armed = false; break;
                 }

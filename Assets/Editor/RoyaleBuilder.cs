@@ -32,7 +32,7 @@ namespace Jagti.EditorTools
 
     /// <summary>
     /// Battle royale scene setup (Phase 5A), called by CampusGreyboxBuilder after the NavMesh bake
-    /// in place of the zombie GameplayBuilder: the match referee, the haze, the helicopter, loot
+    /// in place of the zombie GameplayBuilder: the match referee, the haze, the sky bus, loot
     /// points snapped onto the floors, the player's match components, the map texture and the HUD.
     /// Materials are made here so the runtime code needs no Shader.Find (which fails in builds).
     /// </summary>
@@ -137,14 +137,27 @@ namespace Jagti.EditorTools
             loot.tierRings = rings;
             int points = FillLootPoints(loot, ground);
 
-            // ---------------------------------------------------------------- helicopter
-            var heliGo = new GameObject("Helicopter");
+            // ---------------------------------------------------------------- sky bus
+            var heliGo = new GameObject("Sky Bus");
             heliGo.transform.SetParent(br, false);
-            var heli = heliGo.AddComponent<Helicopter>();
-            heli.bodyMaterial = ProceduralAssets.LitMaterial("Heli_Body", new Color(0.16f, 0.27f, 0.26f), null, 0.45f);
-            heli.stripeMaterial = ProceduralAssets.LitMaterial("Heli_Stripe", new Color(0.92f, 0.9f, 0.84f), null, 0.4f);
-            heli.glassMaterial = ProceduralAssets.LitMaterial("Heli_Glass", new Color(0.08f, 0.12f, 0.16f), null, 0.92f);
-            heli.darkMaterial = ProceduralAssets.LitMaterial("Heli_Dark", new Color(0.08f, 0.08f, 0.09f), null, 0.3f);
+            var heli = heliGo.AddComponent<SkyBus>();
+            // Palette in SkyBusModel slot order: white, navy, glass, dark, saffron, yellow, red, green, metal.
+            heli.palette = new[]
+            {
+                ProceduralAssets.LitMaterial("SkyBus_White", new Color(0.93f, 0.93f, 0.9f), null, 0.35f),
+                ProceduralAssets.LitMaterial("SkyBus_Navy", new Color(0.09f, 0.13f, 0.3f), null, 0.4f),
+                ProceduralAssets.LitMaterial("SkyBus_Glass", new Color(0.08f, 0.12f, 0.16f), null, 0.92f),
+                ProceduralAssets.LitMaterial("SkyBus_Dark", new Color(0.07f, 0.07f, 0.08f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Saffron", new Color(0.98f, 0.55f, 0.12f), null, 0.15f),
+                ProceduralAssets.LitMaterial("SkyBus_Yellow", new Color(0.98f, 0.8f, 0.15f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Red", new Color(0.8f, 0.12f, 0.1f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Green", new Color(0.15f, 0.6f, 0.25f), null, 0.3f),
+                ProceduralAssets.LitMaterial("SkyBus_Metal", new Color(0.42f, 0.43f, 0.45f), null, 0.5f),
+            };
+            var flame = ProceduralAssets.LitMaterial("SkyBus_Flame", new Color(1f, 0.6f, 0.2f), null, 0.1f);
+            flame.EnableKeyword("_EMISSION");
+            if (flame.HasProperty("_EmissionColor")) flame.SetColor("_EmissionColor", new Color(1f, 0.5f, 0.12f) * 4f);
+            heli.flameMaterial = flame;
 
             // ---------------------------------------------------------------- the player
             var pgo = player.gameObject;
@@ -232,7 +245,7 @@ namespace Jagti.EditorTools
             hud.mover = mover;
             hud.placeLoot = RatePlaces(layout, loot);
 
-            Debug.Log("[Jagti] Battle royale: " + points + " loot points, helicopter, haze over " + Mathf.RoundToInt(haze.startRadius) +
+            Debug.Log("[Jagti] Battle royale: " + points + " loot points, sky bus, haze over " + Mathf.RoundToInt(haze.startRadius) +
                       " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines.");
         }
 

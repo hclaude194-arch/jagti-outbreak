@@ -38,7 +38,7 @@ namespace Jagti.Royale
         public float DamageDealt { get; set; }
         public int Placement { get; set; }
         public float DiedAt { get; private set; }
-        /// <summary>False while still in the helicopter or gliding down.</summary>
+        /// <summary>False while still in the sky bus or gliding down.</summary>
         public bool Landed { get; set; }
         public bool Alive { get { return Health != null && !Health.IsDead; } }
 

@@ -99,6 +99,8 @@ namespace Jagti.Gameplay
                 case "crash": return Thud(name, 0.5f, 55f, 0.9f);
                 case "splash": return Wind(name, 0.45f, 0.8f);
                 case "zip": return Wind(name, 1.5f, 0.7f);
+                case "skybus_props": return Engine(name, 24f, 0.25f, 44);
+                case "burner": return Wind(name, 1.1f, 0.5f);
                 case "vault": return Swing(name);
                 case "victory": return Tones(name, new[] { 523f, 659f, 784f, 1047f }, 0.22f);
                 default: return Click(name, 0.02f, 1000f);
