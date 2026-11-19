@@ -9,6 +9,7 @@ Run: python tools/royale/preview_bodies.py   (writes tools/royale/preview/bodies
 import bpy  # noqa: F401
 import math
 import os
+import sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,8 +79,22 @@ class Kit:
         self.bone = None
         self.slot = 0
 
-    def add(self, verts, faces):
-        self.parts.append((self.bone, self.slot, np.array(verts, float), faces))
+    def add(self, verts, faces, smooth=False):
+        self.parts.append((self.bone, self.slot, np.array(verts, float), faces, smooth))
+
+    def loft(self, c, rings, sides=10, cap0=True, cap1=True, eul=(0, 0, 0)):
+        # rings: (y, radius x, radius z, forward offset), as MeshKit.Ring
+        r = euler(*eul); vs = []
+        for (y, rx_, rz_, w) in rings:
+            for s in range(sides):
+                a = s / sides * math.tau
+                vs.append(np.asarray(c, float) + r @ V(math.cos(a) * rx_, y, math.sin(a) * rz_ + w))
+        n = len(rings)
+        f = [(k * sides + s, k * sides + (s + 1) % sides, (k + 1) * sides + (s + 1) % sides, (k + 1) * sides + s)
+             for k in range(n - 1) for s in range(sides)]
+        if cap0: f.append(tuple(range(sides)))
+        if cap1: f.append(tuple(range((n - 1) * sides, n * sides)))
+        self.add(vs, f, True)
 
     def box(self, c, size, tx=1.0, tz=1.0, eul=(0, 0, 0)):
         r = euler(*eul); h = np.asarray(size, float) / 2
@@ -101,7 +116,7 @@ class Kit:
         if caps:
             f.append(tuple(range(sides)))
             f.append(tuple(range(sides, 2 * sides)))
-        self.add(vs, f)
+        self.add(vs, f, True)
 
     def ellipsoid(self, c, radii, sides=10, rings=6, lat0=-90, lat1=90, eul=(0, 0, 0)):
         r = euler(*eul); vs = []
@@ -116,7 +131,7 @@ class Kit:
             for s in range(sides):
                 a = ring * sides + s; b = ring * sides + (s + 1) % sides
                 f.append((a, b, b + sides, a + sides))
-        self.add(vs, f)
+        self.add(vs, f, True)
 
 
 # ---------------------------------------------------------------- the body (port of HumanBody.cs)
@@ -140,33 +155,44 @@ class Body:
         self.b = b
         k = self.kit = Kit()
         def at(n, slot): k.bone = b[n]; k.slot = slot
-        at("hips", PANTS); k.box((0, 0.02, 0), (0.36, 0.2, 0.23), 1.03, 1)
-        at("hips", GEAR); k.box((0, 0.115, 0), (0.355, 0.045, 0.225)); k.box((0, 0.115, 0.115), (0.06, 0.04, 0.01))
-        at("spine", SHIRT); k.box((0, 0.08, 0), (0.33, 0.18, 0.2), 1.06, 1.05)
-        at("chest", SHIRT); k.box((0, 0.1, 0), (0.36, 0.24, 0.22), 1.12, 0.95)
-        k.ellipsoid((-0.19, 0.23, 0), (0.075, 0.06, 0.075), 8, 4); k.ellipsoid((0.19, 0.23, 0), (0.075, 0.06, 0.075), 8, 4)
-        k.tube((0, 0.22, 0), 0, 0.035, (0.085, 0.075), (0.075, 0.07), 8, False)
-        at("chest", SKIN); k.tube((0, 0.24, 0.005), 0, 0.08, (0.055, 0.055), (0.05, 0.05), 8, False)
-        at("head", SKIN); k.ellipsoid((0, 0.11, 0.005), (0.095, 0.12, 0.105), 12, 8)
-        k.box((0, 0.095, 0.105), (0.025, 0.045, 0.035), 0.6, 0.7)
-        k.box((-0.097, 0.11, -0.005), (0.02, 0.05, 0.035)); k.box((0.097, 0.11, -0.005), (0.02, 0.05, 0.035))
+        R = lambda y, rx_, rz_, w=0.0: (y, rx_, rz_, w)
+        # pelvis, belt
+        at("hips", PANTS); k.loft((0, 0, 0), [R(-0.1, 0.15, 0.1, -0.005), R(-0.04, 0.172, 0.118, -0.01), R(0.04, 0.168, 0.112, -0.005), R(0.12, 0.152, 0.1, 0)], 12, True, False)
+        at("hips", GEAR); k.tube((0, 0.11, 0), -0.022, 0.022, (0.158, 0.106), (0.156, 0.104), 12, False)
+        k.box((0, 0.11, 0.106), (0.055, 0.04, 0.012))
+        # waist, ribcage, shoulders, collar, pocket, neck
+        at("spine", SHIRT); k.loft((0, 0, 0), [R(-0.02, 0.153, 0.102, 0), R(0.08, 0.148, 0.1, 0.006), R(0.2, 0.157, 0.106, 0.008)], 12, False, False)
+        at("chest", SHIRT); k.loft((0, 0, 0), [R(-0.01, 0.157, 0.106, 0.008), R(0.08, 0.172, 0.118, 0.014), R(0.16, 0.18, 0.118, 0.012), R(0.22, 0.17, 0.1, 0), R(0.27, 0.115, 0.075, -0.005)], 12, False, True)
+        k.ellipsoid((-0.185, 0.215, 0), (0.068, 0.065, 0.07), 10, 5); k.ellipsoid((0.185, 0.215, 0), (0.068, 0.065, 0.07), 10, 5)
+        k.tube((0, 0.255, -0.004), 0, 0.03, (0.072, 0.064), (0.068, 0.062), 10, False)
+        k.box((-0.075, 0.13, 0.128), (0.08, 0.085, 0.01))
+        at("chest", SKIN); k.loft((0, 0.25, 0), [R(0, 0.05, 0.048, 0), R(0.05, 0.046, 0.045, 0.004), R(0.1, 0.045, 0.044, 0.01)], 10, False, False)
+        # head
+        at("head", SKIN); k.ellipsoid((0, 0.13, -0.005), (0.09, 0.105, 0.1), 14, 9)
+        k.loft((0, 0, 0), [R(0.015, 0.035, 0.035, 0.045), R(0.035, 0.06, 0.06, 0.03), R(0.08, 0.082, 0.088, 0.012), R(0.12, 0.088, 0.095, 0.006)], 12, True, False)
+        k.box((0, 0.09, 0.1), (0.026, 0.05, 0.03), 0.55, 0.5)
+        k.ellipsoid((-0.09, 0.105, -0.005), (0.016, 0.03, 0.022), 8, 4); k.ellipsoid((0.09, 0.105, -0.005), (0.016, 0.03, 0.022), 8, 4)
         at("head", GEAR)
-        for x in (-0.037, 0.037):
-            k.box((x, 0.125, 0.098), (0.024, 0.012, 0.01)); k.box((x, 0.148, 0.098), (0.034, 0.008, 0.012))
-        k.ellipsoid((0, 0.13, -0.008), (0.102, 0.115, 0.112), 12, 4, 5, 90)
-        if long_hair: k.box((0, 0.07, -0.075), (0.17, 0.13, 0.06))
-        else: k.box((0, 0.105, -0.085), (0.16, 0.07, 0.04))
+        k.ellipsoid((-0.034, 0.118, 0.088), (0.013, 0.008, 0.008), 8, 4); k.ellipsoid((0.034, 0.118, 0.088), (0.013, 0.008, 0.008), 8, 4)
+        k.box((-0.036, 0.142, 0.094), (0.036, 0.008, 0.012), 1, 1, (0, 0, -6)); k.box((0.036, 0.142, 0.094), (0.036, 0.008, 0.012), 1, 1, (0, 0, 6))
+        k.box((0, 0.052, 0.088), (0.04, 0.006, 0.008))
+        k.ellipsoid((0, 0.135, -0.012), (0.096, 0.11, 0.108), 14, 5, 8, 90)
+        if long_hair: k.loft((0, 0, -0.07), [R(0.17, 0.085, 0.05, 0), R(0.08, 0.09, 0.055, -0.008), R(-0.02, 0.07, 0.04, -0.012)], 10, False, True)
+        else: k.loft((0, 0, -0.06), [R(0.16, 0.088, 0.05, 0), R(0.09, 0.085, 0.048, -0.006), R(0.06, 0.075, 0.04, -0.004)], 10, False, True)
         for side, s in ((-1, "L"), (1, "R")):
-            at("up" + s, SHIRT); k.tube((0, 0, 0), 0.02, -0.16, (0.06, 0.06), (0.056, 0.056), 8)
-            at("up" + s, SKIN); k.tube((0, 0, 0), -0.15, -UARM, (0.045, 0.045), (0.04, 0.04), 8, False)
-            at("lo" + s, SKIN); k.ellipsoid((0, 0, 0), (0.042, 0.04, 0.042), 8, 4)
-            k.tube((0, 0, 0), 0, -FARM, (0.04, 0.04), (0.03, 0.028), 8, False)
-            at("hand" + s, SKIN); k.box((0, -0.045, 0.005), (0.05, 0.09, 0.03))
-            k.box((side * -0.02, -0.03, 0.02), (0.018, 0.05, 0.02), 1, 1, (-20, 0, side * 15))
-            at("th" + s, PANTS); k.tube((0, 0, 0), 0.02, -THIGH, (0.098, 0.102), (0.068, 0.07), 8)
-            at("sh" + s, PANTS); k.ellipsoid((0, 0, 0), (0.068, 0.06, 0.07), 8, 4)
-            k.tube((0, 0, 0), 0, -SHIN + 0.04, (0.064, 0.068), (0.05, 0.052), 8)
-            at("ft" + s, GEAR); k.box((0, -0.03, 0.045), (0.1, 0.085, 0.26), 0.95, 0.85); k.box((0, -0.071, 0.047), (0.106, 0.018, 0.27))
+            at("up" + s, SHIRT); k.loft((0, 0, 0), [R(0.03, 0.062, 0.064), R(-0.06, 0.066, 0.066), R(-0.15, 0.058, 0.058), R(-0.17, 0.06, 0.06)], 10, True, True)
+            at("up" + s, SKIN); k.loft((0, 0, 0), [R(-0.14, 0.046, 0.048), R(-0.2, 0.044, 0.047, 0.004), R(-UARM, 0.038, 0.04)], 10, False, False)
+            at("lo" + s, SKIN); k.ellipsoid((0, 0, 0), (0.04, 0.04, 0.042), 10, 5)
+            k.loft((0, 0, 0), [R(0, 0.04, 0.042), R(-0.07, 0.043, 0.04), R(-FARM + 0.01, 0.028, 0.022)], 10, False, False)
+            at("hand" + s, SKIN); k.loft((0, 0, 0), [R(0.005, 0.022, 0.018), R(-0.03, 0.027, 0.016, 0.003), R(-0.07, 0.026, 0.014, 0.004)], 8, False, True)
+            k.box((0, -0.098, 0.008), (0.048, 0.055, 0.022), 1, 1, (-14, 0, 0))
+            k.box((side * -0.028, -0.035, 0.018), (0.018, 0.05, 0.02), 1, 1, (-20, 0, side * 22))
+            at("th" + s, PANTS); k.loft((0, 0, 0), [R(0.04, 0.095, 0.1), R(-0.08, 0.09, 0.095, 0.005), R(-0.3, 0.072, 0.075, 0.005), R(-THIGH, 0.062, 0.066, 0.008)], 10, False, False)
+            k.box((side * 0.077, -0.21, 0.006), (0.014, 0.1, 0.085))
+            at("sh" + s, PANTS); k.ellipsoid((0, 0, 0.008), (0.064, 0.06, 0.068), 10, 5)
+            k.loft((0, 0, 0), [R(0, 0.062, 0.066, 0.008), R(-0.12, 0.064, 0.07, -0.006), R(-0.3, 0.054, 0.056), R(-SHIN + 0.03, 0.056, 0.058)], 10, False, True)
+            at("ft" + s, GEAR); k.loft((0, -0.035, 0), [R(-0.085, 0.04, 0.04), R(-0.05, 0.05, 0.05), R(0.05, 0.052, 0.04, 0.008), R(0.13, 0.045, 0.028, 0.016), R(0.165, 0.03, 0.018, 0.02)], 10, True, True, (90, 0, 0))
+            k.box((0, -0.072, 0.04), (0.104, 0.016, 0.27))
         self.gear(vest, helmet, pack)
 
     def gear(self, vest, helmet, pack):
@@ -174,13 +200,12 @@ class Body:
         if vest:
             main = BLACK if vest >= 3 else OLIVE if vest == 2 else KHAKI
             k.bone, k.slot = b["chest"], main
-            th = 0.03 + vest * 0.012
-            k.box((0, 0.08, 0.115 + th / 2), (0.34, 0.3, th), 1.05, 1); k.box((0, 0.08, -0.115 - th / 2), (0.34, 0.3, th), 1.05, 1)
-            k.box((-0.17, 0.1, 0), (0.03, 0.22, 0.25)); k.box((0.17, 0.1, 0), (0.03, 0.22, 0.25))
-            k.box((-0.12, 0.25, 0), (0.06, 0.02, 0.24)); k.box((0.12, 0.25, 0), (0.06, 0.02, 0.24))
+            g = 0.012 + vest * 0.008
+            k.loft((0, 0, 0), [(-0.06, 0.16 + g, 0.11 + g, 0.008), (0.08, 0.176 + g, 0.122 + g, 0.014), (0.2, 0.178 + g, 0.118 + g, 0.01), (0.24, 0.16 + g, 0.1 + g, 0.004)], 12, False, False)
+            k.box((-0.11, 0.255, 0), (0.06, 0.025, 0.23)); k.box((0.11, 0.255, 0), (0.06, 0.025, 0.23))
             k.slot = BLACK
             if vest >= 2:
-                for p in (-1, 0, 1): k.box((p * 0.1, -0.015, 0.14 + th), (0.08, 0.1, 0.05))
+                for p in (-1, 0, 1): k.box((p * 0.09, -0.015, 0.128 + g + 0.022), (0.075, 0.1, 0.045))
             if vest >= 3:
                 k.slot = main
                 k.tube((0, 0.22, 0), 0, 0.06, (0.11, 0.1), (0.1, 0.095), 10, False)
@@ -199,7 +224,7 @@ class Body:
             col = BLACK if pack >= 3 else OLIVE if pack == 2 else BLUE
             k.bone, k.slot = b["chest"], col
             h = 0.3 + pack * 0.07; d = 0.12 + pack * 0.03
-            k.box((0, 0.12 - h * 0.25, -0.13 - d / 2), (0.3, h, d), 0.92, 0.85)
+            k.loft((0, 0.12 - h * 0.25, -0.13 - d / 2), [(-h / 2, 0.13, d * 0.42, 0), (-h / 2 + 0.03, 0.15, d / 2, 0), (h / 2 - 0.05, 0.145, d / 2, 0), (h / 2, 0.11, d * 0.35, 0)], 10, True, True)
             k.box((0, 0.04 - h * 0.25, -0.13 - d - 0.03), (0.22, h * 0.45, 0.06))
             k.slot = BLACK
             k.box((-0.1, 0.12, -0.12), (0.04, 0.3, 0.02)); k.box((0.1, 0.12, -0.12), (0.04, 0.3, 0.02))
@@ -311,11 +336,13 @@ def to_blender(p):
 
 
 def emit(body, idx):
-    for n, (bone, slot, verts, faces) in enumerate(body.kit.parts):
+    for n, (bone, slot, verts, faces, smooth) in enumerate(body.kit.parts):
         world = [to_blender(bone.point(v)) for v in verts]
         mesh = bpy.data.meshes.new(f"b{idx}_{n}")
         mesh.from_pydata(world, [], [tuple(reversed(f)) for f in faces])
         mesh.update()
+        if smooth:
+            for poly in mesh.polygons: poly.use_smooth = True
         ob = bpy.data.objects.new(mesh.name, mesh)
         bpy.context.scene.collection.objects.link(ob)
         rgb = COLOURS[slot]
@@ -353,6 +380,13 @@ def main():
     co.location = (0, -11.5, 1.25); co.rotation_euler = (math.radians(88), 0, 0)
     sc.render.engine = "CYCLES"; sc.cycles.samples = 48; sc.cycles.device = "CPU"
     sc.render.resolution_x, sc.render.resolution_y = 1800, 700
+    if "--hero" in sys.argv:
+        # A close look at three of them at eye level (half-size picture for a quick check).
+        co.location = (-1.15, -4.6, 1.2); co.rotation_euler = (math.radians(88), 0, 0); cam.lens = 50
+        sc.render.resolution_x, sc.render.resolution_y = 960, 540
+        sc.render.filepath = os.path.join(OUT, "bodies_hero.png")
+        bpy.ops.render.render(write_still=True)
+        return
     os.makedirs(OUT, exist_ok=True)
     sc.render.filepath = os.path.join(OUT, "bodies.png")
     bpy.ops.render.render(write_still=True)

@@ -68,6 +68,26 @@ namespace Jagti.Royale
 
         bool Landed { get { return diver == null || diver.Current == SkyDiver.State.Landed; } }
 
+        /// <summary>
+        /// Running, jumping or falling into a window smashes it (walking into one doesn't), so you
+        /// can sprint out through the glass or drop out of an upper storey.
+        /// </summary>
+        void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            Jagti.World.GlassPanes pane;
+            int index;
+            if (!Jagti.World.GlassPanes.TryGet(hit.collider, hit.point, out pane, out index)) return;
+            Vector3 v = controller.velocity;
+            float flat = new Vector2(v.x, v.z).magnitude;
+            bool airborne = !controller.isGrounded;
+            if (flat > 3.2f || (airborne && flat > 1.2f) || v.y < -5f)
+            {
+                Vector3 dir = hit.moveDirection.sqrMagnitude > 1e-4f ? hit.moveDirection : transform.forward;
+                pane.Break(index, dir, true);
+                if (fpc != null) fpc.Shake(0.25f);
+            }
+        }
+
         void Update()
         {
             Prompt = null;

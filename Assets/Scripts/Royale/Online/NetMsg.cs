@@ -37,6 +37,7 @@ namespace Jagti.Royale
         public const byte Haze = 19;        // host -> all: the haze timer
         public const byte Left = 20;        // host -> all: someone left mid-match
         public const byte Stash = 21;       // opener's machine -> everyone: a stash opened (index)
+        public const byte Glass = 22;       // breaker's machine -> everyone: a window pane broke (building glass id, pane)
 
         public const float Extent = 2500f;
 

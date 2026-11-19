@@ -54,7 +54,17 @@ namespace Jagti.EditorTools
         {
             if (models.Count == 0) return;
             var materials = BuildingMaterials.Get();
-            foreach (var info in models) PlaceOne(info, parent, ground, materials);
+            // Windows are breakable: each building's glass becomes its own mesh of panes (GlassSplitter).
+            Material glass;
+            materials.TryGetValue("Glass", out glass);
+            GlassSplitter.Reset();
+            int panes = 0;
+            foreach (var info in models)
+            {
+                var go = PlaceOne(info, parent, ground, materials);
+                if (go != null) panes += GlassSplitter.Split(go, glass);
+            }
+            Debug.Log("[Jagti] Breakable glass: " + panes + " panes.");
         }
 
         /// <summary>Places one model at its pivot on the ground, fixes scale/turn, swaps materials, adds colliders.</summary>

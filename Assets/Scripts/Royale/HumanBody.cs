@@ -115,69 +115,77 @@ namespace Jagti.Royale
                 k.place = rootInv * bones[bone].localToWorldMatrix;
             };
 
-            // Hips and seat.
+            // Shaped with lofts (smooth rings) rather than boxes: a rounded pelvis and ribcage, slim
+            // limbs with knees, calves and elbows, a face with a jaw, ears and eyes, and real shoes.
+
+            // Pelvis in the trousers, belt with a buckle.
             at(BHips, SPants);
-            k.Box(new Vector3(0f, 0.02f, 0f), new Vector3(0.36f, 0.2f, 0.23f), 1.03f, 1f);
+            k.Loft(Vector3.zero, new[] { MeshKit.Ring(-0.1f, 0.15f, 0.1f, -0.005f), MeshKit.Ring(-0.04f, 0.172f, 0.118f, -0.01f), MeshKit.Ring(0.04f, 0.168f, 0.112f, -0.005f), MeshKit.Ring(0.12f, 0.152f, 0.1f, 0f) }, 12, true, false);
             at(BHips, SGear);
-            k.Box(new Vector3(0f, 0.115f, 0f), new Vector3(0.355f, 0.045f, 0.225f));      // belt
-            k.Box(new Vector3(0f, 0.115f, 0.115f), new Vector3(0.06f, 0.04f, 0.01f));      // buckle
+            k.Tube(new Vector3(0f, 0.11f, 0f), -0.022f, 0.022f, new Vector2(0.158f, 0.106f), new Vector2(0.156f, 0.104f), 12, false);
+            k.Box(new Vector3(0f, 0.11f, 0.106f), new Vector3(0.055f, 0.04f, 0.012f));
 
-            // Belly and chest: a tapered shirt, wider at the shoulders.
+            // Waist and ribcage in the shirt, rounded shoulders, a collar and a chest pocket.
             at(BSpine, SShirt);
-            k.Box(new Vector3(0f, 0.08f, 0f), new Vector3(0.33f, 0.18f, 0.2f), 1.06f, 1.05f);
+            k.Loft(Vector3.zero, new[] { MeshKit.Ring(-0.02f, 0.153f, 0.102f, 0f), MeshKit.Ring(0.08f, 0.148f, 0.1f, 0.006f), MeshKit.Ring(0.2f, 0.157f, 0.106f, 0.008f) }, 12, false, false);
             at(BChest, SShirt);
-            k.Box(new Vector3(0f, 0.1f, 0f), new Vector3(0.36f, 0.24f, 0.22f), 1.12f, 0.95f);
-            k.Ellipsoid(new Vector3(-0.19f, 0.23f, 0f), new Vector3(0.075f, 0.06f, 0.075f), 8, 4);   // shoulders
-            k.Ellipsoid(new Vector3(0.19f, 0.23f, 0f), new Vector3(0.075f, 0.06f, 0.075f), 8, 4);
-            k.Tube(new Vector3(0f, 0.22f, 0f), 0f, 0.035f, new Vector2(0.085f, 0.075f), new Vector2(0.075f, 0.07f), 8, false);  // collar
+            k.Loft(Vector3.zero, new[] { MeshKit.Ring(-0.01f, 0.157f, 0.106f, 0.008f), MeshKit.Ring(0.08f, 0.172f, 0.118f, 0.014f), MeshKit.Ring(0.16f, 0.18f, 0.118f, 0.012f), MeshKit.Ring(0.22f, 0.17f, 0.1f, 0f), MeshKit.Ring(0.27f, 0.115f, 0.075f, -0.005f) }, 12, false, true);
+            k.Ellipsoid(new Vector3(-0.185f, 0.215f, 0f), new Vector3(0.068f, 0.065f, 0.07f), 10, 5);
+            k.Ellipsoid(new Vector3(0.185f, 0.215f, 0f), new Vector3(0.068f, 0.065f, 0.07f), 10, 5);
+            k.Tube(new Vector3(0f, 0.255f, -0.004f), 0f, 0.03f, new Vector2(0.072f, 0.064f), new Vector2(0.068f, 0.062f), 10, false);
+            k.Box(new Vector3(-0.075f, 0.13f, 0.128f), new Vector3(0.08f, 0.085f, 0.01f));
             at(BChest, SSkin);
-            k.Tube(new Vector3(0f, 0.24f, 0.005f), 0f, 0.08f, new Vector2(0.055f, 0.055f), new Vector2(0.05f, 0.05f), 8, false); // neck
+            k.Loft(new Vector3(0f, 0.25f, 0f), new[] { MeshKit.Ring(0f, 0.05f, 0.048f, 0f), MeshKit.Ring(0.05f, 0.046f, 0.045f, 0.004f), MeshKit.Ring(0.1f, 0.045f, 0.044f, 0.01f) }, 10, false, false);
 
-            // Head: face, nose, ears, eyes and brows, hair.
+            // Head: skull, jaw and cheeks, nose, ears; eyes, brows, mouth and hair in the dark slot.
             at(BHead, SSkin);
-            k.Ellipsoid(new Vector3(0f, 0.11f, 0.005f), new Vector3(0.095f, 0.12f, 0.105f), 12, 8);
-            k.Box(new Vector3(0f, 0.095f, 0.105f), new Vector3(0.025f, 0.045f, 0.035f), 0.6f, 0.7f);   // nose
-            k.Box(new Vector3(-0.097f, 0.11f, -0.005f), new Vector3(0.02f, 0.05f, 0.035f));
-            k.Box(new Vector3(0.097f, 0.11f, -0.005f), new Vector3(0.02f, 0.05f, 0.035f));
+            k.Ellipsoid(new Vector3(0f, 0.13f, -0.005f), new Vector3(0.09f, 0.105f, 0.1f), 14, 9);
+            k.Loft(Vector3.zero, new[] { MeshKit.Ring(0.015f, 0.035f, 0.035f, 0.045f), MeshKit.Ring(0.035f, 0.06f, 0.06f, 0.03f), MeshKit.Ring(0.08f, 0.082f, 0.088f, 0.012f), MeshKit.Ring(0.12f, 0.088f, 0.095f, 0.006f) }, 12, true, false);
+            k.Box(new Vector3(0f, 0.09f, 0.1f), new Vector3(0.026f, 0.05f, 0.03f), 0.55f, 0.5f);
+            k.Ellipsoid(new Vector3(-0.09f, 0.105f, -0.005f), new Vector3(0.016f, 0.03f, 0.022f), 8, 4);
+            k.Ellipsoid(new Vector3(0.09f, 0.105f, -0.005f), new Vector3(0.016f, 0.03f, 0.022f), 8, 4);
             at(BHead, SGear);
-            k.Box(new Vector3(-0.037f, 0.125f, 0.098f), new Vector3(0.024f, 0.012f, 0.01f));     // eyes
-            k.Box(new Vector3(0.037f, 0.125f, 0.098f), new Vector3(0.024f, 0.012f, 0.01f));
-            k.Box(new Vector3(-0.037f, 0.148f, 0.098f), new Vector3(0.034f, 0.008f, 0.012f));    // brows
-            k.Box(new Vector3(0.037f, 0.148f, 0.098f), new Vector3(0.034f, 0.008f, 0.012f));
-            k.Ellipsoid(new Vector3(0f, 0.13f, -0.008f), new Vector3(0.102f, 0.115f, 0.112f), 12, 4, 5f, 90f);  // hair cap
+            k.Ellipsoid(new Vector3(-0.034f, 0.118f, 0.088f), new Vector3(0.013f, 0.008f, 0.008f), 8, 4);
+            k.Ellipsoid(new Vector3(0.034f, 0.118f, 0.088f), new Vector3(0.013f, 0.008f, 0.008f), 8, 4);
+            k.Box(new Vector3(-0.036f, 0.142f, 0.094f), new Vector3(0.036f, 0.008f, 0.012f), 1f, 1f, new Vector3(0f, 0f, -6f));
+            k.Box(new Vector3(0.036f, 0.142f, 0.094f), new Vector3(0.036f, 0.008f, 0.012f), 1f, 1f, new Vector3(0f, 0f, 6f));
+            k.Box(new Vector3(0f, 0.052f, 0.088f), new Vector3(0.04f, 0.006f, 0.008f));
+            k.Ellipsoid(new Vector3(0f, 0.135f, -0.012f), new Vector3(0.096f, 0.11f, 0.108f), 14, 5, 8f, 90f);
             if (longHair)
-                k.Box(new Vector3(0f, 0.07f, -0.075f), new Vector3(0.17f, 0.13f, 0.06f), 1f, 1f);           // hair down the back
+                k.Loft(new Vector3(0f, 0f, -0.07f), new[] { MeshKit.Ring(0.17f, 0.085f, 0.05f, 0f), MeshKit.Ring(0.08f, 0.09f, 0.055f, -0.008f), MeshKit.Ring(-0.02f, 0.07f, 0.04f, -0.012f) }, 10, false, true);
             else
-                k.Box(new Vector3(0f, 0.105f, -0.085f), new Vector3(0.16f, 0.07f, 0.04f));
+                k.Loft(new Vector3(0f, 0f, -0.06f), new[] { MeshKit.Ring(0.16f, 0.088f, 0.05f, 0f), MeshKit.Ring(0.09f, 0.085f, 0.048f, -0.006f), MeshKit.Ring(0.06f, 0.075f, 0.04f, -0.004f) }, 10, false, true);
 
-            // Arms: short sleeves over the upper arm, bare forearms, hands with a thumb.
+            // Arms: short sleeves, then bare upper arms, elbows, forearms and hands with fingers and a thumb.
             foreach (int side in new[] { -1, 1 })
             {
                 int up = side < 0 ? BUpperL : BUpperR, lo = side < 0 ? BLowerL : BLowerR, hand = side < 0 ? BHandL : BHandR;
                 at(up, SShirt);
-                k.Tube(Vector3.zero, 0.02f, -0.16f, new Vector2(0.06f, 0.06f), new Vector2(0.056f, 0.056f), 8);
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(0.03f, 0.062f, 0.064f, 0f), MeshKit.Ring(-0.06f, 0.066f, 0.066f, 0f), MeshKit.Ring(-0.15f, 0.058f, 0.058f, 0f), MeshKit.Ring(-0.17f, 0.06f, 0.06f, 0f) }, 10, true, true);
                 at(up, SSkin);
-                k.Tube(Vector3.zero, -0.15f, -UpperArm, new Vector2(0.045f, 0.045f), new Vector2(0.04f, 0.04f), 8, false);
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(-0.14f, 0.046f, 0.048f, 0f), MeshKit.Ring(-0.2f, 0.044f, 0.047f, 0.004f), MeshKit.Ring(-UpperArm, 0.038f, 0.04f, 0f) }, 10, false, false);
                 at(lo, SSkin);
-                k.Ellipsoid(Vector3.zero, new Vector3(0.042f, 0.04f, 0.042f), 8, 4);
-                k.Tube(Vector3.zero, 0f, -Forearm, new Vector2(0.04f, 0.04f), new Vector2(0.03f, 0.028f), 8, false);
+                k.Ellipsoid(Vector3.zero, new Vector3(0.04f, 0.04f, 0.042f), 10, 5);
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(0f, 0.04f, 0.042f, 0f), MeshKit.Ring(-0.07f, 0.043f, 0.04f, 0f), MeshKit.Ring(-Forearm + 0.01f, 0.028f, 0.022f, 0f) }, 10, false, false);
                 at(hand, SSkin);
-                k.Box(new Vector3(0f, -0.045f, 0.005f), new Vector3(0.05f, 0.09f, 0.03f), 1f, 1f);
-                k.Box(new Vector3(side * -0.02f, -0.03f, 0.02f), new Vector3(0.018f, 0.05f, 0.02f), 1f, 1f, new Vector3(-20f, 0f, side * 15f));
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(0.005f, 0.022f, 0.018f, 0f), MeshKit.Ring(-0.03f, 0.027f, 0.016f, 0.003f), MeshKit.Ring(-0.07f, 0.026f, 0.014f, 0.004f) }, 8, false, true);
+                k.Box(new Vector3(0f, -0.098f, 0.008f), new Vector3(0.048f, 0.055f, 0.022f), 1f, 1f, new Vector3(-14f, 0f, 0f));
+                k.Box(new Vector3(side * -0.028f, -0.035f, 0.018f), new Vector3(0.018f, 0.05f, 0.02f), 1f, 1f, new Vector3(-20f, 0f, side * 22f));
             }
 
-            // Legs: tapered trousers, knees, shoes with a sole.
+            // Legs: trousers with a cargo pocket, knees, calves and cuffs; shoes with a toe cap and sole.
             foreach (int side in new[] { -1, 1 })
             {
                 int th = side < 0 ? BThighL : BThighR, sh = side < 0 ? BShinL : BShinR, ft = side < 0 ? BFootL : BFootR;
                 at(th, SPants);
-                k.Tube(Vector3.zero, 0.02f, -Thigh, new Vector2(0.098f, 0.102f), new Vector2(0.068f, 0.07f), 8);
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(0.04f, 0.095f, 0.1f, 0f), MeshKit.Ring(-0.08f, 0.09f, 0.095f, 0.005f), MeshKit.Ring(-0.3f, 0.072f, 0.075f, 0.005f), MeshKit.Ring(-Thigh, 0.062f, 0.066f, 0.008f) }, 10, false, false);
+                k.Box(new Vector3(side * 0.077f, -0.21f, 0.006f), new Vector3(0.014f, 0.1f, 0.085f));
                 at(sh, SPants);
-                k.Ellipsoid(Vector3.zero, new Vector3(0.068f, 0.06f, 0.07f), 8, 4);
-                k.Tube(Vector3.zero, 0f, -Shin + 0.04f, new Vector2(0.064f, 0.068f), new Vector2(0.05f, 0.052f), 8);
+                k.Ellipsoid(new Vector3(0f, 0f, 0.008f), new Vector3(0.064f, 0.06f, 0.068f), 10, 5);
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(0f, 0.062f, 0.066f, 0.008f), MeshKit.Ring(-0.12f, 0.064f, 0.07f, -0.006f), MeshKit.Ring(-0.3f, 0.054f, 0.056f, 0f), MeshKit.Ring(-Shin + 0.03f, 0.056f, 0.058f, 0f) }, 10, false, true);
                 at(ft, SGear);
-                k.Box(new Vector3(0f, -0.03f, 0.045f), new Vector3(0.1f, 0.085f, 0.26f), 0.95f, 0.85f);
-                k.Box(new Vector3(0f, -0.071f, 0.047f), new Vector3(0.106f, 0.018f, 0.27f));             // sole
+                k.Loft(new Vector3(0f, -0.035f, 0f), new[] { MeshKit.Ring(-0.085f, 0.04f, 0.04f, 0f), MeshKit.Ring(-0.05f, 0.05f, 0.05f, 0f), MeshKit.Ring(0.05f, 0.052f, 0.04f, 0.008f), MeshKit.Ring(0.13f, 0.045f, 0.028f, 0.016f), MeshKit.Ring(0.165f, 0.03f, 0.018f, 0.02f) }, 10, true, true, new Vector3(90f, 0f, 0f));
+                k.Box(new Vector3(0f, -0.072f, 0.04f), new Vector3(0.104f, 0.016f, 0.27f));
             }
 
             var mesh = k.Finish("Body", true);
@@ -263,18 +271,16 @@ namespace Jagti.Royale
 
                 // Vest: front and back plates over the chest, pouches from level 2, collar at level 3.
                 var k = new MeshKit(2);
-                float thick = 0.03f + level * 0.012f;
+                float g = 0.012f + level * 0.008f;
                 k.slot = 0;
-                k.Box(new Vector3(0f, 0.08f, 0.115f + thick / 2f), new Vector3(0.34f, 0.3f, thick), 1.05f, 1f);
-                k.Box(new Vector3(0f, 0.08f, -0.115f - thick / 2f), new Vector3(0.34f, 0.3f, thick), 1.05f, 1f);
-                k.Box(new Vector3(-0.17f, 0.1f, 0f), new Vector3(0.03f, 0.22f, 0.25f));
-                k.Box(new Vector3(0.17f, 0.1f, 0f), new Vector3(0.03f, 0.22f, 0.25f));
-                k.Box(new Vector3(-0.12f, 0.25f, 0f), new Vector3(0.06f, 0.02f, 0.24f));     // shoulder straps
-                k.Box(new Vector3(0.12f, 0.25f, 0f), new Vector3(0.06f, 0.02f, 0.24f));
+                // A rounded carrier shell round the ribcage (thicker each level), with shoulder straps.
+                k.Loft(Vector3.zero, new[] { MeshKit.Ring(-0.06f, 0.16f + g, 0.11f + g, 0.008f), MeshKit.Ring(0.08f, 0.176f + g, 0.122f + g, 0.014f), MeshKit.Ring(0.2f, 0.178f + g, 0.118f + g, 0.01f), MeshKit.Ring(0.24f, 0.16f + g, 0.1f + g, 0.004f) }, 12, false, false);
+                k.Box(new Vector3(-0.11f, 0.255f, 0f), new Vector3(0.06f, 0.025f, 0.23f));
+                k.Box(new Vector3(0.11f, 0.255f, 0f), new Vector3(0.06f, 0.025f, 0.23f));
                 k.slot = 1;
                 if (level >= 2)
                     for (int p = -1; p <= 1; p++)
-                        k.Box(new Vector3(p * 0.1f, -0.015f, 0.14f + thick), new Vector3(0.08f, 0.1f, 0.05f));
+                        k.Box(new Vector3(p * 0.09f, -0.015f, 0.128f + g + 0.022f), new Vector3(0.075f, 0.1f, 0.045f));
                 if (level >= 3)
                 {
                     k.slot = 0;
@@ -307,7 +313,7 @@ namespace Jagti.Royale
                 k = new MeshKit(2);
                 float h = 0.3f + level * 0.07f, depth = 0.12f + level * 0.03f;
                 k.slot = 0;
-                k.Box(new Vector3(0f, 0.12f - h * 0.25f, -0.13f - depth / 2f), new Vector3(0.3f, h, depth), 0.92f, 0.85f);
+                k.Loft(new Vector3(0f, 0.12f - h * 0.25f, -0.13f - depth / 2f), new[] { MeshKit.Ring(-h / 2f, 0.13f, depth * 0.42f, 0f), MeshKit.Ring(-h / 2f + 0.03f, 0.15f, depth / 2f, 0f), MeshKit.Ring(h / 2f - 0.05f, 0.145f, depth / 2f, 0f), MeshKit.Ring(h / 2f, 0.11f, depth * 0.35f, 0f) }, 10, true, true);
                 k.Box(new Vector3(0f, 0.04f - h * 0.25f, -0.13f - depth - 0.03f), new Vector3(0.22f, h * 0.45f, 0.06f));    // front pocket
                 k.slot = 1;
                 k.Box(new Vector3(-0.1f, 0.12f, -0.12f), new Vector3(0.04f, 0.3f, 0.02f));

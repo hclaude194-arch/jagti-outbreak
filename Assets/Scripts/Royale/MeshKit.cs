@@ -133,6 +133,57 @@ namespace Jagti.Royale
             }
         }
 
+        /// <summary>A ring for Loft: height along local Y, radius across (x), radius front-back (z), forward offset.</summary>
+        public static Vector4 Ring(float y, float rx, float rz, float forward = 0f)
+        {
+            return new Vector4(y, rx, rz, forward);
+        }
+
+        /// <summary>
+        /// A smooth tube through several elliptical rings (see Ring), for shaped limbs, torsos and
+        /// shoes: each ring sets its height, two radii and how far forward its centre sits. Normals
+        /// follow the surface, so it shades round. Caps close the first and last rings.
+        /// </summary>
+        public void Loft(Vector3 c, Vector4[] rings, int sides = 10, bool capStart = true, bool capEnd = true, Vector3 euler = default(Vector3))
+        {
+            if (rings == null || rings.Length < 2) return;
+            var rot = Quaternion.Euler(euler);
+            int nr = rings.Length, row = sides + 1;
+            var pos = new Vector3[nr * row];
+            for (int r = 0; r < nr; r++)
+                for (int s = 0; s <= sides; s++)
+                {
+                    float a = s / (float)sides * Mathf.PI * 2f;
+                    pos[r * row + s] = new Vector3(Mathf.Cos(a) * rings[r].y, rings[r].x, Mathf.Sin(a) * rings[r].z + rings[r].w);
+                }
+            int start = v.Count;
+            for (int r = 0; r < nr; r++)
+                for (int s = 0; s <= sides; s++)
+                {
+                    float a = s / (float)sides * Mathf.PI * 2f;
+                    int sp = s == 0 ? sides - 1 : s - 1, sn = s == sides ? 1 : s + 1;
+                    Vector3 around = pos[r * row + sn] - pos[r * row + sp];
+                    Vector3 along = pos[Mathf.Min(nr - 1, r + 1) * row + s] - pos[Mathf.Max(0, r - 1) * row + s];
+                    Vector3 nn = Vector3.Cross(along, around);
+                    Vector3 radial = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                    if (Vector3.Dot(nn, radial) < 0f) nn = -nn;
+                    if (nn.sqrMagnitude < 1e-12f) nn = radial;
+                    Vert(c + rot * pos[r * row + s], rot * nn.normalized, new Vector2(s / (float)sides, r / (float)(nr - 1)));
+                }
+            for (int r = 0; r < nr - 1; r++)
+            {
+                bool up = rings[r + 1].x > rings[r].x;
+                for (int s = 0; s < sides; s++)
+                {
+                    int a = start + r * row + s, b = a + 1, d = a + row + 1, e = a + row;
+                    if (up) Quad(a, e, d, b); else Quad(a, b, d, e);
+                }
+            }
+            bool rising = rings[nr - 1].x > rings[0].x;
+            if (capStart) Cap(c + rot * new Vector3(0f, 0f, rings[0].w), rot, rings[0].x, new Vector2(rings[0].y, rings[0].z), sides, !rising);
+            if (capEnd) Cap(c + rot * new Vector3(0f, 0f, rings[nr - 1].w), rot, rings[nr - 1].x, new Vector2(rings[nr - 1].y, rings[nr - 1].z), sides, rising);
+        }
+
         /// <summary>An ellipsoid (or the top part of one when fromLat > -90) centred on c.</summary>
         public void Ellipsoid(Vector3 c, Vector3 radii, int sides = 10, int rings = 6, float fromLat = -90f, float toLat = 90f, Vector3 euler = default(Vector3))
         {
