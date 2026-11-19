@@ -126,7 +126,7 @@ namespace Jagti.Royale
                     end = z.EndNear(transform.position, 2.4f);
                     if (end >= 0) { line = z; break; }
                 }
-            bool lootFirst = arsenal != null && arsenal.Target != null;
+            bool lootFirst = arsenal != null && arsenal.HasTarget;
             if (near != null) Prompt = "[E] ride the " + near.DisplayName;
             else if (line != null) Prompt = "[E] zip line" + (end == 0 ? " (downhill)" : " (uphill)");
             if (lootFirst || !Input.GetKeyDown(KeyCode.E)) return;

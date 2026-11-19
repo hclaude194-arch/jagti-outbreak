@@ -27,6 +27,10 @@ namespace Jagti.Royale
         public float shoulderDistance = 2.4f;
 
         public string Prompt { get; private set; }
+        /// <summary>A closed stash in reach and in view (E opens it); Target is null then.</summary>
+        public LootStash StashTarget { get; private set; }
+        /// <summary>E is for loot or a stash just now (vehicles and zip lines wait).</summary>
+        public bool HasTarget { get { return Target != null || StashTarget != null; } }
         public LootDrop Target { get; private set; }
         public bool Aiming { get; private set; }
         public float ReloadProgress { get { return reloadTime > 0f ? 1f - reloadLeft / reloadTime : 0f; } }
@@ -125,6 +129,7 @@ namespace Jagti.Royale
             {
                 Prompt = null;
                 Target = null;
+                StashTarget = null;
                 SetAim(false);
                 ShowView(-1);
                 if (!combatant.Alive && diver != null && diver.body != null && diver.Current == SkyDiver.State.Landed)
@@ -192,7 +197,11 @@ namespace Jagti.Royale
             if (Input.GetKeyDown(KeyCode.X) && gun != null) DropCurrent();
 
             FindTarget();
-            if (Input.GetKeyDown(KeyCode.E) && Target != null) PickUp(Target, true);
+            if (Input.GetKeyDown(KeyCode.E))
+            {
+                if (StashTarget != null) OpenStash(StashTarget);
+                else if (Target != null) PickUp(Target, true);
+            }
             AutoPickup();
 
             ShowView(gun != null && !InThirdPerson ? gun.def.id : -1);
@@ -404,9 +413,23 @@ namespace Jagti.Royale
         {
             Prompt = null;
             Target = null;
+            StashTarget = null;
             var loot = LootDirector.Instance;
             if (loot == null) return;
             Transform eye = fpc.cameraPivot;
+            // A closed trunk in reach and roughly in view comes first.
+            var stash = loot.NearestClosedStash(transform.position, 2.2f);
+            if (stash != null)
+            {
+                Vector3 to = stash.position + Vector3.up * 0.3f - eye.position;
+                float dist = to.magnitude;
+                if (Vector3.Dot(eye.forward, to / Mathf.Max(0.01f, dist)) > 0.45f || dist < 1.2f)
+                {
+                    StashTarget = stash;
+                    Prompt = "[E] open the " + stash.Name.ToLower();
+                    return;
+                }
+            }
             loot.Near(transform.position, 2.6f, near);
             float best = -1f;
             foreach (var d in near)
@@ -429,6 +452,12 @@ namespace Jagti.Royale
                 if (!wants && Target.kind != ItemKind.Gun) verb = "full: ";
                 Prompt = "[E] " + verb + Target.Label;
             }
+        }
+
+        void OpenStash(LootStash s)
+        {
+            LootDirector.Instance.Open(s);
+            Say("Opened the " + s.Name.ToLower());
         }
 
         void PickUp(LootDrop d, bool manual)

@@ -241,6 +241,12 @@ namespace Jagti.Royale
         /// <summary>A roll from a place's loot table: what kind of item, and how good.</summary>
         public static void Roll(string table, System.Random rng, out ItemKind kind, out int value, out Tier tier, out int count)
         {
+            Roll(table, rng, false, out kind, out value, out tier, out count);
+        }
+
+        /// <summary>As Roll; better (stashes, rich-pickings places) shifts the tiers up.</summary>
+        public static void Roll(string table, System.Random rng, bool better, out ItemKind kind, out int value, out Tier tier, out int count)
+        {
             // Weights: gun, ammo, vest, helmet, pack, bandage, medkit, chai, grenade, attachment, smoke.
             float[] w;
             switch (table)
@@ -265,7 +271,7 @@ namespace Jagti.Royale
                 r -= w[k];
             }
             kind = (ItemKind)k;
-            tier = RollTier(table, rng);
+            tier = RollTier(table, rng, better);
             value = 0;
             count = 1;
             switch (kind)
@@ -323,12 +329,13 @@ namespace Jagti.Royale
             return 0;
         }
 
-        static Tier RollTier(string table, System.Random rng)
+        static Tier RollTier(string table, System.Random rng, bool better)
         {
             float r = (float)rng.NextDouble();
             float epic = 0.04f, rare = 0.16f, uncommon = 0.42f;
             if (table == "vault") { epic = 0.3f; rare = 0.5f; uncommon = 0.2f; }
             else if (table == "office") { epic = 0.07f; rare = 0.22f; uncommon = 0.4f; }
+            if (better && table != "vault") { epic *= 2.5f; rare *= 1.6f; uncommon = 0.4f; }
             if (r < epic) return Tier.Epic;
             if (r < epic + rare) return Tier.Rare;
             if (r < epic + rare + uncommon) return Tier.Uncommon;

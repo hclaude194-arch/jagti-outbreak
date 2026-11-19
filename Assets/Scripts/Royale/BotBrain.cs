@@ -46,6 +46,7 @@ namespace Jagti.Royale
         float strafeTimer;
         float healCooldown;
         LootDrop goal;
+        LootStash stashGoal;
         Vector3 wanderGoal;
         bool hasWander;
         Vector3 heardAt;
@@ -427,6 +428,19 @@ namespace Jagti.Royale
         {
             var loot = LootDirector.Instance;
             if (loot == null) return false;
+            // A trunk within reach gets opened on the way past.
+            var reach = loot.NearestClosedStash(transform.position, 1.8f);
+            if (reach != null)
+            {
+                loot.Open(reach);
+                if (reach == stashGoal) stashGoal = null;
+            }
+            if (stashGoal != null && !stashGoal.open && stashGoal.claimedBy == me && Time.time < stashGoal.claimUntil)
+            {
+                GoTo(stashGoal.position + stashGoal.Front * 0.8f, false);
+                return true;
+            }
+            stashGoal = null;
             if (goal != null && !goal.taken && goal.claimedBy == me && Time.time < goal.claimUntil)
             {
                 GoTo(goal.position, false);
@@ -447,6 +461,22 @@ namespace Jagti.Royale
                 {
                     best = score;
                     goal = d;
+                }
+            }
+            // A closed trunk nearby is worth about as much as a good gun.
+            var st = loot.NearestClosedStash(transform.position, 25f);
+            if (st != null && !(st.claimedBy != null && st.claimedBy != me && st.claimedBy.Alive && Time.time < st.claimUntil)
+                && (haze == null || haze.IsInside(st.position)))
+            {
+                float score = 16f / (4f + (st.position - transform.position).magnitude);
+                if (score > best)
+                {
+                    goal = null;
+                    stashGoal = st;
+                    st.claimedBy = me;
+                    st.claimUntil = Time.time + 20f;
+                    GoTo(st.position + st.Front * 0.8f, false);
+                    return true;
                 }
             }
             if (goal == null) return false;

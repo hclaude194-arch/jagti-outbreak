@@ -20,6 +20,7 @@ namespace Jagti.EditorTools
         public string table;
         public float chance;
         public string room;
+        public float yaw;           // stashes only
     }
 
     [Serializable]
@@ -28,6 +29,7 @@ namespace Jagti.EditorTools
         public string info;
         public int layoutVersion;
         public LootPointData[] points;
+        public LootPointData[] stashes;
     }
 
     /// <summary>
@@ -244,8 +246,10 @@ namespace Jagti.EditorTools
             hud.places = layout.places;
             hud.mover = mover;
             hud.placeLoot = RatePlaces(layout, loot);
+            loot.places = layout.places;
+            loot.placeRating = hud.placeLoot;
 
-            Debug.Log("[Jagti] Battle royale: " + points + " loot points, sky bus, haze over " + Mathf.RoundToInt(haze.startRadius) +
+            Debug.Log("[Jagti] Battle royale: " + points + " loot points, " + loot.stashPoints.Length + " stash spots, sky bus, haze over " + Mathf.RoundToInt(haze.startRadius) +
                       " m, " + director.botCount + " bots, " + vehicleSpots + " vehicle spots, " + zipLines + " zip lines.");
         }
 
@@ -541,32 +545,7 @@ namespace Jagti.EditorTools
             foreach (var p in list.points)
             {
                 Vector3 at;
-                if (p.zone >= 0)
-                {
-                    if (zones.zones == null || p.zone >= zones.zones.Length) { dropped++; continue; }
-                    var z = zones.zones[p.zone];
-                    float floor = ground(z.baseX, z.baseZ) + p.y;
-                    // Snap onto the floor (or a stair step or the raised rows of a case room).
-                    RaycastHit hit;
-                    if (!Physics.Raycast(new Vector3(p.x, floor + 1.5f, p.z), Vector3.down, out hit, 2.6f, ~0, QueryTriggerInteraction.Ignore))
-                    {
-                        dropped++;
-                        continue;
-                    }
-                    if (hit.point.y > floor + 0.9f) { dropped++; continue; }   // landed on furniture
-                    at = hit.point + Vector3.up * 0.01f;
-                }
-                else
-                {
-                    float g = ground(p.x, p.z);
-                    RaycastHit hit;
-                    at = new Vector3(p.x, g, p.z);
-                    if (Physics.Raycast(new Vector3(p.x, g + 3f, p.z), Vector3.down, out hit, 6f, ~0, QueryTriggerInteraction.Ignore))
-                    {
-                        if (hit.point.y > g + 1.2f) { dropped++; continue; }   // on a wall, bench or car
-                        at = hit.point + Vector3.up * 0.01f;
-                    }
-                }
+                if (!SnapPoint(p, zones, ground, out at)) { dropped++; continue; }
                 pos.Add(at);
                 tables.Add(p.table);
                 chances.Add(p.chance);
@@ -577,7 +556,61 @@ namespace Jagti.EditorTools
             loot.pointChances = chances.ToArray();
             loot.pointIndoor = indoor.ToArray();
             if (dropped > 0) Debug.Log("[Jagti] Loot: " + dropped + " points had no clear floor and were skipped.");
+
+            // Stash spots: the same snapping, plus the trunk's facing.
+            var sPos = new List<Vector3>();
+            var sYaw = new List<float>();
+            var sTables = new List<string>();
+            var sChances = new List<float>();
+            var sIndoor = new List<bool>();
+            int sDropped = 0;
+            if (list.stashes != null)
+                foreach (var p in list.stashes)
+                {
+                    Vector3 at;
+                    if (!SnapPoint(p, zones, ground, out at)) { sDropped++; continue; }
+                    sPos.Add(at);
+                    sYaw.Add(p.yaw);
+                    sTables.Add(p.table);
+                    sChances.Add(p.chance);
+                    sIndoor.Add(p.zone >= 0);
+                }
+            else
+                Debug.LogWarning("[Jagti] " + LootPath + " has no stashes; rerun tools/royale/build_loot_points.py.");
+            loot.stashPoints = sPos.ToArray();
+            loot.stashYaw = sYaw.ToArray();
+            loot.stashTables = sTables.ToArray();
+            loot.stashChances = sChances.ToArray();
+            loot.stashIndoor = sIndoor.ToArray();
+            if (sDropped > 0) Debug.Log("[Jagti] Loot: " + sDropped + " stash spots had no clear floor and were skipped.");
             return pos.Count;
+        }
+
+        /// <summary>Puts a loot point on the floor (indoors) or the ground; false when it lands on furniture or a wall.</summary>
+        static bool SnapPoint(LootPointData p, ZoneList zones, Func<float, float, float> ground, out Vector3 at)
+        {
+            at = Vector3.zero;
+            RaycastHit hit;
+            if (p.zone >= 0)
+            {
+                if (zones.zones == null || p.zone >= zones.zones.Length) return false;
+                var z = zones.zones[p.zone];
+                float floor = ground(z.baseX, z.baseZ) + p.y;
+                // Snap onto the floor (or a stair step or the raised rows of a case room).
+                if (!Physics.Raycast(new Vector3(p.x, floor + 1.5f, p.z), Vector3.down, out hit, 2.6f, ~0, QueryTriggerInteraction.Ignore))
+                    return false;
+                if (hit.point.y > floor + 0.9f) return false;   // landed on furniture
+                at = hit.point + Vector3.up * 0.01f;
+                return true;
+            }
+            float g = ground(p.x, p.z);
+            at = new Vector3(p.x, g, p.z);
+            if (Physics.Raycast(new Vector3(p.x, g + 3f, p.z), Vector3.down, out hit, 6f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.point.y > g + 1.2f) return false;   // on a wall, bench or car
+                at = hit.point + Vector3.up * 0.01f;
+            }
+            return true;
         }
 
         // ------------------------------------------------------------------ grenade

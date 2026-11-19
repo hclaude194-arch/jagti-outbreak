@@ -7,6 +7,9 @@ Reads Assets/Data/interiors.json (rooms and furniture) and Assets/Data/campus_la
                    with a loot table chosen from the room's kind (pharmacy -> medical, ...)
   outdoor points - spots just outside every building and on parking lots, courts and lawns
 
+Stashes are lockable trunks (opened with E, three better items inside): one spot against a wall in
+some rooms, chosen by STASH_ROOMS, and a few outside buildings. They are written under "stashes".
+
 Each point carries a spawn chance; MatchDirector rolls every point at the start of a match,
 so loot is different each time. Unity snaps each point onto the floor (or ground) when the
 scene is built (RoyaleBuilder), so heights here are only the storey's floor line.
@@ -95,6 +98,22 @@ ROOM_LOOT = {
     "games": ("sports", 0.6, 0.7),
     "changing": ("sports", 0.9, 0.8),
 }
+
+# Room kind -> chance that the room gets a stash spot at all (the spot itself spawns at STASH_CHANCE).
+STASH_ROOMS = {
+    "single": 0.035, "double": 0.12, "common": 0.5, "study": 0.35, "lounge": 0.5, "laundry": 0.25,
+    "warden": 0.8, "classroom": 0.25, "seminar": 0.35, "syndicate": 0.15, "case": 0.3, "reading": 0.4,
+    "stacks": 0.6, "complab": 0.5, "research": 0.4, "meeting": 0.5, "cabin": 0.25, "admin": 0.7,
+    "board": 1.0, "director": 1.0, "server": 0.8, "staff": 0.6, "activity": 0.6, "store": 0.45,
+    "kitchen": 0.7, "pantry": 0.12, "cafe": 0.6, "mess_hall": 1.0, "pharmacy": 1.0, "ward": 0.8,
+    "consult": 0.5, "nurses": 0.7, "physio": 0.6, "observation": 0.5, "records": 0.8, "linen": 0.8,
+    "duty": 0.8, "officer": 0.8, "stationery": 0.8, "repair": 0.8, "bookshop": 0.8, "bank": 1.0,
+    "vault": 1.0, "games": 0.25, "changing": 0.7,
+}
+STASH_CHANCE = 0.6          # each stash spot is filled in about this share of matches
+STASH_HALF = (0.55, 0.32)   # trunk footprint half sizes (along its front, front to back), with a little room
+STASH_WALL = 0.5            # gap between the trunk's back and the wall
+
 
 # Outdoor loot table for the building, by zone and name.
 def outdoor_table(b):
@@ -204,6 +223,99 @@ def indoor_points(interiors, sizes, rng):
     return points
 
 
+def stash_fits(x, z, yaw, room_rect, props, sizes, taken):
+    """True when a trunk at (x, z) facing yaw, and the floor in front where its items land, are clear."""
+    x0, x1, z0, z1 = room_rect
+    a = math.radians(yaw)
+    fx, fz = math.sin(a), math.cos(a)          # front
+    rx, rz = math.cos(a), -math.sin(a)         # right
+    hw, hd = STASH_HALF
+    samples = [(-hw, -hd), (hw, -hd), (-hw, hd), (hw, hd), (0, 0), (0, 1.1), (-0.6, 1.0), (0.6, 1.0)]
+    for (u, v) in samples:
+        px, pz = x + rx * u + fx * v, z + rz * u + fz * v
+        if not (x0 + 0.12 < px < x1 - 0.12 and z0 + 0.12 < pz < z1 - 0.12):
+            return False
+        if any(footprint_blocks(p, sizes[p["prop"]], px, pz) for p in props):
+            return False
+    return all(math.hypot(x - q[0], z - q[1]) > 1.6 for q in taken)
+
+
+def indoor_stashes(interiors, sizes, points, rng):
+    zones = interiors["zones"]
+    level_h = interiors.get("levelHeight", 3.4)
+    by_zone_level = {}
+    for p in interiors["props"]:
+        by_zone_level.setdefault((p["zone"], p["level"]), []).append(p)
+    taken_by_room = {}
+    for p in points:
+        taken_by_room.setdefault((p["zone"], p["level"], p["room"]), []).append((p["x"], p["z"]))
+    stashes = []
+    for room in interiors["rooms"]:
+        want = STASH_ROOMS.get(room["kind"])
+        spec = ROOM_LOOT.get(room["kind"])
+        if want is None or spec is None or rng.random() > want:
+            continue
+        x0, x1, z0, z1 = rect_of(room)
+        if min(x1 - x0, z1 - z0) < 2.6:
+            continue
+        zone = zones[room["zone"]]
+        floor_y = zone.get("floorOffset", 0.6) + level_h * room["level"]
+        props = [p for p in by_zone_level.get((room["zone"], room["level"]), [])
+                 if p["prop"] in sizes and p["y"] <= floor_y + 1.0
+                 and x0 - 3 < p["x"] < x1 + 3 and z0 - 3 < p["z"] < z1 + 3]
+        taken = taken_by_room.get((room["zone"], room["level"], room["name"]), [])
+        back = STASH_HALF[1] + STASH_WALL
+        candidates = []
+        # Along each wall, the trunk's back to the wall and its front facing into the room.
+        for t in [i * 0.5 for i in range(int(max(x1 - x0, z1 - z0) / 0.5) + 1)]:
+            if x0 + 0.8 + t < x1 - 0.8:
+                candidates.append((x0 + 0.8 + t, z0 + back, 0.0))
+                candidates.append((x0 + 0.8 + t, z1 - back, 180.0))
+            if z0 + 0.8 + t < z1 - 0.8:
+                candidates.append((x0 + back, z0 + 0.8 + t, 90.0))
+                candidates.append((x1 - back, z0 + 0.8 + t, 270.0))
+        rng.shuffle(candidates)
+        for (x, z, yaw) in candidates:
+            if stash_fits(x, z, yaw, (x0, x1, z0, z1), props, sizes, taken):
+                stashes.append({"x": round(x, 2), "y": round(floor_y, 2), "z": round(z, 2), "yaw": yaw,
+                                "zone": room["zone"], "level": room["level"], "table": spec[0],
+                                "chance": STASH_CHANCE, "room": room["name"]})
+                break
+    return stashes
+
+
+def outdoor_stashes(layout, rng):
+    """A trunk against the wall of about a third of the buildings, facing out."""
+    buildings = layout["buildings"]
+    poly = list(zip(layout["boundary"][0::2], layout["boundary"][1::2]))
+    stashes = []
+    for b in buildings:
+        if rng.random() > 0.35 or b["width"] * b["depth"] < 60:
+            continue
+        for _ in range(12):
+            side = rng.randrange(4)
+            along = rng.uniform(-0.35, 0.35)
+            gap = 0.75
+            x, z = b["x"], b["z"]
+            if side == 0:
+                x += along * b["width"]; z += b["depth"] / 2 + gap; yaw = 0.0
+            elif side == 1:
+                x += along * b["width"]; z -= b["depth"] / 2 + gap; yaw = 180.0
+            elif side == 2:
+                z += along * b["depth"]; x += b["width"] / 2 + gap; yaw = 90.0
+            else:
+                z += along * b["depth"]; x -= b["width"] / 2 + gap; yaw = 270.0
+            a = math.radians(yaw)
+            front = (x + math.sin(a) * 1.4, z + math.cos(a) * 1.4)
+            if not inside_boundary(poly, x, z) or any(inside_box(o, px, pz, 0.4) for o in buildings
+                                                       for (px, pz) in ((x, z), front)):
+                continue
+            stashes.append({"x": round(x, 2), "y": 0.0, "z": round(z, 2), "yaw": yaw, "zone": -1, "level": 0,
+                            "table": outdoor_table(b), "chance": STASH_CHANCE, "room": b["name"] + " (outside)"})
+            break
+    return stashes
+
+
 def inside_box(b, x, z, margin):
     return abs(x - b["x"]) < b["width"] / 2.0 + margin and abs(z - b["z"]) < b["depth"] / 2.0 + margin
 
@@ -277,7 +389,7 @@ def outdoor_points(layout, rng):
     return points
 
 
-def preview(points, layout, interiors):
+def preview(points, stashes, layout, interiors):
     import numpy as np
     from PIL import Image, ImageDraw
     xs = layout["boundary"][0::2]
@@ -301,6 +413,19 @@ def preview(points, layout, interiors):
     for p in points:
         x, y = P(p["x"], p["z"])
         dr.ellipse([x - 1.5, y - 1.5, x + 1.5, y + 1.5], fill=colours.get(p["table"], (255, 255, 255)))
+    for p in stashes:
+        x, y = P(p["x"], p["z"])
+        dr.rectangle([x - 3.5, y - 3.5, x + 3.5, y + 3.5], fill=(255, 168, 46), outline=(0, 0, 0))
+    # Legend.
+    ly = 10
+    for name, col in list(colours.items()) + [("stash trunk", (255, 168, 46))]:
+        if name == "stash trunk":
+            dr.rectangle([10, ly, 18, ly + 8], fill=col, outline=(0, 0, 0))
+        else:
+            dr.ellipse([10, ly, 18, ly + 8], fill=col)
+        dr.text((24, ly - 2), name, fill=(235, 235, 235))
+        ly += 14
+    dr.text((10, ly + 4), "%d loot points, %d stash spots" % (len(points), len(stashes)), fill=(235, 235, 235))
     out = os.path.join(ROOT, "tools", "royale", "preview")
     os.makedirs(out, exist_ok=True)
     img.save(os.path.join(out, "loot_points.png"))
@@ -315,6 +440,8 @@ def main():
     indoor = indoor_points(interiors, sizes, rng)
     outdoor = outdoor_points(layout, rng)
     points = indoor + outdoor
+    srng = random.Random(777)   # its own stream, so adding stashes moved no loot point
+    stashes = indoor_stashes(interiors, sizes, points, srng) + outdoor_stashes(layout, srng)
     tables = {}
     for p in points:
         tables[p["table"]] = tables.get(p["table"], 0) + 1
@@ -323,14 +450,17 @@ def main():
         "info": "Generated by tools/royale/build_loot_points.py. Do not edit by hand.",
         "layoutVersion": layout.get("version", 0),
         "points": points,
+        "stashes": stashes,
     }
     with open(OUT, "w") as f:
         json.dump(data, f, separators=(",", ":"))
     print("%d loot points (%d indoor, %d outdoor), about %d filled per match" % (
         len(points), len(indoor), len(outdoor), expected))
     print("by table:", dict(sorted(tables.items())))
+    print("%d stash spots (%d outdoor), about %d filled per match" % (
+        len(stashes), sum(1 for p in stashes if p["zone"] < 0), sum(p["chance"] for p in stashes)))
     if "--preview" in sys.argv:
-        preview(points, layout, interiors)
+        preview(points, stashes, layout, interiors)
 
 
 if __name__ == "__main__":
