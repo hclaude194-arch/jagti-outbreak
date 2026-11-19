@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 25
+VERSION = 26
 
 
 def to_world(x, y):
@@ -205,7 +205,8 @@ ROADS = [
 ]
 
 # ---------------------------------------------------------------- flat areas
-# (type, shape, map x, map y, width, depth)  x, y = top-left for box, centre for ellipse
+# (type, shape, map x, map y, width, depth)  x, y = top-left for box, centre for ellipse and pill
+# (a pill: a rectangle whose short ends are half circles, as a running track)
 AREAS = [
     ("lawn", "box", 322, 493, 175, 24),
     ("lawn", "box", 322, 529, 110, 21),
@@ -238,8 +239,10 @@ AREAS = [
     ("court", "box", 440, 1237, 26, 28),
     ("court", "box", 440, 1267, 26, 26),
     ("court", "box", 478, 1124, 28, 30),   # the girls' hostel tennis courts (a pair)
-    ("track", "ellipse", 517, 1261, 96, 170),
-    ("field", "ellipse", 517, 1261, 74, 146),
+    # A 400 m running track is a pill (two straights joined by half circles), not an oval:
+    # ends of radius width/2 along the long axis (owner, 2026-11-19).
+    ("track", "pill", 517, 1261, 96, 170),
+    ("field", "pill", 517, 1261, 74, 146),
     ("amphitheatre", "box", 565, 688, 64, 114),
     ("roundabout", "ellipse", 296, 487, 16, 16),
     ("roundabout", "ellipse", 414, 996, 18, 18),

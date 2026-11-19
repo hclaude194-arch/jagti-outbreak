@@ -2502,6 +2502,99 @@ def render_preview(obj, path):
     bpy.ops.render.render(write_still=True)
 
 
+# ------------------------------------------------------------------ roof stairs
+# Steel stairs up the outside of the big buildings to their roofs (the owner asked for access to
+# the terraces): a switchback of two lanes against a wall that has no doorway, on level ground,
+# clear of roads and other buildings (sites picked with the layout, doors and heightmap). The top
+# landing reaches the parapet coping, so you step over it onto the roof.
+# model name: [(layout part, side of that part, offset of the stair's middle from the side's middle)]
+FIRE_ESCAPES = {
+    "Academic_Block": [("Academic Block - South Wing", "E", -15.0)],
+    "Annapurna_Mess": [("Annapurna Mess - Kitchen", "S", 6.0)],
+    "Brahmaputra_Hostel": [("Brahmaputra Hostel - East Wing", "N", 4.0)],
+    "Sindhu_Hostel_A": [("Sindhu Hostel A - North Wing", "N", -16.0)],
+    "Sindhu_Hostel_B": [("Sindhu Hostel B - South Wing", "W", 7.0)],
+    "Girls_Hostel_A": [("Girls Hostel A - South Wing", "E", 6.0)],
+    "Girls_Hostel_B": [("Girls Hostel B - West Wing", "N", -4.0)],
+    "Shopping_Medical_1_ATM": [("Shopping & Medical 1 (ATM)", "W", 11.0)],
+    "Sports_Complex": [("Sports Complex", "E", -23.0)],
+    "East_Block": [("East Block", "E", -10.0)],
+    "East_Block_2": [("East Block 2", "N", -13.0)],
+}
+FE_W0, FE_LANE, FE_HALF = 0.9, 1.15, 2.6     # off the facade line; lane width; half length along the wall
+FE_FLIGHT = 1.4                               # each flight runs from -1.4 to +1.4 along the wall
+
+
+def fire_escape(m, part, side, off):
+    """One roof stair against side ("N", "S", "E", "W") of a layout part, centred off metres
+    from the middle of that side. u runs along the wall, w out from the facade line."""
+    bd = BUILDINGS[part]
+    X0, X1 = bd["x"] - bd["width"] / 2, bd["x"] + bd["width"] / 2
+    Z0, Z1 = bd["z"] - bd["depth"] / 2, bd["z"] + bd["depth"] / 2
+    (ax, az), (tx, tz), (nx, nz) = {
+        "N": ((bd["x"], Z1), (1.0, 0.0), (0.0, 1.0)), "S": ((bd["x"], Z0), (1.0, 0.0), (0.0, -1.0)),
+        "E": ((X1, bd["z"]), (0.0, 1.0), (1.0, 0.0)), "W": ((X0, bd["z"]), (0.0, 1.0), (-1.0, 0.0))}[side]
+    cx, cz = ax + tx * off, az + tz * off
+
+    def W(u, w):
+        return (cx + tx * u + nx * w, cz + tz * u + nz * w)
+
+    def plate(u0, u1, w0, w1, z0, z1, mat="Metal"):
+        (Xa, Za), (Xb, Zb) = W(u0, w0), W(u1, w1)
+        m.box(min(Xa, Xb), max(Xa, Xb), min(Za, Zb), max(Za, Zb), z0, z1, mat, mat)
+
+    # The coping (or whatever stands on the wall top) right behind the top landing.
+    lo_x, lo_y = m.b(*W(-FE_HALF, -0.6))
+    hi_x, hi_y = m.b(*W(FE_HALF, 0.3))
+    x0, x1, y0, y1 = min(lo_x, hi_x), max(lo_x, hi_x), min(lo_y, hi_y), max(lo_y, hi_y)
+    tops = [v[2] for v in m.verts if x0 <= v[0] <= x1 and y0 <= v[1] <= y1]
+    roof = bd["floors"] * FLOOR
+    top = max([t for t in tops if t < roof + 2.0] or [roof + 1.3])
+    if top < roof - 0.5:
+        top = roof + 1.3
+    n = max(2, int(math.ceil(top / 1.75)))   # half-storey flights of at most 1.75 m (risers under 0.18 m)
+    R = top / n
+    steps = 10
+    r = R / steps
+    w_in, w_mid, w_out = FE_W0, FE_W0 + FE_LANE, FE_W0 + 2 * FE_LANE + 0.1
+    tread = 2 * FE_FLIGHT / (steps - 1)
+    for k in range(n):
+        z0 = k * R
+        up = k % 2 == 0                      # even flights climb +u on the outer lane, odd ones -u on the inner
+        lane = (w_mid + 0.1, w_out) if up else (w_in, w_mid)
+        for i in range(steps - 1):
+            zt = z0 + (i + 1) * r
+            a = -FE_FLIGHT + i * tread if up else FE_FLIGHT - (i + 1) * tread
+            plate(a, a + tread, lane[0], lane[1], zt - 0.06, zt)
+        # Landing at the flight's top, across both lanes.
+        zt = z0 + R
+        u0, u1 = (FE_FLIGHT, FE_HALF) if up else (-FE_HALF, -FE_FLIGHT)
+        plate(u0, u1, w_in, w_out, zt - 0.12, zt)
+        # Guard rail along the outer edge and the end of the landing.
+        plate(-FE_HALF, FE_HALF, w_out, w_out + 0.05, zt + 1.0, zt + 1.05)
+        ue = FE_HALF if up else -FE_HALF
+        plate(ue - 0.05 if up else ue, ue if up else ue + 0.05, w_in, w_out, zt + 1.0, zt + 1.05)
+        if k < n - 1:   # and on the wall side, over the gap to the facade (the top one opens onto the bridge)
+            plate(-FE_HALF, FE_HALF, w_in - 0.05, w_in, zt + 1.0, zt + 1.05)
+    # The top landing reaches over the wall top: a bridge plate onto the coping.
+    ue0, ue1 = (FE_FLIGHT, FE_HALF) if (n - 1) % 2 == 0 else (-FE_HALF, -FE_FLIGHT)
+    plate(ue0, ue1, -0.6, w_in, top - 0.12, top + 0.01)
+    # Corner posts and outer bars, the full height.
+    for u in (-FE_HALF, FE_HALF):
+        for w in (w_in, w_out):
+            plate(u - 0.08, u + 0.08, w - 0.08, w + 0.08, -0.3, top + 1.05)
+    for i in range(1, 9):
+        u = -FE_HALF + 2 * FE_HALF * i / 9
+        plate(u - 0.02, u + 0.02, w_out, w_out + 0.04, 0.0, top + 1.05)
+    m.solid.append((min(W(-FE_HALF, 0)[0], W(FE_HALF, w_out)[0]), max(W(-FE_HALF, 0)[0], W(FE_HALF, w_out)[0]),
+                    min(W(-FE_HALF, 0)[1], W(FE_HALF, w_out)[1]), max(W(-FE_HALF, 0)[1], W(FE_HALF, w_out)[1])))
+
+
+def add_fire_escapes(m):
+    for part, side, off in FIRE_ESCAPES.get(m.name, ()):
+        fire_escape(m, part, side, off)
+
+
 def main():
     render = "--render" in sys.argv
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -2511,6 +2604,7 @@ def main():
     for make in MODELS:
         clear_scene()
         m = make()
+        add_fire_escapes(m)
         obj = m.to_object()
         path = os.path.join(OUT_DIR, m.name + ".fbx")
         export(obj, path)

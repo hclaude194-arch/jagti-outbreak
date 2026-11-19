@@ -34,7 +34,7 @@ from build_interiors import (PART, FL, LIGHTS, PLACED, WARM, COOL, Line, Frame, 
 MW = B.WALL["outer"]          # the civic facade's wall thickness (0.45)
 TOP = 2                       # top storey of the three-storey civic blocks
 TILED = ("toilet", "changing", "dressing")
-DOOR_W = 0.9
+DOOR_W = 1.1   # room doorways: the player capsule (0.7 m plus skin) caught on 0.9 m frames
 
 
 def inner_rect(name):

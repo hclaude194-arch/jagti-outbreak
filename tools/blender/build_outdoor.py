@@ -522,6 +522,11 @@ def in_area(P_, a, pad=0.0):
     x, z = P_
     if a["shape"] == "box":
         return abs(x - a["x"]) < a["width"] / 2 + pad and abs(z - a["z"]) < a["depth"] / 2 + pad
+    if a["shape"] == "pill":
+        r = min(a["width"], a["depth"]) / 2
+        ax = max(abs(x - a["x"]) - (a["width"] / 2 - r), 0.0)
+        az = max(abs(z - a["z"]) - (a["depth"] / 2 - r), 0.0)
+        return math.hypot(ax, az) < r + pad
     rx, rz = a["width"] / 2 + pad, a["depth"] / 2 + pad
     return ((x - a["x"]) / rx) ** 2 + ((z - a["z"]) / rz) ** 2 < 1.0
 

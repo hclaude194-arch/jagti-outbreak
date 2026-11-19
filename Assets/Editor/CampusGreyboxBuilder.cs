@@ -252,6 +252,11 @@ namespace Jagti.EditorTools
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
 
+            if (a.shape == "pill")
+            {
+                MakePillArea(a, top, color, parent, materials);
+                return;
+            }
             bool ellipse = a.shape == "ellipse";
             var go = GameObject.CreatePrimitive(ellipse ? PrimitiveType.Cylinder : PrimitiveType.Cube);
             go.name = "Area - " + a.type;
@@ -264,6 +269,77 @@ namespace Jagti.EditorTools
                 ? new Vector3(a.width, h / 2f, a.depth)
                 : new Vector3(a.width, h, a.depth);
             if (a.type != "roundabout") Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
+            SetMaterial(go, materials.Get("Area_" + a.type, color));
+            MarkStatic(go);
+        }
+
+        /// <summary>A running track or its infield: a flat slab shaped like a pill (two straights
+        /// joined by half circles of radius min(width, depth) / 2), with a 0.5 m skirt down into the
+        /// ground. A decal like the other areas: no collider, the terrain carries the player.</summary>
+        static void MakePillArea(AreaData a, float top, Color color, Transform parent, MaterialLibrary materials)
+        {
+            const int seg = 24;
+            const float below = 0.5f;
+            float r = Mathf.Min(a.width, a.depth) / 2f;
+            float hx = a.width / 2f - r, hz = a.depth / 2f - r;
+            bool alongZ = hz > 0f;
+            var ring = new List<Vector2>();
+            for (int end = 0; end < 2; end++)
+            {
+                float ox = alongZ ? 0f : (end == 0 ? hx : -hx);
+                float oz = alongZ ? (end == 0 ? hz : -hz) : 0f;
+                float a0 = alongZ ? (end == 0 ? 0f : Mathf.PI) : (end == 0 ? -Mathf.PI / 2f : Mathf.PI / 2f);
+                for (int i = 0; i <= seg; i++)
+                {
+                    float t = a0 + Mathf.PI * i / seg;
+                    ring.Add(new Vector2(ox + r * Mathf.Cos(t), oz + r * Mathf.Sin(t)));
+                }
+            }
+            float y = Ground(a.x, a.z) + top;
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            var uvs = new List<Vector2>();
+            vertices.Add(new Vector3(0f, y, 0f));
+            uvs.Add(new Vector2(0.5f, 0.5f));
+            int n = ring.Count;
+            for (int i = 0; i < n; i++)
+            {
+                vertices.Add(new Vector3(ring[i].x, y, ring[i].y));
+                uvs.Add(new Vector2(ring[i].x / 4f, ring[i].y / 4f));
+            }
+            for (int i = 0; i < n; i++)
+            {
+                // Fan from the centre (the pill is convex); clockwise seen from above faces up.
+                triangles.Add(0);
+                triangles.Add(1 + (i + 1) % n);
+                triangles.Add(1 + i);
+            }
+            int skirt = vertices.Count;
+            for (int i = 0; i < n; i++)
+            {
+                vertices.Add(new Vector3(ring[i].x, y, ring[i].y));
+                vertices.Add(new Vector3(ring[i].x, y - top - below, ring[i].y));
+                uvs.Add(new Vector2(i * 0.25f, 1f));
+                uvs.Add(new Vector2(i * 0.25f, 0f));
+            }
+            for (int i = 0; i < n; i++)
+            {
+                int a0 = skirt + 2 * i, b0 = skirt + 2 * ((i + 1) % n);
+                triangles.Add(a0); triangles.Add(b0); triangles.Add(a0 + 1);
+                triangles.Add(b0); triangles.Add(b0 + 1); triangles.Add(a0 + 1);
+            }
+            var mesh = new Mesh();
+            mesh.name = "Area_" + a.type + "_Pill";
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject("Area - " + a.type);
+            go.transform.SetParent(parent);
+            go.transform.position = new Vector3(a.x, 0f, a.z);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>();
             SetMaterial(go, materials.Get("Area_" + a.type, color));
             MarkStatic(go);
         }
