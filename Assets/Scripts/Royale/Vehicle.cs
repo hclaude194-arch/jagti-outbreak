@@ -6,8 +6,9 @@ using UnityEngine.AI;
 namespace Jagti.Royale
 {
     /// <summary>
-    /// A scooter or utility cart you can ride (E near it; E again to get off). W/S throttle and
-    /// reverse, A/D steer, Space brakes. Arcade handling like the campus bus: the body follows the
+    /// A scooter, utility cart, auto-rickshaw or patrol 4x4 you can ride (E near it; E again to get
+    /// off). W/S throttle and reverse, A/D steer, Space brakes, Shift boosts (from a tank that refills),
+    /// H sounds the horn. Arcade handling like the campus bus: the body follows the
     /// ground under its wheels, leans into turns (scooter), slows on climbs, flies off terrace
     /// edges and lands hard. It stops at walls (and is damaged by a fast crash), knocks over
     /// anyone it hits at speed, and can be shot or blown up: at zero health it bursts into flames,
@@ -15,7 +16,7 @@ namespace Jagti.Royale
     /// </summary>
     public class Vehicle : MonoBehaviour
     {
-        public enum Kind { Scooter, Cart }
+        public enum Kind { Scooter, Cart, Auto, Jeep }
 
         public static readonly List<Vehicle> All = new List<Vehicle>();
 
@@ -38,14 +39,30 @@ namespace Jagti.Royale
         public float maxHealth = 260f;
 
         public float Health { get; private set; }
+        /// <summary>The boost tank, 0 to 1. Shift spends it; it refills when not boosting.</summary>
+        public float Boost { get; private set; }
+        public bool Boosting { get; private set; }
         public float Speed { get; private set; }
         public bool Wrecked { get; private set; }
         public Combatant Driver { get; private set; }
-        public string DisplayName { get { return kind == Kind.Scooter ? "scooter" : "utility cart"; } }
+        public string DisplayName
+        {
+            get
+            {
+                switch (kind)
+                {
+                    case Kind.Scooter: return "scooter";
+                    case Kind.Auto: return "auto-rickshaw";
+                    case Kind.Jeep: return "patrol 4x4";
+                    default: return "utility cart";
+                }
+            }
+        }
         /// <summary>The seat: a rider's root sits here (0.8 m below the cushion, so the head is at a sitting height).</summary>
         public Transform Seat { get; private set; }
 
-        float steer, vy, lean, noiseT, crashCooldown;
+        float steer, vy, lean, noiseT, crashCooldown, hornT;
+        bool boostLocked;
         Combatant lastRunOver;
         float lastRunOverTime;
         bool airborne;
@@ -66,7 +83,24 @@ namespace Jagti.Royale
                 maxSteer = 32f;
                 maxHealth = 420f;
             }
+            else if (kind == Kind.Auto)
+            {
+                // Nippy and light: quick off the line, not fast, tips into tight turns.
+                maxSpeed = 17f;
+                acceleration = 6.5f;
+                maxSteer = 38f;
+                maxHealth = 340f;
+            }
+            else if (kind == Kind.Jeep)
+            {
+                // The fastest and toughest, but wide and slow to turn.
+                maxSpeed = 27f;
+                acceleration = 8f;
+                maxSteer = 30f;
+                maxHealth = 640f;
+            }
             Health = maxHealth;
+            Boost = 1f;
             VehicleModels.Build(this, palette, paint);
 
             box = gameObject.AddComponent<BoxCollider>();
@@ -85,7 +119,7 @@ namespace Jagti.Royale
             Seat = seat;
 
             engine = gameObject.AddComponent<AudioSource>();
-            engine.clip = SynthAudio.Get(kind == Kind.Scooter ? "engine_scooter" : "engine_cart");
+            engine.clip = SynthAudio.Get(kind == Kind.Scooter ? "engine_scooter" : kind == Kind.Auto ? "engine_auto" : kind == Kind.Jeep ? "engine_jeep" : "engine_cart");
             engine.loop = true;
             engine.spatialBlend = 1f;
             engine.minDistance = 4f;
@@ -158,7 +192,7 @@ namespace Jagti.Royale
                 float d = (c.AimPoint - p).magnitude;
                 if (d > 6f) continue;
                 if (c != Driver && !Ballistics.LineOfSight(p, c.AimPoint, null, c)) continue;
-                c.ReceiveHit(80f * Mathf.Clamp01(1f - d / 6f) + 15f, false, attacker, kind == Kind.Scooter ? "scooter blast" : "cart blast", p);
+                c.ReceiveHit(80f * Mathf.Clamp01(1f - d / 6f) + 15f, false, attacker, DisplayName + " blast", p);
             }
             var mover = Driver != null ? Driver.GetComponent<PlayerMover>() : null;
             if (mover != null) mover.ForceExit();
@@ -217,20 +251,37 @@ namespace Jagti.Royale
             float dt = Time.deltaTime;
             crashCooldown -= dt;
             float throttle = 0f, steerIn = 0f;
-            bool brake = false;
+            bool brake = false, boost = false;
+            hornT -= dt;
             if (Driver != null && Driver.isPlayer && !GameState.Paused)
             {
                 throttle = Input.GetAxisRaw("Vertical");
                 steerIn = Input.GetAxisRaw("Horizontal");
                 brake = Input.GetKey(KeyCode.Space);
+                boost = Input.GetKey(KeyCode.LeftShift) && throttle > 0.1f;
+                if (Input.GetKeyDown(KeyCode.H) && hornT <= 0f)
+                {
+                    hornT = 0.5f;
+                    Ballistics.SoundAt(transform.position + transform.forward * bodyHalf.z, kind == Kind.Jeep || kind == Kind.Cart ? "horn_low" : "horn_high", 1f);
+                    NoiseEvents.Emit(transform.position, 120f);
+                }
             }
+            // Boost: spends the tank while held; once empty it must refill a quarter before it works again.
+            if (boostLocked && Boost > 0.25f) boostLocked = false;
+            Boosting = boost && !boostLocked && Boost > 0f && !airborne;
+            if (Boosting)
+            {
+                Boost = Mathf.Max(0f, Boost - dt / 4f);
+                if (Boost <= 0f) boostLocked = true;
+            }
+            else Boost = Mathf.Min(1f, Boost + dt / 9f);
             if (Driver == null && Mathf.Abs(Speed) < 0.05f && !airborne) { engine.volume = 0f; return; }
             if (Driver != null && !Driver.Alive) Exit();
             Drive(throttle, steerIn, brake, dt);
 
             // Engine note and the noise bots hear.
             float s = Mathf.Abs(Speed) / maxSpeed;
-            engine.pitch = 0.75f + s * 1.1f + Mathf.Abs(throttle) * 0.1f;
+            engine.pitch = 0.75f + s * 1.1f + Mathf.Abs(throttle) * 0.1f + (Boosting ? 0.15f : 0f);
             engine.volume = Driver != null ? 0.35f + s * 0.45f : Mathf.MoveTowards(engine.volume, 0f, dt);
             noiseT -= dt;
             if (Driver != null && noiseT <= 0f)
@@ -243,12 +294,16 @@ namespace Jagti.Royale
         void Drive(float throttle, float steerIn, bool brake, float dt)
         {
             // Throttle, reverse, brakes and rolling resistance.
-            if (throttle > 0.1f) Speed = Speed < -0.2f ? Mathf.MoveTowards(Speed, 0f, 14f * dt) : Mathf.Min(maxSpeed, Speed + acceleration * throttle * dt * Mathf.Lerp(1f, 0.35f, Speed / maxSpeed));
+            float top = Boosting ? maxSpeed * 1.35f : maxSpeed;
+            float push = Boosting ? acceleration * 1.7f : acceleration;
+            if (throttle > 0.1f) Speed = Speed < -0.2f ? Mathf.MoveTowards(Speed, 0f, 14f * dt)
+                                     : Speed > top ? Mathf.MoveTowards(Speed, top, 3f * dt)
+                                     : Mathf.Min(top, Speed + push * throttle * dt * Mathf.Lerp(1f, 0.35f, Speed / top));
             else if (throttle < -0.1f) Speed = Speed > 0.3f ? Mathf.MoveTowards(Speed, 0f, 14f * dt) : Mathf.Max(-maxReverse, Speed - acceleration * 0.6f * dt);
             else Speed = Mathf.MoveTowards(Speed, 0f, (airborne ? 0.2f : 2.2f) * dt);
             if (brake && !airborne) Speed = Mathf.MoveTowards(Speed, 0f, 16f * dt);
 
-            float grip = Mathf.Lerp(1f, 0.38f, Mathf.Abs(Speed) / maxSpeed);
+            float grip = Mathf.Lerp(1f, 0.38f, Mathf.Clamp01(Mathf.Abs(Speed) / maxSpeed));
             steer = Mathf.MoveTowards(steer, steerIn * maxSteer * grip, 140f * dt);
 
             float step = Speed * dt;
@@ -317,6 +372,12 @@ namespace Jagti.Royale
             {
                 // Lean into the turn with speed.
                 lean = Mathf.MoveTowards(lean, -steer / maxSteer * Mathf.Clamp01(Mathf.Abs(Speed) / 9f) * 24f, 90f * dt);
+                roll += lean;
+            }
+            else if (kind == Kind.Auto)
+            {
+                // Three wheels: the body rolls out of a fast turn (and the inside wheel lifts a little).
+                lean = Mathf.MoveTowards(lean, steer / maxSteer * Mathf.Clamp01((Mathf.Abs(Speed) - 6f) / 8f) * 9f, 60f * dt);
                 roll += lean;
             }
             var target = Quaternion.Euler(pitch, yaw, roll);

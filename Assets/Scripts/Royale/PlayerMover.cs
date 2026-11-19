@@ -268,7 +268,7 @@ namespace Jagti.Royale
             if (fpc.Crouching) fpc.SetCrouch(false);
             controller.enabled = false;
             fpc.externalControl = true;
-            fpc.thirdPersonDistance = v.kind == Vehicle.Kind.Scooter ? 4.6f : 6f;
+            fpc.thirdPersonDistance = v.kind == Vehicle.Kind.Scooter ? 4.6f : v.kind == Vehicle.Kind.Jeep ? 7f : 6f;
             fpc.cameraIgnore = v.transform;
             transform.SetParent(v.Seat, false);
             transform.localPosition = Vector3.zero;
@@ -293,7 +293,7 @@ namespace Jagti.Royale
                 body.footTargetL = Riding.transform.TransformPoint(new Vector3(-f.x + Riding.seatLocal.x, f.y, f.z));
                 body.footTargetR = Riding.transform.TransformPoint(new Vector3(f.x + Riding.seatLocal.x, f.y, f.z));
             }
-            Prompt = "[E] get off      W/S throttle   A/D steer   Space brake";
+            Prompt = "[E] get off      W/S throttle   A/D steer   Space brake   Shift boost   H horn";
             if (Input.GetKeyDown(KeyCode.E) && Mathf.Abs(Riding.Speed) < 9f) GetOff();
         }
 

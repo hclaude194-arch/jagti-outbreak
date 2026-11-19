@@ -11,8 +11,9 @@ namespace Jagti.Royale
     public static class LootVisuals
     {
         // Palette slots (LootDirector.palette holds a material for each, in this order).
-        public const int Metal = 0, Black = 1, Wood = 2, Olive = 3, Red = 4, White = 5, Brass = 6, Khaki = 7, Blue = 8;
-        public const int PaletteSize = 9;
+        public const int Metal = 0, Black = 1, Wood = 2, Olive = 3, Red = 4, White = 5, Brass = 6, Khaki = 7, Blue = 8,
+                         Yellow = 9, Green = 10;
+        public const int PaletteSize = 11;
 
         public class Model
         {

@@ -23,9 +23,10 @@ OUT = pb.OUT
 SRC = os.path.join(ROOT, "Assets", "Scripts", "Royale")
 V, UP = pb.V, pb.UP
 
-METAL, BLACK, WOOD, OLIVE, RED, WHITE, BRASS, KHAKI, BLUE = range(9)
+METAL, BLACK, WOOD, OLIVE, RED, WHITE, BRASS, KHAKI, BLUE, YELLOW, GREEN = range(11)
 COLOURS = {METAL: (0.32, 0.33, 0.35), BLACK: (0.05, 0.05, 0.055), WOOD: (0.55, 0.36, 0.2), OLIVE: (0.3, 0.34, 0.2),
-           RED: (0.75, 0.1, 0.1), WHITE: (0.9, 0.9, 0.88), BRASS: (0.75, 0.6, 0.25), KHAKI: (0.6, 0.53, 0.36), BLUE: (0.15, 0.25, 0.5)}
+           RED: (0.75, 0.1, 0.1), WHITE: (0.9, 0.9, 0.88), BRASS: (0.75, 0.6, 0.25), KHAKI: (0.6, 0.53, 0.36), BLUE: (0.15, 0.25, 0.5),
+           YELLOW: (0.95, 0.75, 0.12), GREEN: (0.12, 0.42, 0.2)}
 
 
 # ---------------------------------------------------------------- C# shims
@@ -256,7 +257,7 @@ def run_vehicle(src, fn, root, paint):
     env[fn](root, None, paint)
 
 
-def build_vehicles(at, kind, paint):
+def build_vehicles(at, kind, paint, yaw=None):
     src = open(os.path.join(SRC, "VehicleModels.cs")).read()
     consts = re.search(r"const int (Metal.+?);", src, re.S).group(1)
     for c in split_top(consts):
@@ -266,7 +267,7 @@ def build_vehicles(at, kind, paint):
     exec(wcode, globals())
     root = Xf()
     root.t.lp = np.asarray(at, float)
-    root.t.lr = pb.ry(-35 if kind == "Scooter" else 35)
+    root.t.lr = pb.ry(yaw if yaw is not None else (-35 if kind == "Scooter" else 35))
     run_vehicle(src, kind, root, paint)
 
 
@@ -316,11 +317,20 @@ def emit():
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
-    build_vehicles((-1.2, 0, 0), "Scooter", RED)
-    build_vehicles((1.4, 0, 0.2), "Cart", OLIVE)
-    build_vehicles((-3.2, 0, 1.5), "Scooter", BLUE)
+    fleet = "--fleet" in sys.argv
+    if fleet:
+        # All four kinds side by side, turned a little towards the camera.
+        build_vehicles((-5.2, 0, 0), "Scooter", RED, -150)
+        build_vehicles((-2.4, 0, 0), "Auto", GREEN, -150)
+        build_vehicles((1.0, 0, 0), "Cart", KHAKI, -150)
+        build_vehicles((5.0, 0, 0), "Jeep", OLIVE, -150)
+    else:
+        build_vehicles((-1.2, 0, 0), "Scooter", RED)
+        build_vehicles((1.4, 0, 0.2), "Cart", OLIVE)
+        build_vehicles((-3.2, 0, 1.5), "Scooter", BLUE)
     n0 = len(PARTS)
-    build_zip((7.5, 3.0, 6.0), (2.0, 0.0, 30.0))
+    if not fleet:
+        build_zip((7.5, 3.0, 6.0), (2.0, 0.0, 30.0))
     for kit, _ in PARTS[n0:]:
         kit.zip = True
     emit()
@@ -331,7 +341,10 @@ def main():
     go = bpy.data.objects.new("ground", bm); sc.collection.objects.link(go)
     go.data.materials.append(pb.material("ground", (0.4, 0.38, 0.33)))
     hill = bpy.data.meshes.new("hill")
+
     hv = [(3, -3, 0), (12, -3, 0), (12, 3, 3.0), (3, 3, 3.0), (3, 9, 3.0), (12, 9, 3.0), (3, 14, 0), (12, 14, 0)]
+    if fleet:
+        hv = [(v[0] + 40, v[1] + 40, v[2]) for v in hv]   # out of the picture
     hill.from_pydata(hv, [], [(0, 1, 2, 3), (3, 2, 5, 4), (4, 5, 7, 6)])
     ho = bpy.data.objects.new("hill", hill); sc.collection.objects.link(ho)
     ho.data.materials.append(pb.material("hill", (0.33, 0.4, 0.24)))
@@ -344,6 +357,16 @@ def main():
     sc.render.engine = "CYCLES"; sc.cycles.samples = 48
     sc.render.resolution_x, sc.render.resolution_y = 1600, 900
     os.makedirs(OUT, exist_ok=True)
+    if fleet:
+        co.location = (0.2, -12.5, 3.8); co.rotation_euler = (math.radians(76), 0, math.radians(0)); cam.lens = 30
+        sc.render.filepath = os.path.join(OUT, "vehicles_fleet.png")
+        bpy.ops.render.render(write_still=True)
+        # Closer, from behind and to one side: the auto and the 4x4.
+        co.location = (9.5, 5.5, 2.6); co.rotation_euler = (math.radians(80), 0, math.radians(128)); cam.lens = 30
+        sc.render.filepath = os.path.join(OUT, "vehicles_close.png")
+        bpy.ops.render.render(write_still=True)
+        print("wrote", OUT)
+        return
     # Close view of the vehicles.
     co.location = (2.2, -6.2, 2.3); co.rotation_euler = (math.radians(73), 0, math.radians(14))
     sc.render.filepath = os.path.join(OUT, "vehicles.png")
