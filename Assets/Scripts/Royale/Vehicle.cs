@@ -681,6 +681,17 @@ namespace Jagti.Royale
                 if (h.collider.transform.IsChildOf(transform)) continue;
                 if (Driver != null && h.collider.transform.IsChildOf(Driver.transform)) continue;
                 if (h.collider is TerrainCollider || h.normal.y > 0.6f || h.distance <= 0f) continue;
+                if (Jagti.World.GlassPanes.IsGlass(h.collider))
+                {
+                    // Glass gives way to anything moving; at a crawl it just stops you.
+                    Jagti.World.GlassPanes pane;
+                    int paneIndex;
+                    if (Mathf.Abs(Speed) > 2f)
+                    {
+                        if (Jagti.World.GlassPanes.TryGet(h.collider, h.point, out pane, out paneIndex)) pane.Break(paneIndex, transform.forward * direction, true);
+                        continue;
+                    }
+                }
                 var victim = h.collider.GetComponentInParent<Combatant>();
                 if (victim != null)
                 {

@@ -159,7 +159,7 @@ for typ, shape, x, y, w, d in L.AREAS:
     else:
         cx, cz = L.to_world(x, y)
     group = "sports" if typ in ("track", "field") else ("academic" if typ == "courtyard" else "area-%d-%d" % (x, y))
-    pads.append((group, cx, cz, w / 2, d / 2, shape == "ellipse"))
+    pads.append((group, cx, cz, w / 2, d / 2, "pill" if shape == "pill" else shape == "ellipse"))
 
 highway = next(r for r in roads if r[0] == "Highway")[2]
 hw_x = np.array([p[0] for p in highway])
@@ -169,6 +169,11 @@ hw_x, hw_z = hw_x[order], hw_z[order]
 
 # ------------------------------------------------------------------ base shape
 def pad_distance(px, pz, cx, cz, hw, hd, ellipse):
+    if ellipse == "pill":
+        r = min(hw, hd)
+        ax = np.maximum(np.abs(px - cx) - (hw - r), 0.0)
+        az = np.maximum(np.abs(pz - cz) - (hd - r), 0.0)
+        return np.maximum(np.sqrt(ax * ax + az * az) - r, 0.0)
     if ellipse:
         nx, nz = (px - cx) / hw, (pz - cz) / hd
         r = np.sqrt(nx * nx + nz * nz)
@@ -685,7 +690,7 @@ for typ, shape, x, y, w, d in L.AREAS:
     else:
         cx, cz = L.to_world(x, y)
     rows, cols = window(cx, cz, max(w, d) / 2 + 4)
-    dd = pad_distance(X[rows, cols], Z[rows, cols], cx, cz, w / 2, d / 2, shape == "ellipse")
+    dd = pad_distance(X[rows, cols], Z[rows, cols], cx, cz, w / 2, d / 2, "pill" if shape == "pill" else shape == "ellipse")
     lawn_mask[rows, cols] = np.maximum(lawn_mask[rows, cols], 1.0 - smoothstep(0.0, 2.0, dd))
 inside = sd < 0
 farm_zone = farm_mask > 0.6

@@ -16,7 +16,7 @@ namespace Jagti.EditorTools
     /// hilltop terrain with painted ground, grass and trees (CampusTerrainBuilder),
     /// roads following the ground, sports areas, every building as a grey block at its
     /// real footprint and storey count, the boundary wall, floating name labels,
-    /// sky, sun, fog, a zombie navigation mesh, and a first-person player.
+    /// sky, sun, fog and post-processing (AtmosphereBuilder), a zombie navigation mesh, and a first-person player.
     /// Menu: Jagti > Build Campus.
     /// </summary>
     public static class CampusGreyboxBuilder
@@ -166,7 +166,7 @@ namespace Jagti.EditorTools
             var labelRoot = Child(root.transform, "Labels");
             foreach (var place in layout.places) MakeLabel(place, labelRoot);
 
-            MakeLighting();
+            MakeLighting(root.transform);
 
             // Bake before the player and crates exist so they do not punch holes in the NavMesh.
             Progress("Zombie navigation mesh (this can take a minute)", 0.7f);
@@ -192,6 +192,7 @@ namespace Jagti.EditorTools
             EditorSceneManager.SaveScene(scene, ScenePath);
             AddToBuildSettings(ScenePath);
             EditorPrefs.SetInt(BuiltVersionKey, layout.version);
+            EditorPrefs.SetInt(AtmosphereBuilder.BuiltLookKey, AtmosphereBuilder.LookVersion);
             int trees = terrain != null ? terrain.terrainData.treeInstanceCount : 0;
             Debug.Log("[Jagti] Built campus: terrain, " + trees + " trees, " + layout.buildings.Length + " buildings, " + layout.roads.Length + " roads. Press Play to walk it.");
         }
@@ -252,6 +253,11 @@ namespace Jagti.EditorTools
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
 
+            if (a.shape == "pill")
+            {
+                MakePillArea(a, top, color, parent, materials);
+                return;
+            }
             bool ellipse = a.shape == "ellipse";
             var go = GameObject.CreatePrimitive(ellipse ? PrimitiveType.Cylinder : PrimitiveType.Cube);
             go.name = "Area - " + a.type;
@@ -264,6 +270,77 @@ namespace Jagti.EditorTools
                 ? new Vector3(a.width, h / 2f, a.depth)
                 : new Vector3(a.width, h, a.depth);
             if (a.type != "roundabout") Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
+            SetMaterial(go, materials.Get("Area_" + a.type, color));
+            MarkStatic(go);
+        }
+
+        /// <summary>A running track or its infield: a flat slab shaped like a pill (two straights
+        /// joined by half circles of radius min(width, depth) / 2), with a 0.5 m skirt down into the
+        /// ground. A decal like the other areas: no collider, the terrain carries the player.</summary>
+        static void MakePillArea(AreaData a, float top, Color color, Transform parent, MaterialLibrary materials)
+        {
+            const int seg = 24;
+            const float below = 0.5f;
+            float r = Mathf.Min(a.width, a.depth) / 2f;
+            float hx = a.width / 2f - r, hz = a.depth / 2f - r;
+            bool alongZ = hz > 0f;
+            var ring = new List<Vector2>();
+            for (int end = 0; end < 2; end++)
+            {
+                float ox = alongZ ? 0f : (end == 0 ? hx : -hx);
+                float oz = alongZ ? (end == 0 ? hz : -hz) : 0f;
+                float a0 = alongZ ? (end == 0 ? 0f : Mathf.PI) : (end == 0 ? -Mathf.PI / 2f : Mathf.PI / 2f);
+                for (int i = 0; i <= seg; i++)
+                {
+                    float t = a0 + Mathf.PI * i / seg;
+                    ring.Add(new Vector2(ox + r * Mathf.Cos(t), oz + r * Mathf.Sin(t)));
+                }
+            }
+            float y = Ground(a.x, a.z) + top;
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            var uvs = new List<Vector2>();
+            vertices.Add(new Vector3(0f, y, 0f));
+            uvs.Add(new Vector2(0.5f, 0.5f));
+            int n = ring.Count;
+            for (int i = 0; i < n; i++)
+            {
+                vertices.Add(new Vector3(ring[i].x, y, ring[i].y));
+                uvs.Add(new Vector2(ring[i].x / 4f, ring[i].y / 4f));
+            }
+            for (int i = 0; i < n; i++)
+            {
+                // Fan from the centre (the pill is convex); clockwise seen from above faces up.
+                triangles.Add(0);
+                triangles.Add(1 + (i + 1) % n);
+                triangles.Add(1 + i);
+            }
+            int skirt = vertices.Count;
+            for (int i = 0; i < n; i++)
+            {
+                vertices.Add(new Vector3(ring[i].x, y, ring[i].y));
+                vertices.Add(new Vector3(ring[i].x, y - top - below, ring[i].y));
+                uvs.Add(new Vector2(i * 0.25f, 1f));
+                uvs.Add(new Vector2(i * 0.25f, 0f));
+            }
+            for (int i = 0; i < n; i++)
+            {
+                int a0 = skirt + 2 * i, b0 = skirt + 2 * ((i + 1) % n);
+                triangles.Add(a0); triangles.Add(b0); triangles.Add(a0 + 1);
+                triangles.Add(b0); triangles.Add(b0 + 1); triangles.Add(a0 + 1);
+            }
+            var mesh = new Mesh();
+            mesh.name = "Area_" + a.type + "_Pill";
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject("Area - " + a.type);
+            go.transform.SetParent(parent);
+            go.transform.position = new Vector3(a.x, 0f, a.z);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>();
             SetMaterial(go, materials.Get("Area_" + a.type, color));
             MarkStatic(go);
         }
@@ -666,40 +743,13 @@ namespace Jagti.EditorTools
             go.AddComponent<Billboard>();
         }
 
-        static void MakeLighting()
+        static void MakeLighting(Transform root)
         {
             var sunObject = new GameObject("Sun");
             var sun = sunObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.intensity = 1.1f;
-            sun.color = new Color(1f, 0.95f, 0.85f);
-            sun.shadows = LightShadows.Soft;
-            sunObject.transform.rotation = Quaternion.Euler(42f, -30f, 0f);
-
-            RenderSettings.sun = sun;
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.62f, 0.66f, 0.72f);
-            RenderSettings.ambientEquatorColor = new Color(0.50f, 0.50f, 0.45f);
-            RenderSettings.ambientGroundColor = new Color(0.25f, 0.23f, 0.20f);
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 150f;
-            RenderSettings.fogEndDistance = 1100f; // far enough to see the ridges on the horizon
-            RenderSettings.fogColor = new Color(0.72f, 0.76f, 0.79f);
-
-            // Hazy Jammu sky; fog fades the far hills into its horizon colour.
-            var skyShader = Shader.Find("Skybox/Procedural");
-            if (skyShader != null)
-            {
-                var sky = new Material(skyShader) { name = "Jagti_Sky" };
-                sky.SetFloat("_SunSize", 0.04f);
-                sky.SetFloat("_AtmosphereThickness", 1.1f);
-                sky.SetColor("_SkyTint", new Color(0.52f, 0.56f, 0.62f));
-                sky.SetColor("_GroundColor", new Color(0.45f, 0.43f, 0.38f));
-                sky.SetFloat("_Exposure", 1.2f);
-                AssetDatabase.CreateAsset(sky, ProceduralAssets.Folder + "/Jagti_Sky.mat");
-                RenderSettings.skybox = sky;
-            }
+            // Sun, sky, fog, post-processing, wind and ambient particles: AtmosphereBuilder.
+            AtmosphereBuilder.Build(root, sun, terrain);
         }
 
         static void MakeNavMesh(CampusLayout layout)
@@ -740,21 +790,27 @@ namespace Jagti.EditorTools
             var player = new GameObject("Player");
             player.tag = "Player";
             var controller = player.AddComponent<CharacterController>();
-            controller.height = 1.8f;
-            controller.radius = 0.35f;
-            controller.center = new Vector3(0f, 0.9f, 0f);
-            controller.stepOffset = 0.35f;
+            // A slimmer capsule than before (0.35 m radius plus skin made the player 0.86 m wide, which
+            // jammed in the 1 m doorways): 0.28 m radius, a thin skin, and steps up to a kerb or a stair.
+            controller.height = 1.75f;
+            controller.radius = 0.28f;
+            controller.center = new Vector3(0f, 0.875f, 0f);
+            controller.stepOffset = 0.42f;
+            controller.skinWidth = 0.035f;
+            controller.slopeLimit = 50f;
+            controller.minMoveDistance = 0f;
 
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
             cameraObject.transform.SetParent(player.transform, false);
-            cameraObject.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+            cameraObject.transform.localPosition = new Vector3(0f, 1.58f, 0f);   // eye height of a ~1.7 m person
             var cam = cameraObject.AddComponent<Camera>();
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 1800f;
             cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
             cam.backgroundColor = RenderSettings.fogColor;
             cameraObject.AddComponent<AudioListener>();
+            AtmosphereBuilder.ConfigureCamera(cam);
 
             var flashlightObject = new GameObject("Flashlight");
             flashlightObject.transform.SetParent(cameraObject.transform, false);

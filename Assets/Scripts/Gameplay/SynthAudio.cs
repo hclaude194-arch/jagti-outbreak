@@ -107,6 +107,7 @@ namespace Jagti.Gameplay
                 case "horn_high": return Horn(name, 520f, 0.38f);
                 case "horn_low": return Horn(name, 330f, 0.5f);
                 case "stash_hum": return Shimmer(name);
+                case "glass_break": return GlassBreak(name);
                 case "vault": return Swing(name);
                 case "lift_hum": return Engine(name, 12f, 0.12f, 47);
                 case "lift_ding": return Tones(name, new[] { 1046f, 784f }, 0.32f);
@@ -380,6 +381,36 @@ namespace Jagti.Gameplay
                     v += Mathf.Sin(2f * Mathf.PI * notes[n] * l) * Mathf.Exp(-l / 0.25f) * 0.35f;
                 }
                 d[i] = v;
+            }
+            return Clip(name, d);
+        }
+
+        // A pane smashing: a sharp crack, a burst of bright noise, then shards tinkling down at
+        // scattered high pitches.
+        static AudioClip GlassBreak(string name)
+        {
+            var d = Buffer(1.2f);
+            var r = new System.Random(91);
+            int shards = 26;
+            var at = new float[shards];
+            var hz = new float[shards];
+            for (int k = 0; k < shards; k++)
+            {
+                at[k] = 0.02f + (float)r.NextDouble() * (float)r.NextDouble() * 0.9f;
+                hz[k] = 2400f + (float)r.NextDouble() * 5200f;
+            }
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float v = White(r) * (Mathf.Exp(-t / 0.006f) * 1.0f + Mathf.Exp(-t / 0.09f) * 0.35f);
+                for (int k = 0; k < shards; k++)
+                {
+                    if (t < at[k]) continue;
+                    float l = t - at[k];
+                    if (l > 0.12f) continue;
+                    v += Mathf.Sin(2f * Mathf.PI * hz[k] * l) * Mathf.Exp(-l / 0.025f) * 0.22f;
+                }
+                d[i] = v * 0.8f;
             }
             return Clip(name, d);
         }

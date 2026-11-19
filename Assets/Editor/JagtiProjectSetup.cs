@@ -38,6 +38,8 @@ namespace Jagti.EditorTools
             // Build the scene the first time, and again whenever the layout data is newer
             // than the scene this computer last built (for example after pulling a new phase).
             bool stale = EditorPrefs.GetInt(CampusGreyboxBuilder.BuiltVersionKey, 0) < CampusGreyboxBuilder.LayoutVersion();
+            // Also when the look pass (AtmosphereBuilder) changed since this computer's last build.
+            stale |= EditorPrefs.GetInt(AtmosphereBuilder.BuiltLookKey, 0) < AtmosphereBuilder.LookVersion;
             if (!File.Exists(CampusGreyboxBuilder.ScenePath) || stale)
             {
                 Debug.Log("[Jagti] Campus data changed; rebuilding the scene.");

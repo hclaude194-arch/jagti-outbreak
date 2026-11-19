@@ -1262,7 +1262,16 @@ namespace Jagti.EditorTools
                 for (int y = Mathf.Max(0, (int)a.y); y <= Mathf.Min(size - 1, (int)b.y); y++)
                     for (int x = Mathf.Max(0, (int)a.x); x <= Mathf.Min(size - 1, (int)b.x); x++)
                     {
-                        if (ellipse)
+                        if (area.shape == "pill")
+                        {
+                            // Running track: straights joined by half circles.
+                            float pcx = (a.x + b.x) / 2f, pcy = (a.y + b.y) / 2f;
+                            float phw = Mathf.Max(1f, (b.x - a.x) / 2f), phh = Mathf.Max(1f, (b.y - a.y) / 2f);
+                            float rr = Mathf.Min(phw, phh);
+                            float qx = Mathf.Max(0f, Mathf.Abs(x - pcx) - (phw - rr)), qy = Mathf.Max(0f, Mathf.Abs(y - pcy) - (phh - rr));
+                            if (qx * qx + qy * qy > rr * rr) continue;
+                        }
+                        else if (ellipse)
                         {
                             float ex = (x - (a.x + b.x) / 2f) / Mathf.Max(1f, (b.x - a.x) / 2f);
                             float ey = (y - (a.y + b.y) / 2f) / Mathf.Max(1f, (b.y - a.y) / 2f);

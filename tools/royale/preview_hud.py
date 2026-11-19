@@ -685,6 +685,7 @@ def settings_page(k, x, y, w):
     k.slider(x, y, w, "Mouse sensitivity", (2 - 0.3) / 7.7, "2.0"); y += row
     k.slider(x, y, w, "Field of view", (70 - 50) / 40, "70°"); y += row + 8
     heading(y, "SOUND AND SCREEN"); y += 30
+    k.choice(x, y, w, "Graphics", ["Low", "Medium", "High"], 1); y += row
     k.slider(x, y, w, "Volume", 0.85, "85%"); y += row
     k.slider(x, y, w, "HUD size", (1 - 0.75) / 0.55, "100%"); y += row
     k.choice(x, y, w, "Crosshair", ["White", "Green", "Yellow", "Cyan"], 0); y += row

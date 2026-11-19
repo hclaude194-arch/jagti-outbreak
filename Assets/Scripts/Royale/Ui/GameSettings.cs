@@ -1,10 +1,12 @@
+using Jagti.World;
 using UnityEngine;
 
 namespace Jagti.Royale
 {
     /// <summary>
     /// Player settings kept in PlayerPrefs: mouse sensitivity, field of view, volume, HUD scale,
-    /// crosshair colour, damage numbers, minimap size and the frame-time readout. The menus change
+    /// crosshair colour, damage numbers, minimap size, the frame-time readout and the graphics tier
+    /// (kept by VisualQuality, which applies it itself). The menus change
     /// them through the setters, which save at once and bump Version; RoyaleHud applies them to the
     /// walker, the camera and the audio listener whenever Version moves.
     /// </summary>
@@ -13,7 +15,7 @@ namespace Jagti.Royale
         const string Prefix = "Jagti.Settings.";
 
         static bool loaded;
-        static float sensitivity = 2f, fov = 60f, volume = 0.85f, hudScale = 1f;
+        static float sensitivity = 2f, fov = 70f, volume = 0.85f, hudScale = 1f;
         static int crosshair;
         static bool damageNumbers = true, showFps, bigMinimap;
 
@@ -88,6 +90,15 @@ namespace Jagti.Royale
         {
             get { Load(); return showFps; }
             set { Load(); if (value == showFps) return; showFps = value; PlayerPrefs.SetInt(Prefix + "ShowFps", value ? 1 : 0); Changed(); }
+        }
+
+        public static readonly string[] GraphicsNames = VisualQuality.Names;
+
+        /// <summary>Graphics quality: 0 Low, 1 Medium, 2 High.</summary>
+        public static int Graphics
+        {
+            get { return (int)VisualQuality.Current; }
+            set { value = Mathf.Clamp(value, 0, 2); if (value == (int)VisualQuality.Current) return; VisualQuality.Current = (VisualQuality.Level)value; Changed(); }
         }
 
         public static bool BigMinimap

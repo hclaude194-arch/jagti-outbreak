@@ -19,6 +19,10 @@ namespace Jagti.Player
         public float sprintSpeed = 8f;
         public float jumpHeight = 1.1f;
         public float gravity = -20f;
+        /// <summary>How fast walking speeds up and slows down on the ground (m/s²), and how much you can steer in the air.</summary>
+        public float groundAccel = 60f, groundDecel = 45f, airAccel = 10f;
+        /// <summary>A jump still works this long after running off an edge, and a press this early before landing counts.</summary>
+        public float coyoteTime = 0.12f, jumpBuffer = 0.15f;
 
         [Header("Look")]
         public float mouseSensitivity = 2f;
@@ -67,6 +71,10 @@ namespace Jagti.Player
 
         CharacterController controller;
         Vector3 velocity;
+        Vector3 planar;                 // horizontal velocity, eased towards what the keys ask for
+        float lastGroundedTime = -10f, jumpPressedAt = -10f;
+        bool wasGrounded;
+        float stepY;                    // camera height eased over steps and kerbs (metres, settles to 0)
         Vector3 spawnPoint;
         Vector3 pivotBase;
         float pitch;
@@ -118,6 +126,9 @@ namespace Jagti.Player
             {
                 IsSprinting = false;
                 HorizontalSpeed = 0f;
+                planar = Vector3.zero;
+                wasGrounded = false;
+                stepY = 0f;
                 UpdateCamera();
                 return;
             }
@@ -131,25 +142,61 @@ namespace Jagti.Player
             if (wantSprint && Crouching) SetCrouch(false);   // sprinting stands you up
             IsSprinting = wantSprint && !Crouching;
             float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale * wadeScale * (Crouching ? 0.48f : 1f);
-            Vector3 move = transform.TransformDirection(input) * speed;
+            float dt = Time.deltaTime;
 
-            if (controller.isGrounded)
+            // Speed builds and fades over a fraction of a second instead of snapping, so starts, stops
+            // and turns feel weighted; in the air you can only nudge the way you are flying.
+            bool grounded = controller.isGrounded;
+            if (grounded) lastGroundedTime = Time.time;
+            Vector3 wish = transform.TransformDirection(input) * speed;
+            float accel = grounded ? (wish.sqrMagnitude >= planar.sqrMagnitude ? groundAccel : groundDecel) : airAccel;
+            planar = Vector3.MoveTowards(planar, wish, accel * dt);
+
+            if (grounded && velocity.y < 0f) velocity.y = -2f;
+            if (Input.GetButtonDown("Jump")) jumpPressedAt = Time.time;
+            bool jumped = false;
+            if (Time.time - jumpPressedAt <= jumpBuffer && Time.time - lastGroundedTime <= coyoteTime && velocity.y <= 0.1f)
             {
-                if (velocity.y < 0f) velocity.y = -2f;
-                if (Input.GetButtonDown("Jump"))
+                jumpPressedAt = -10f;
+                if (jumpOverride != null && jumpOverride()) { }
+                else if (Crouching) SetCrouch(false);
+                else
                 {
-                    if (jumpOverride != null && jumpOverride()) { }
-                    else if (Crouching) SetCrouch(false);
-                    else velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                    velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+                    lastGroundedTime = -10f;
+                    jumped = true;
                 }
             }
-            velocity.y += gravity * Time.deltaTime;
+            if (!controller.enabled) { wasGrounded = false; UpdateCamera(); return; }   // a vault took over
+            velocity.y += gravity * dt;
 
             Vector3 before = transform.position;
-            controller.Move((move + Vector3.up * velocity.y) * Time.deltaTime);
+            var flags = controller.Move((planar + Vector3.up * velocity.y) * dt);
+            if ((flags & CollisionFlags.Above) != 0 && velocity.y > 0f) velocity.y = 0f;   // head on a ceiling
+
+            // Stay on the ground going down slopes and stairs instead of hopping off every step.
+            if (wasGrounded && !controller.isGrounded && !jumped && velocity.y <= 0f)
+            {
+                float snap = controller.stepOffset + 0.15f + planar.magnitude * dt;
+                Vector3 feet = transform.position + controller.center + Vector3.down * (controller.height * 0.5f - controller.radius);
+                RaycastHit g;
+                if (Physics.SphereCast(feet, controller.radius * 0.9f, Vector3.down, out g, snap + controller.skinWidth, ~0, QueryTriggerInteraction.Ignore)
+                    && !g.collider.transform.IsChildOf(transform) && g.normal.y > 0.6f)
+                    controller.Move(Vector3.down * (snap + controller.skinWidth));
+            }
+            wasGrounded = controller.isGrounded;
+
             Vector3 moved = transform.position - before;
+            float rise = moved.y;
             moved.y = 0f;
-            HorizontalSpeed = Time.deltaTime > 0f ? moved.magnitude / Time.deltaTime : 0f;
+            HorizontalSpeed = dt > 0f ? moved.magnitude / dt : 0f;
+            // Walking into a wall bleeds off the speed you were carrying into it.
+            if (dt > 0f && HorizontalSpeed < planar.magnitude * 0.5f) planar = Vector3.MoveTowards(planar, moved / dt, groundDecel * dt);
+
+            // Steps and kerbs lift the body at once; the eye follows smoothly.
+            // (Only real steps: a jump in height bigger than an ordinary slope would give this frame.)
+            if (wasGrounded && Mathf.Abs(rise) > 0.07f && Mathf.Abs(rise) > moved.magnitude * 0.9f && Mathf.Abs(rise) < 0.6f) stepY = Mathf.Clamp(stepY - rise, -0.5f, 0.5f);
+            stepY = Mathf.Lerp(stepY, 0f, 1f - Mathf.Exp(-14f * dt));
 
             if (flashlight != null && Input.GetKeyDown(KeyCode.F)) flashlight.enabled = !flashlight.enabled;
 
@@ -199,6 +246,7 @@ namespace Jagti.Player
             Vector3 jitter = shake > 0f ? Random.insideUnitSphere * shake * 0.08f : Vector3.zero;
             camDistance = Mathf.MoveTowards(camDistance, thirdPersonDistance, Time.deltaTime * 12f);
             Vector3 head = pivotBase - new Vector3(0f, crouchT * CrouchDrop, 0f);
+            if (!externalControl) head.y += stepY;
             Vector3 back = Vector3.zero;
             if (camDistance > 0.01f)
             {
@@ -264,6 +312,8 @@ namespace Jagti.Player
             transform.position = position;
             controller.enabled = true;
             velocity = Vector3.zero;
+            planar = Vector3.zero;
+            stepY = 0f;
         }
     }
 }

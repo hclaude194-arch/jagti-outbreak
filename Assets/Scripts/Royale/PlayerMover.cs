@@ -71,6 +71,26 @@ namespace Jagti.Royale
 
         bool Landed { get { return diver == null || diver.Current == SkyDiver.State.Landed; } }
 
+        /// <summary>
+        /// Running, jumping or falling into a window smashes it (walking into one doesn't), so you
+        /// can sprint out through the glass or drop out of an upper storey.
+        /// </summary>
+        void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            Jagti.World.GlassPanes pane;
+            int index;
+            if (!Jagti.World.GlassPanes.TryGet(hit.collider, hit.point, out pane, out index)) return;
+            Vector3 v = controller.velocity;
+            float flat = new Vector2(v.x, v.z).magnitude;
+            bool airborne = !controller.isGrounded;
+            if (flat > 3.2f || (airborne && flat > 1.2f) || v.y < -5f)
+            {
+                Vector3 dir = hit.moveDirection.sqrMagnitude > 1e-4f ? hit.moveDirection : transform.forward;
+                pane.Break(index, dir, true);
+                if (fpc != null) fpc.Shake(0.25f);
+            }
+        }
+
         void Update()
         {
             Prompt = null;
@@ -236,6 +256,14 @@ namespace Jagti.Royale
                 if (Physics.CheckCapsule(land + Vector3.up * 0.4f, land + Vector3.up * 1.0f, 0.3f, ~0, QueryTriggerInteraction.Ignore)) return false;
             }
 
+            // The path itself must be open: across the top and down to the landing spot. Without
+            // this, a sill or ledge in a facade (whose face the probes reach past) let the vault
+            // carry the player through the window glass or the wall into the building.
+            Vector3 lift = Vector3.up * 0.3f;
+            if (Blocked(feet + Vector3.up * (height + 0.3f), over + lift) || Blocked(over + lift, land + lift)
+                || Blocked(land + Vector3.up * 1.2f, over + Vector3.up * 0.9f))
+                return false;
+
             State = Mode.Vaulting;
             v0 = transform.position;
             v1 = over + fwd * 0.05f + Vector3.up * 0.25f;
@@ -253,6 +281,20 @@ namespace Jagti.Royale
         bool Mine(Collider c)
         {
             return c.transform.IsChildOf(transform);
+        }
+
+        /// <summary>True if anything solid (not the player's own colliders) lies between a and b.</summary>
+        bool Blocked(Vector3 a, Vector3 b)
+        {
+            Vector3 d = b - a;
+            float len = d.magnitude;
+            if (len < 1e-3f) return false;
+            // Both ways: walls and glass are single-sided meshes, and a ray only hits a face from its front.
+            foreach (var h in Physics.RaycastAll(a, d / len, len, ~0, QueryTriggerInteraction.Ignore))
+                if (!Mine(h.collider)) return true;
+            foreach (var h in Physics.RaycastAll(b, -d / len, len, ~0, QueryTriggerInteraction.Ignore))
+                if (!Mine(h.collider)) return true;
+            return false;
         }
 
         void Vault(float dt)
