@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 21
+VERSION = 25
 
 
 def to_world(x, y):
@@ -66,14 +66,17 @@ BUILDINGS = [
     ("Walled Residence", "central", 348, 926, 22, 20, 2, "box"),
     ("Walled Residence - Wing", "central", 366, 936, 10, 16, 1, "box"),
     # The mess area follows the institute's scale model (owner, 2026-11-18): dining block 5
-    # (Annapurna Mess), the shopping block 6 as a stepped L (blocks 2 and 3) and the medical
-    # block 7 (block 1) on a terrace about four storeys above the girls' hostels, and the
-    # professor residences 4 behind them on a terrace a little higher again: a front row of two
-    # stepped towers and a back row of three. The mess and the shopping and medical blocks keep
-    # the sizes their interiors were drawn for (INTERIOR_DESIGN in build_buildings.py).
+    # (Annapurna Mess), the shopping block 6 (Vipanan, below) and the medical block 7 (block 1)
+    # on a terrace above the girls' hostels, and the professor residences 4 behind them on a
+    # terrace a little higher again: a front row of two stepped towers and a back row of three.
+    # The mess and the medical block keep the sizes their interiors were drawn for
+    # (INTERIOR_DESIGN in build_buildings.py).
     ("Shopping & Medical 1 (ATM)", "central", 370, 1020, 16, 30, 3, "box"),
-    ("Shopping & Medical 2", "central", 370, 1074, 15, 22, 3, "box"),
-    ("Shopping & Medical 3", "central", 385, 1052, 15, 22, 3, "box"),
+    # Vipanan, the shopping arcade (owner's video and photo, 2026-11-19; satellite view): a
+    # single-storey L of narrow arms round a paved forecourt, the west arm's shops facing east and
+    # the north arm's facing south, a covered passage between the arms at the corner.
+    ("Vipanan - West Arm", "central", 370, 1055, 9, 37, 1, "box"),
+    ("Vipanan - North Arm", "central", 382, 1055, 20, 9, 1, "box"),
     ("Annapurna Mess", "central", 363, 1102, 29, 26, 2, "box"),
     ("Annapurna Mess - Kitchen", "central", 378, 1118, 30, 29, 2, "box"),
     ("Faculty Residence 1 - South", "central", 324, 1104, 15, 22, 6, "box"),
@@ -94,7 +97,7 @@ BUILDINGS = [
     ("Girls Hostel B - West Wing", "hostels", 462, 1078, 16, 40, 7, "box"),
     ("Girls Hostel B - North Wing", "hostels", 478, 1078, 43, 18, 7, "box"),
     ("Girls Hostel B - East Wing", "hostels", 521, 1078, 14, 40, 7, "box"),
-    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 30, 26, 7, "box"),
+    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 26, 26, 7, "box"),   # 4 m clear of Girls Hostel B (they touched, and a doorway opened into a B room)
     ("Girls Hostel A - West Wing", "hostels", 432, 1130, 14, 40, 7, "box"),
     ("Girls Hostel A - South Wing", "hostels", 432, 1170, 30, 28, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
@@ -194,6 +197,10 @@ ROADS = [
     # road to Annapurna Mess, per the satellite), and from the spine road to the sports complex lobby.
     ("Plaza Shops Walk", 4, [[405, 994], [405, 1099]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
+    # The split to the girls' hostel side (owner's photos, 2026-11-19): a lane of interlocking
+    # pavers leaves the spine road between Girls Hostel A and the courts and turns north
+    # between the hostel and the tennis courts.
+    ("Paved Girls Hostel Lane", 4.5, [[425, 1203.35], [470, 1203.35], [470, 1124]], False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 
@@ -225,6 +232,7 @@ AREAS = [
     ("courtyard", "box", 465, 678, 48, 74),
     ("lawn", "ellipse", 309.5, 1047, 17, 106),
     ("parking", "box", 379, 840, 20, 50),
+    ("plaza", "box", 383, 1068, 20, 24),   # Vipanan's paved forecourt, open to the spine road
     ("substation", "box", 247, 618, 30, 44),
     ("court", "box", 440, 1207, 26, 28),
     ("court", "box", 440, 1237, 26, 28),
@@ -251,7 +259,7 @@ PLACES = [
     ("Power Substation", 262, 640),
     ("Director's Residence", 359, 936),
     ("Medical Block", 378, 1035),
-    ("Shopping Block", 377, 1085),
+    ("Vipanan Shopping Arcade", 386, 1078),
     ("Annapurna Mess (Dining Block)", 386, 1124),
     ("Faculty Residences", 300, 1080),
     ("Girls' Hostels", 459, 1126),
@@ -296,7 +304,8 @@ POOLS = [
 ]
 # Trees planted in rows or spots that the scattered planting would miss
 # (kind: 0 broadleaf, 1 eucalyptus, 2 pine, 3 shrub; spacing m; offset east of the line m).
-TREE_ROWS = [(0, 7.5, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 7.5, -3.5, TERRACE_LINES[4])]
+# Sparse planted rows (the owner's photos show few trees on the campus, 2026-11-19).
+TREE_ROWS = [(0, 18.0, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 18.0, -3.5, TERRACE_LINES[4])]
 # Courtyard garden: open lawns now (owner's photo); its small palms are outdoor props.
 TREE_SPOTS = []
 

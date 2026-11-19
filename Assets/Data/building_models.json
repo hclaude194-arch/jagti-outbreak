@@ -124,6 +124,24 @@
    ]
   },
   {
+   "name": "Vipanan",
+   "fbx": "Assets/Models/Buildings/Vipanan.fbx",
+   "pivotX": -39.5,
+   "pivotZ": -77.5,
+   "boundsMin": [
+    -45.23,
+    -96.96
+   ],
+   "boundsMax": [
+    -11.04,
+    -57.77
+   ],
+   "replaces": [
+    "Vipanan - West Arm",
+    "Vipanan - North Arm"
+   ]
+  },
+  {
    "name": "Brahmaputra_Hostel",
    "fbx": "Assets/Models/Buildings/Brahmaputra_Hostel.fbx",
    "pivotX": -22.0,
@@ -183,7 +201,7 @@
   {
    "name": "Girls_Hostel_A",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_A.fbx",
-   "pivotX": 33.0,
+   "pivotX": 31.0,
    "pivotZ": -121.0,
    "boundsMin": [
     18.0,
@@ -233,40 +251,6 @@
    ],
    "replaces": [
     "Shopping & Medical 1 (ATM)"
-   ]
-  },
-  {
-   "name": "Shopping_Medical_2",
-   "fbx": "Assets/Models/Buildings/Shopping_Medical_2.fbx",
-   "pivotX": -36.5,
-   "pivotZ": -89.0,
-   "boundsMin": [
-    -44.0,
-    -100.0
-   ],
-   "boundsMax": [
-    -29.0,
-    -78.0
-   ],
-   "replaces": [
-    "Shopping & Medical 2"
-   ]
-  },
-  {
-   "name": "Shopping_Medical_3",
-   "fbx": "Assets/Models/Buildings/Shopping_Medical_3.fbx",
-   "pivotX": -21.5,
-   "pivotZ": -67.0,
-   "boundsMin": [
-    -29.0,
-    -78.0
-   ],
-   "boundsMax": [
-    -14.0,
-    -56.0
-   ],
-   "replaces": [
-    "Shopping & Medical 3"
    ]
   },
   {

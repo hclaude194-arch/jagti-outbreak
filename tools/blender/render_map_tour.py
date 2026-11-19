@@ -164,7 +164,7 @@ water = material("Water", (0.10, 0.22, 0.26), 0.05)
 for r in layout["roads"]:
     p = r["points"]
     pts = [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
-    mat = paving if r["width"] < 4 or "path" in r.get("name", "").lower() else asphalt
+    mat = paving if r["width"] < 4 or "path" in r.get("name", "").lower() or r.get("name", "").startswith("Paved") else asphalt
     strip("Road", pts, r["width"], 0.12, mat)
 for w in layout.get("water", []):
     p = w["points"]
@@ -175,7 +175,7 @@ for pool in layout.get("pools", []):
     bpy.context.active_object.data.materials.append(water)
 
 # Courts and plazas from the layout's areas.
-area_mats = {"court": material("Court", (0.36, 0.45, 0.55)), "plaza": paving, "field": material("Field", (0.22, 0.42, 0.18)),
+area_mats = {"court": material("Court", (0.24, 0.42, 0.33)), "plaza": paving, "field": material("Field", (0.22, 0.42, 0.18)),
              "track": material("Track", (0.55, 0.25, 0.18)), "parking": asphalt}
 for a in layout["areas"]:
     m = area_mats.get(a.get("type"))
@@ -289,12 +289,16 @@ def tree_proto(kind):
     bark = material("Bark", (0.22, 0.16, 0.11))
     leaf = material("Leaf%d" % kind, [(0.13, 0.25, 0.08), (0.10, 0.20, 0.09), (0.16, 0.26, 0.10), (0.20, 0.30, 0.10)][kind])
     bm = bmesh.new()
-    if kind in (1, 2):   # conifers: trunk and stacked cones
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=0.25, radius2=0.18, depth=3,
-                              matrix=__import__("mathutils").Matrix.Translation((0, 0, 1.5)))
-        for k, (r, z) in enumerate([(2.6, 3.5), (2.0, 5.5), (1.3, 7.3)]):
-            bmesh.ops.create_cone(bm, cap_ends=True, segments=8, radius1=r, radius2=0.1, depth=3.2,
-                                  matrix=__import__("mathutils").Matrix.Translation((0, 0, z)))
+    M = __import__("mathutils").Matrix
+    if kind in (1, 2):   # eucalyptus and chir pine (as ProceduralAssets.cs): tall trunk, crown high up
+        h = 12.0 if kind == 1 else 11.5
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=0.24, radius2=0.08, depth=h,
+                              matrix=M.Translation((0, 0, h / 2)))
+        clumps = ([(0, 0, 11.5, 1.9, 2.8), (0.8, -0.4, 9.2, 1.4, 1.6), (-0.7, 0.6, 8.4, 1.1, 1.3)] if kind == 1 else
+                  [(0, 0, 11.2, 1.7, 1.0), (1.3, 0.4, 9.6, 1.4, 0.75), (-1.1, -0.6, 8.8, 1.4, 0.7), (0.3, 1.2, 7.6, 1.1, 0.6)])
+        for dx, dy, dz, r, rz in clumps:
+            bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0,
+                                       matrix=M.Translation((dx, dy, dz)) @ M.Diagonal((r, r, rz, 1.0)))
     elif kind == 3:      # shrubs
         bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.2,
                                    matrix=__import__("mathutils").Matrix.Translation((0, 0, 0.8)))
@@ -310,7 +314,7 @@ def tree_proto(kind):
     me.materials.append(leaf)
     # Faces above the trunk get the leaf material.
     for p in me.polygons:
-        if p.center.z > (3.0 if kind != 3 else -1):
+        if p.center.z > ({1: 6.5, 2: 6.5}.get(kind, 3.0) if kind != 3 else -1):
             p.material_index = 1
         p.use_smooth = True
     ob = bpy.data.objects.new("TreeProto%d" % kind, me)
@@ -445,6 +449,16 @@ VIEWS = {
     "oval_loop": (-104, 12, 22, -106, -90, 0, 26),
     "spine_mess": (6, 6, 1.8, 2, -150, 1, 26),
     "mess_front_aerial": (60, -40, 40, -20, -120, 0, 26),
+    # Vipanan and the mess as in the owner's video and photo (2026-11-19).
+    "vipanan_forecourt": (-9, -97, 1.7, -36, -66, 2.5, 22),
+    "mess_from_forecourt": (-6, -84, 1.7, -36, -118, 4, 22),
+    "vipanan_aerial": (25, -128, 32, -30, -74, 0, 24),
+    # The owner's ground photos (2026-11-19): the lawn island in front of the mess, the road up
+    # to the mess from the hostels, the split to the girls' hostels and the courts below the hill.
+    "mess_island": (-4, -100, 1.7, -30, -112, 3, 24),
+    "road_up_to_mess": (9, -235, 1.7, 6, -150, 4, 26),
+    "girls_split": (5, -186, 2.5, 26, -214, 0, 28),
+    "courts_hill": (48, -250, 1.7, 0, -238, 6, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

@@ -416,11 +416,13 @@ def finish_plan(P, connectors):
         if P.ring and band.side in "NS":
             first_min = band.lo + P.dep["W"] + 1.3 if P.dep["W"] > 0 else None
             last_max = band.hi - P.dep["E"] - 1.3 if P.dep["E"] > 0 else None
-        # Fixed pieces inside the corner rooms are dropped (the corner room keeps the slot).
+        # Fixed pieces inside the corner rooms are dropped (the corner room keeps the slot), but
+        # not the entrance lobby: the outer doorway is there either way, and without its lobby it
+        # opened straight into a bedroom.
         if first_min is not None:
-            fixed = [f for f in fixed if f[0] >= first_min - 1e-6 or f[2] == "stair"]
+            fixed = [f for f in fixed if f[0] >= first_min - 1e-6 or f[2] in ("stair", "lobby")]
         if last_max is not None:
-            fixed = [f for f in fixed if f[1] <= last_max + 1e-6 or f[2] == "stair"]
+            fixed = [f for f in fixed if f[1] <= last_max + 1e-6 or f[2] in ("stair", "lobby")]
         band.segs = segments(band, sd.cuts, fixed, first_min, last_max)
         for s in band.segs:
             s.window = sd.has_window(s.a0, s.a1)

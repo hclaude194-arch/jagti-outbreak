@@ -54,7 +54,7 @@ namespace Jagti.World
     [Serializable]
     public class AreaData
     {
-        public string type;  // lawn, courtyard, parking, court, track, field, amphitheatre, roundabout, substation
+        public string type;  // lawn, courtyard, parking, plaza, court, track, field, amphitheatre, roundabout, substation
         public string shape; // "box" or "ellipse"
         public float x;
         public float z;

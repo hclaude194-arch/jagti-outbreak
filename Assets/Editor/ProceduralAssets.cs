@@ -280,7 +280,7 @@ namespace Jagti.EditorTools
             {
                 SaveTree("Tree_Broadleaf", BuildBroadleaf(), bark, leavesBroad, 0.25f, 3.5f),
                 SaveTree("Tree_Eucalyptus", BuildEucalyptus(), paleBark, leavesEuca, 0.2f, 10f),
-                SaveTree("Tree_Pine", BuildPine(), bark, leavesPine, 0.22f, 8f),
+                SaveTree("Tree_Pine", BuildPine(), bark, leavesPine, 0.22f, 11f),
                 SaveTree("Tree_Shrub", BuildShrub(), bark, leavesShrub, 0f, 0f),
             };
         }
@@ -438,15 +438,16 @@ namespace Jagti.EditorTools
             return b.ToMesh("Eucalyptus");
         }
 
-        // Chir pine: stacked cones on a straight trunk, about 12 m.
+        // Chir pine as it grows on the hills here: a tall straight trunk bare for most of its
+        // height and an open, uneven crown of flat clumps near the top (not a cone), about 13 m.
         static Mesh BuildPine()
         {
             var b = new MeshBuilder(3);
-            b.Trunk(Vector3.zero, 0.24f, 0.07f, 10f);
-            b.Cone(new Vector3(0f, 3.4f, 0f), 2.5f, 3.6f);
-            b.Cone(new Vector3(0f, 5.4f, 0f), 2.1f, 3.4f);
-            b.Cone(new Vector3(0f, 7.3f, 0f), 1.6f, 3.2f);
-            b.Cone(new Vector3(0f, 9.1f, 0f), 1.0f, 2.9f);
+            b.Trunk(Vector3.zero, 0.24f, 0.08f, 11.5f);
+            b.Blob(new Vector3(0f, 11.2f, 0f), new Vector3(1.7f, 1.0f, 1.6f), 0.25f, 5, 8);
+            b.Blob(new Vector3(1.3f, 9.6f, 0.4f), new Vector3(1.5f, 0.75f, 1.2f), 0.25f, 4, 7);
+            b.Blob(new Vector3(-1.1f, 8.8f, -0.6f), new Vector3(1.4f, 0.7f, 1.3f), 0.25f, 4, 7);
+            b.Blob(new Vector3(0.3f, 7.6f, 1.2f), new Vector3(1.1f, 0.6f, 1.0f), 0.25f, 4, 7);
             return b.ToMesh("Pine");
         }
 

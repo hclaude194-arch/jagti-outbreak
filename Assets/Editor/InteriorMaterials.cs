@@ -53,6 +53,11 @@ namespace Jagti.EditorTools
             mats["Net"] = Cutout("Int_Net", NetMesh());
             mats["Lamp_Glow"] = Emissive("Int_Lamp_Glow", new Color(1f, 0.9f, 0.72f), 2.2f);
             mats["Paint_Yellow"] = Lit("Int_Paint_Yellow", Noise("Tex_Paint_Yellow", new Color(0.90f, 0.70f, 0.10f), 0.06f, 102, 6), 0.5f);
+            // Street planting and banners (owner's photos, 2026-11-19).
+            mats["Flag_Pink"] = Lit("Int_Flag_Pink", Weave("Tex_Flag_Pink", new Color(0.86f, 0.22f, 0.58f), 0.06f, 103, 128), 0.2f);
+            mats["Flag_Purple"] = Lit("Int_Flag_Purple", Weave("Tex_Flag_Purple", new Color(0.52f, 0.30f, 0.78f), 0.06f, 104, 128), 0.2f);
+            mats["Shrub_Red"] = Lit("Int_Shrub_Red", Noise("Tex_Shrub_Red", new Color(0.48f, 0.20f, 0.13f), 0.4f, 105, 16), 0.25f);
+            mats["Rubble_Stone"] = Lit("Int_Rubble_Stone", Noise("Tex_Rubble_Stone", new Color(0.55f, 0.52f, 0.46f), 0.35f, 106, 10), 0.15f);
         }
 
         // ------------------------------------------------------------------ material helpers

@@ -150,7 +150,7 @@ for name, zone, x, y, w, d, floors, shape in L.BUILDINGS:
     else:
         group = name.split(" - ")[0]
     pads.append((group, cx, cz, w / 2, d / 2, False))
-FLAT_AREAS = {"parking", "court", "track", "field", "amphitheatre", "substation", "courtyard"}
+FLAT_AREAS = {"parking", "plaza", "court", "track", "field", "amphitheatre", "substation", "courtyard"}
 for typ, shape, x, y, w, d in L.AREAS:
     if typ not in FLAT_AREAS:
         continue
@@ -759,6 +759,15 @@ def road_dist_at(x, z):
     return float(road_dist[i, j])
 
 
+def sd_at(x, z):
+    """Signed distance to the campus wall (negative inside) at a point."""
+    i = int(round((z - MIN_Z) / CELL))
+    j = int(round((x - MIN_X) / CELL))
+    if not (0 <= i < RES and 0 <= j < RES):
+        return 1e9
+    return float(sd[i, j])
+
+
 def clear_at(x, z, gap):
     """True when the point is clear of roads (plus gap), plots and hard areas."""
     i = int(round((z - MIN_Z) / CELL))
@@ -768,11 +777,11 @@ def clear_at(x, z, gap):
     return road_dist[i, j] > gap and pad_mask[i, j] < 0.05
 
 
-# Avenue trees along the main campus roads.
+# Avenue trees along campus roads. The owner's photos and video (2026-11-19) show few trees on
+# the campus: its roads are lined with kerbed beds of shrubs and young palms (outdoor props in
+# build_outdoor.py), not tree avenues. Only the gate approach keeps a short eucalyptus row.
 AVENUES = {
-    "Spine Road North": (EUCA, 13), "Spine Road South": (EUCA, 13), "Academic Ring": (BROAD, 15), "Academic West Drive": (BROAD, 15),
-    "Central East-West Road": (BROAD, 14), "Serpentine Drive": (BROAD, 16), "Gate Approach": (EUCA, 10),
-    "Southern East-West Road": (BROAD, 15), "Track Road": (EUCA, 16), "Oval Loop": (BROAD, 14),
+    "Gate Approach": (EUCA, 14),
 }
 for name, width, pts in roads:
     if name not in AVENUES:
@@ -794,6 +803,32 @@ for name, width, pts in roads:
             if clear_at(tx, tz, 2.5) and rng.random() < 0.9:
                 trees.append((tx + rng.normal(0, 0.4), tz + rng.normal(0, 0.4), kind, rng.uniform(0.85, 1.2)))
 
+# Verge planting (owner's photos, 2026-11-19): low clipped bushes in the kerbed strips along
+# both sides of the campus roads, and a belt of broadleaf trees on the hill side of the spine
+# road between the mess and the hostels further south.
+VERGE_SKIP = ("Highway", "Courtyard", "Plaza", "Paved", "Clock")
+for name, width, pts in roads:
+    if name.startswith(VERGE_SKIP) or width < 4.5:
+        continue
+    p = np.array(densify(pts, 1.0))
+    along = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))])
+    for s_ in np.arange(2.0, along[-1], 3.2):
+        x = np.interp(s_, along, p[:, 0])
+        z = np.interp(s_, along, p[:, 1])
+        k = min(np.searchsorted(along, s_), len(p) - 1)
+        d = p[k] - p[max(k - 1, 0)] if k > 0 else p[1] - p[0]
+        d = d / max(np.hypot(*d), 1e-6)
+        for side in (-1, 1):
+            tx, tz = x - d[1] * (width / 2 + 1.3) * side, z + d[0] * (width / 2 + 1.3) * side
+            if sd_at(tx, tz) < 0 and clear_at(tx, tz, 0.8) and rng.random() < 0.75:
+                trees.append((tx, tz, SHRUB, float(rng.uniform(0.45, 0.7))))
+spine_s = next(pts for name, width, pts in roads if name == "Spine Road South")
+for z in np.arange(-150.0, -545.0, -5.5):
+    for off in (9.0, 14.0, 19.0):
+        tx, tz = spine_s[0][0] - off + rng.normal(0, 1.2), z + rng.normal(0, 1.5)
+        if clear_at(tx, tz, 3.0) and rng.random() < 0.8:
+            trees.append((tx, tz, BROAD if rng.random() < 0.75 else EUCA, float(rng.uniform(0.7, 1.1))))
+
 # Scattered trees: sparse inside the campus, dense scrub forest in the ravines.
 step = 5.0
 gxs = np.arange(MIN_X + step / 2, MIN_X + SIZE, step)
@@ -804,7 +839,9 @@ JZ = GZ + rng.uniform(-step / 2, step / 2, GZ.shape)
 fi = np.clip(((JZ - MIN_Z) / CELL).round().astype(int), 0, RES - 1)
 fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
 o = outside[fi, fj]
-density = np.where(sd[fi, fj] < 0, 0.035 + 0.32 * hill_mask[fi, fj],
+# Inside the campus only a sprinkle of trees and bushes, and the pine wood on the hill by the
+# courts (owner's photos, 2026-11-19); outside, scrub forest in the ravines.
+density = np.where(sd[fi, fj] < 0, 0.006 + 0.32 * hill_mask[fi, fj],
                    (0.30 - 0.22 * smoothstep(200, 650, o)) * (1 - smoothstep(650, 900, o)) * smoothstep(3, 15, o))
 density *= 0.5 + 0.8 * np.clip(0.5 - n_patch[fi, fj], 0, 1)   # clumps
 density *= 1 - farm_mask[fi, fj] * 0.92                        # few trees in fields
@@ -818,11 +855,11 @@ for x, z, i, j in zip(JX[keep], JZ[keep], fi[keep], fj[keep]):
     if sd[i, j] < 0 and hill_mask[i, j] > 0.3:
         kind = PINE if r < 0.6 else (BROAD if r < 0.8 else SHRUB)  # pine wood on the hill by the courts
     elif sd[i, j] < 0:
-        kind = BROAD if r < 0.55 else (SHRUB if r < 0.8 else EUCA)
+        kind = SHRUB if r < 0.6 else BROAD
     elif slope[i, j] > 18:
-        kind = PINE if r < 0.45 else (SHRUB if r < 0.8 else BROAD)
+        kind = SHRUB if r < 0.55 else (BROAD if r < 0.9 else PINE)
     else:
-        kind = BROAD if r < 0.4 else (SHRUB if r < 0.75 else (PINE if r < 0.88 else EUCA))
+        kind = BROAD if r < 0.45 else (SHRUB if r < 0.85 else EUCA)
     trees.append((float(x), float(z), kind, float(rng.uniform(0.75, 1.3))))
 
 # Planted rows on the water terraces and trees in the courtyard garden beds.

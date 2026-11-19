@@ -843,6 +843,7 @@ namespace Jagti.EditorTools
                     case "court": col = new Color(0.55f, 0.4f, 0.3f); break;
                     case "track": col = new Color(0.62f, 0.32f, 0.24f); break;
                     case "parking": col = new Color(0.5f, 0.5f, 0.49f); break;
+                    case "plaza": col = new Color(0.72f, 0.70f, 0.66f); break;
                     default: col = new Color(0.66f, 0.64f, 0.58f); break;
                 }
                 Vector2 a = P(area.x - area.width / 2f, area.z - area.depth / 2f), b = P(area.x + area.width / 2f, area.z + area.depth / 2f);

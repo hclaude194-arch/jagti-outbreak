@@ -242,7 +242,8 @@ namespace Jagti.EditorTools
             switch (a.type)
             {
                 case "parking": color = new Color(0.42f, 0.42f, 0.41f); top = RoadTop; break;
-                case "court": color = new Color(0.30f, 0.42f, 0.48f); top = RoadTop; break;
+                case "plaza": color = new Color(0.76f, 0.74f, 0.70f); top = RoadTop; break;   // pale concrete forecourt
+                case "court": color = new Color(0.26f, 0.43f, 0.36f); top = RoadTop; break;   // green hard courts (owner's photo)
                 case "track": color = new Color(0.62f, 0.30f, 0.22f); top = RoadTop; break;
                 case "field": color = new Color(0.32f, 0.50f, 0.20f); top = FieldTop; break;
                 case "amphitheatre": color = new Color(0.82f, 0.77f, 0.68f); break;
@@ -354,7 +355,7 @@ namespace Jagti.EditorTools
         // Cream stone paving on the academic ring drive, the plazas and the garden paths, as on the campus model.
         static bool IsPaved(string name)
         {
-            return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ") || name.StartsWith("Plaza ");
+            return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ") || name.StartsWith("Plaza ") || name.StartsWith("Paved ");
         }
 
         // Grey asphalt elsewhere (campus model); two-lane roads (6 m and wider) get a dashed white centre line.

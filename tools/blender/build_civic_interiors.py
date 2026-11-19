@@ -2,23 +2,24 @@
 """Phase 4D: walk-in shopping and medical blocks and the sports complex. Imported by
 build_interiors.py after the hostels (one shell and zone per building).
 
-Each building is a sandstone civic box (build_buildings.academic_facade) of three storeys:
-two floors of twin windows and the glass ribbon on top. Its plan is written out by hand here,
-room by room, in world coordinates; the outer walls copy the facade's openings, including the
-shop fronts and doorways listed in build_buildings.SHOP_UNITS and CIVIC_DOORS, so change the
-two files together.
+Each building is a civic box (build_buildings.academic_facade): the medical block and the
+sports complex have three storeys, two floors of twin windows and the glass ribbon on top; the
+two arms of Vipanan, the shopping arcade, are single storeys of shop units. Plans are written
+out by hand here, room by room, in world coordinates (Vipanan's units are laid out from their
+own shop fronts, UnitFrame); the outer walls copy the facade's openings, including the shop
+fronts and doorways listed in build_buildings.SHOP_UNITS, SHOP_SIDE and CIVIC_DOORS, so change
+the two files together.
 
     Shopping & Medical 1: the campus medical centre (waiting hall, consulting rooms, dressing
         room, a ward and an observation room upstairs, records and physiotherapy on top), a
         pharmacy and an ATM vestibule on the plaza front.
-    Shopping & Medical 2: stationery and photocopy shop, mobile repair counter and a general
-        store on the ground floor; a bank branch and a bookshop above.
-    Shopping & Medical 3: barber, fruit and juice bar and a cafe; laundry and tailor above, and a
-        computer and reading room on top.
+    Vipanan - West Arm: coffee house, bank ATM, dairy and juice counter, mobile repair, and
+        stationery and photocopy, facing east onto the forecourt.
+    Vipanan - North Arm: a bank, a department store and the post office, facing south.
     Sports Complex: a full-height hall with four badminton courts; a lobby, changing rooms,
         equipment store and first aid below a gym, and a games room and yoga room on top.
 
-Every building has one dog-leg stair (build_interiors.stair_geometry) in a back corner.
+Every building of more than one storey has a dog-leg stair (build_interiors.stair_geometry) in a back corner.
 Floors sit 0.6 m above each storey line, as everywhere else.
 """
 import math
@@ -63,7 +64,7 @@ def civic_openings(name):
                 if f == 0 and (side, i) in doors:
                     lv[0].append((a0 + 0.5, a1 - 0.5, FL, B.DOOR_TOP, True))
                     continue
-                if f == 0 and side == "E" and i in shops:
+                if f == 0 and side == B.shop_side(name) and i in shops:
                     d = shops[i]
                     lv[0].append((a0 + B.SHOP_INSET, a1 - B.SHOP_INSET, FL if d else B.SHOP_SILL, B.SHOP_TOP, d))
                     continue
@@ -118,6 +119,7 @@ class Civic:
         self.walls = []        # (A, B, level, doors [(world axis centre, width)], z1 or None)
         self.stair = None
         self.hall = None       # (rect, Space) of a full-height hall
+        self.top = self.bd["floors"] - 1   # top storey
 
     def space(self, name, kind, rect, levels, front, floor="Floor_Tile"):
         for k in levels:
@@ -184,66 +186,35 @@ def block1():
     return C
 
 
-def shop_block(name, model_name, label, ground):
-    """Shopping & Medical 2 and 3: three shop units on the ground floor (from SHOP_UNITS) and a
-    stair hall in the north-west corner with a back door. Returns the plan and the geometry
-    the upper floors are laid out on: (C, xs, zs)."""
+def vipanan_arm(name, model_name, label, kinds):
+    """One single-storey arm of Vipanan: its shop units side by side along the shop front
+    (B.SHOP_UNITS, B.SHOP_SIDE), each the full depth of the arm, split by partitions on the
+    bay lines. The back door (B.CIVIC_DOORS) opens from whichever unit it falls in."""
     C = Civic(name, model_name, label)
+    side = B.shop_side(name)
     x0, x1, z0, z1 = C.inner
-    _bays, bw, lo = B.side_bays(name, "E")
-    xs = x0 + ST_W + PART                       # east wall of the stair hall
-    zs = lo + 3 * bw                            # south wall of the stair hall (the west door's bay starts here)
-    C.stair = CStair((x0, z1), (0.0, 1.0), (1.0, 0.0), "NW")
-    C.space("Stair Hall", "stair", (x0, xs, zs, z1), ALL, "S")
-    C.wall((xs, zs), (xs, z1), ALL, [(zs + 2.4, 1.2)])
-    C.wall((x0, zs), (xs, zs), ALL)
+    _bays, bw, lo = B.side_bays(name, side)
+    a_lo, a_hi = (z0, z1) if side in "EW" else (x0, x1)
     units = B.SHOP_UNITS[name]
-    edges = [max(z0, lo + b0 * bw) for _n, b0, _b1, _d in units] + [z1]
-    for k, (unit, b0, b1, _d) in enumerate(units):
+    edges = [max(a_lo, lo + b0 * bw) for _n, b0, _b1, _d in units] + [a_hi]
+    for k, (unit, _b0, _b1, _d) in enumerate(units):
         a, b_ = edges[k], edges[k + 1]
-        kind = ground[unit]
-        if b_ <= zs + 1e-6:
-            C.space(unit, kind, (x0, x1, a, b_), [0], "E")
-        else:                                   # the unit wraps round the stair hall
-            C.space(unit, kind, (xs, x1, max(a, zs), b_), [0], "E")
-            if a < zs - 1e-6:
-                C.space(unit, kind + "_back", (x0, xs, a, zs), [0], "E")
+        rect = (x0, x1, a, b_) if side in "EW" else (a, b_, z0, z1)
+        C.space(unit, kinds[unit], rect, [0], side)
         if k > 0:
-            C.wall((xs if abs(a - zs) < 1e-6 else x0, a), (x1, a), [0])
-    return C, xs, zs
-
-
-def block2():
-    C, xs, zs = shop_block("Shopping & Medical 2", "Shopping_Medical_2", "Shopping Block 2",
-                           {"Stationery & Photocopy": "stationery", "Mobile Repair": "repair", "General Store": "store"})
-    x0, x1, z0, z1 = C.inner
-    zv = z0 + 5.0
-    # First floor: a bank branch, its strong room behind the stair hall.
-    C.space("Bank Branch", "bank", (xs, x1, z0, z1), [1], "E")
-    C.space("Bank Branch", "bank_back", (x0, xs, zv, zs), [1], "E")
-    C.space("Strong Room", "vault", (x0, xs, z0, zv), [1], "W")
-    C.wall((x0, zv), (xs, zv), [1], [((x0 + xs) / 2, DOOR_W)])
-    C.wall((xs, z0), (xs, zv), [1])
-    # Top floor: a bookshop.
-    C.space("Bookshop", "bookshop", (xs, x1, z0, z1), [2], "E", "Floor_Wood")
-    C.space("Bookshop", "bookshop_back", (x0, xs, z0, zs), [2], "E", "Floor_Wood")
+            C.wall(*(((x0, a), (x1, a)) if side in "EW" else ((a, z0), (a, z1))), [0])
     return C
 
 
-def block3():
-    C, xs, zs = shop_block("Shopping & Medical 3", "Shopping_Medical_3", "Shopping Block 3",
-                           {"Barber": "barber", "Fruit & Juice": "juice", "Cafe": "cafe"})
-    x0, x1, z0, z1 = C.inner
-    zt = z0 + 7.0
-    # First floor: the laundry (press and dry cleaning) and a tailor's shop.
-    C.space("Tailor", "tailor", (x0, x1, z0, zt), [1], "E")
-    C.space("Laundry", "laundry", (xs, x1, zt, z1), [1], "E")
-    C.space("Laundry", "laundry_back", (x0, xs, zt, zs), [1], "E")
-    C.wall((x0, zt), (x1, zt), [1], [(x1 - 2.2, 1.2)])
-    # Top floor: a computer and reading room.
-    C.space("Computer & Reading Room", "cyber", (xs, x1, z0, z1), [2], "E", "Floor_Wood")
-    C.space("Computer & Reading Room", "cyber_back", (x0, xs, z0, zs), [2], "E", "Floor_Wood")
-    return C
+def vipanan_west():
+    return vipanan_arm("Vipanan - West Arm", "Vipanan_West_Arm", "Vipanan West Arm",
+                       {"Coffee House": "cafe", "Bank ATM": "atm", "Dairy & Juice": "juice",
+                        "Mobile Repair": "repair", "Stationery & Photocopy": "stationery"})
+
+
+def vipanan_north():
+    return vipanan_arm("Vipanan - North Arm", "Vipanan_North_Arm", "Vipanan North Arm",
+                       {"Bank": "bank", "Department Store": "store", "Post Office": "post"})
 
 
 SC = BUILDINGS["Sports Complex"]
@@ -312,9 +283,9 @@ def outer_walls(m, C):
         rel = [(o[0] - base, o[1] - base, o[2], o[3], o[4]) for o in allops]
         for a0, a1, tall in outer_wall_spans(C, side, ax):
             if tall:
-                wall_with_windows(m, A, B_, n, rel, 0.35, MW, level_floor(0), level_ceil(TOP), a0 - base, a1 - base)
+                wall_with_windows(m, A, B_, n, rel, 0.35, MW, level_floor(0), level_ceil(C.top), a0 - base, a1 - base)
             else:
-                for k in range(TOP + 1):
+                for k in range(C.top + 1):
                     wall_with_windows(m, A, B_, n, rel, 0.35, MW, level_floor(k), level_ceil(k), a0 - base, a1 - base)
 
 
@@ -405,22 +376,23 @@ COURTS = []   # (X, Z) centres of the badminton courts
 def civic_shell(C):
     m = C.m
     st = C.stair
-    st_hole = st.hole()
+    st_holes = [st.hole()] if st is not None else []
     for sp in C.spaces:
         k = sp.level
         if sp.kind == "hall":
             hrect(m, *sp.rect, level_floor(0), sp.floor)
-            hrect(m, *sp.rect, level_ceil(TOP), "Ceiling", up=False)
+            hrect(m, *sp.rect, level_ceil(C.top), "Ceiling", up=False)
             continue
-        holes = [st_hole] if k > 0 else []
+        holes = st_holes if k > 0 else []
         hrect_cut(m, *sp.rect, level_floor(k), sp.floor, holes)
-        hrect_cut(m, *sp.rect, level_ceil(k), "Ceiling", [st_hole] if k < TOP else [], up=False)
+        hrect_cut(m, *sp.rect, level_ceil(k), "Ceiling", st_holes if k < C.top else [], up=False)
         if sp.kind in TILED:
             tile_skin(m, C, sp)
     outer_walls(m, C)
     for A, B_, k, doors in C.walls:
         partition(m, A, B_, level_floor(k), level_ceil(k), wall_doors_rel(A, B_, doors))
-    I.stair_geometry(m, [st], TOP, level_floor, level_ceil, side_walls=False)
+    if st is not None:
+        I.stair_geometry(m, [st], C.top, level_floor, level_ceil, side_walls=False)
     if C.hall is not None:
         hall_wall(m, C)
         hx0, hx1, hz0, hz1 = C.hall
@@ -1362,220 +1334,134 @@ def furnish_block1(C):
     lights((x0, xc, -23.0, -15.75), 2, per=40.0)
 
 
-def furnish_shop_ground(C):
-    """The three shop units of block 2 or 3."""
-    x0, x1, z0, z1 = C.inner
+class UnitFrame:
+    """A shop unit seen from its front: u runs along the shop front from the unit's low end
+    (south or west), v runs inwards from the front wall's inside face to the back wall."""
+
+    def __init__(self, rect, side):
+        X0, X1, Z0, Z1 = rect
+        self.side = side
+        self.n = DIRS[side]
+        if side == "E":
+            self.o, self.t, self.U, self.D = (X1, Z0), (0.0, 1.0), Z1 - Z0, X1 - X0
+        elif side == "S":
+            self.o, self.t, self.U, self.D = (X0, Z0), (1.0, 0.0), X1 - X0, Z1 - Z0
+        else:
+            raise ValueError("Vipanan units face east or south")
+
+    def w(self, u, v):
+        return (self.o[0] + self.t[0] * u - self.n[0] * v, self.o[1] + self.t[1] * u - self.n[1] * v)
+
+    def face(self, f):
+        """'out' towards the shop front, 'in' towards the back, '+u' or '-u' along the front."""
+        d = {"out": self.n, "in": (-self.n[0], -self.n[1]), "+u": self.t, "-u": (-self.t[0], -self.t[1])}[f]
+        return next(k for k, v in DIRS.items() if v == d)
+
+    def P(self, name, u, v, y, f="out"):
+        X, Z = self.w(u, v)
+        P(name, X, Z, y, self.face(f))
+
+
+def furnish_vipanan(C):
+    """The shop units of a Vipanan arm, each laid out from its own front (UnitFrame)."""
     y = FL
-    xs = x0 + ST_W + PART
     for sp in C.at(0):
-        X0, X1, Z0, Z1 = sp.rect
+        F = UnitFrame(sp.rect, sp.front)
+        U, D = F.U, F.D
+        bk = D - OO              # against the back wall
         k = sp.kind
-        if k == "stair":
-            P("Fire_Extinguisher", xs - WO, Z0 + 1.2, y, "W")
-            P("Tube_Light", (X0 + X1) / 2, Z0 + 1.6, level_ceil(0), "N")
-            lights(sp.rect, 0, per=40.0, intensity=0.8)
-            continue
-        if k.endswith("_back"):
-            continue
-        zm = (Z0 + Z1) / 2
-        if k == "stationery":
-            P("Checkout_Counter", x1 - 3.2, Z0 + 1.5, y, "E")
-            P("Chair_Office", x1 - 4.2, Z0 + 1.5, y, "E")
-            P("Photocopier", x1 - 5.4, Z0 + 0.6, y, "E")
-            P("Photocopier", x1 - 6.3, Z0 + 0.6, y, "E")
-            P("Desk_Computer", x1 - 5.8, Z1 - WO - 0.35, y, "S")
-            P("Chair_Office", x1 - 5.8, Z1 - WO - 1.0, y, "N")
-            for X in (X0 + 0.7, X0 + 1.9, X0 + 3.1, X0 + 4.3, X0 + 5.5):
-                P("Wall_Shelf", X, Z1 - WO, y, "S")
-            P("Shop_Gondola", X0 + 3.6, Z0 + 2.3, y, "N")
-            P("Storage_Rack", X0 + 0.3 + OO, Z0 + 1.0, y, "E")
-            P("Display_Panel", x1 - 0.9, Z1 - 0.8, y, "W")
-        elif k == "repair":
-            P("Checkout_Counter", x1 - 2.6, zm, y, "E")
-            P("Chair_Office", x1 - 3.6, zm, y, "E")
-            for X in (X0 + 0.7, X0 + 1.9, X0 + 3.1):
-                P("Wall_Shelf", X, Z1 - WO, y, "S")
-                P("Wall_Shelf", X, Z0 + WO, y, "N")
-            P("Desk_Computer", X0 + 5.4, Z1 - WO - 0.35, y, "S")
-            P("Chair_Office", X0 + 5.4, Z1 - WO - 1.0, y, "N")
-            P("Storage_Rack", X0 + 7.0, Z0 + WO, y, "N")
-            P("Display_Panel", x1 - 0.8, Z0 + 0.7, y, "W")
-        elif k == "store":
-            P("Checkout_Counter", x1 - 2.2, Z0 + 1.0, y, "N")
-            P("Chair_Office", x1 - 2.2, Z0 + 0.35, y, "N")
-            for X in (X0 + 2.2, X0 + 4.6, X0 + 7.0):
-                put("Shop_Gondola", X, zm + 1.0, y, yaw=90.0)
-            for Z in (Z0 + 3.4, Z0 + 4.6, Z0 + 5.8, Z0 + 7.0, Z0 + 8.2, Z0 + 9.4):
-                if Z < Z1 - 0.6:
-                    P("Wall_Shelf", X0 + WO, Z, y, "E")
-            for X in (X0 + 1.0, X0 + 2.2):
-                P("Wall_Shelf", X, Z0 + WO, y, "N")
-            P("Drinks_Cooler", X0 + 3.6, Z0 + WO, y, "N")
-            P("Drinks_Cooler", X0 + 4.4, Z0 + WO, y, "N")
-            P("Fridge", X0 + 5.3, Z0 + WO, y, "N")
-            P("Storage_Rack", X0 + 7.0, Z1 - OO, y, "S")
-            P("Plant_Pot", x1 - 0.5, Z1 - 0.5, y)
-        elif k == "barber":
-            for X in (X0 + 1.4, X0 + 3.0, X0 + 4.6):
-                P("Salon_Station", X, Z1 - WO, y, "S")
-                P("Barber_Chair", X, Z1 - 1.25, y, "N")
-            P("Bench", X0 + 3.0, Z0 + 0.6, y, "N")
-            P("Bench", X0 + 5.0, Z0 + 0.6, y, "N")
-            P("TV_Wall", X0 + 7.6, Z1 - WO, y, "S")
-            P("Wall_Clock", X0 + 9.0, Z1 - WO, y, "S")
-            P("Storage_Rack", X0 + 0.3 + OO, Z0 + 1.2, y, "E")
-            P("Plant_Pot", x1 - 0.5, Z1 - 0.5, y)
-            P("Dustbin", X0 + 6.2, Z1 - 0.4, y)
+        if k == "cafe":
+            F.P("Cafe_Counter", U / 2, D - 0.9, y, "out")
+            F.P("Drinks_Cooler", 0.5, bk, y, "out")
+            F.P("Fridge", U - 0.6, bk, y, "out")
+            F.P("Notice_Board", U / 2 + 2.2, bk, y, "out")
+            for u in (2.0, 4.7, 7.4, 10.1):
+                if u > U - 1.4:
+                    continue
+                for v in (1.9, 4.5):
+                    F.P("Table_Cafe", u, v, y)
+                    for du, dv, f in ((0.0, 0.6, "out"), (0.0, -0.6, "in"), (0.6, 0.0, "-u"), (-0.6, 0.0, "+u")):
+                        F.P("Chair_Cafe", u + du, v + dv, y, f)
+            F.P("Water_Cooler", WO + 0.3, D - 2.2, y, "+u")
+            F.P("Plant_Pot", 0.5, 0.5, y)
+            F.P("Plant_Pot", U - 0.5, 0.5, y)
+            F.P("Dustbin", U - 0.5, D - 2.0, y)
+        elif k == "atm":
+            F.P("ATM_Machine", U / 2 - 0.8, bk, y, "out")
+            F.P("ATM_Machine", U / 2 + 0.8, bk, y, "out")
+            F.P("Notice_Board", WO, D / 2, y, "+u")
+            F.P("Dustbin", U - 0.5, 0.6, y)
+            F.P("Plant_Pot", 0.5, 0.5, y)
         elif k == "juice":
-            P("Fruit_Stand", x1 - 2.2, Z0 + WO + 0.45, y, "N")
-            P("Fruit_Stand", x1 - 4.0, Z0 + WO + 0.45, y, "N")
-            P("Cafe_Counter", X0 + 5.6, Z1 - 0.65, y, "S")
-            P("Drinks_Cooler", X0 + OO, zm - 0.5, y, "E")
-            P("Fridge", X0 + OO, zm + 0.5, y, "E")
-            P("Dustbin", x1 - 0.5, Z1 - 0.4, y)
-        elif k == "cafe":
-            P("Cafe_Counter", X0 + 3.0, Z1 - 0.9, y, "S")
-            P("Drinks_Cooler", X0 + 0.5, Z1 - OO, y, "S")
-            P("Fridge", X0 + 5.6, Z1 - OO, y, "S")
-            P("Notice_Board", X0 + 3.0, Z1 - OO, y, "S")
-            for X in (X0 + 3.0, X0 + 5.6, X0 + 8.2):
-                for Z in (Z0 + 1.6, Z0 + 4.2):
-                    P("Table_Cafe", X, Z, y)
-                    for dx, dz, f in ((0.0, 0.6, "S"), (0.0, -0.6, "N"), (0.6, 0.0, "W"), (-0.6, 0.0, "E")):
-                        P("Chair_Cafe", X + dx, Z + dz, y, f)
-            P("Water_Cooler", X0 + WO + 0.3, Z0 + 0.6, y, "E")
-            P("Plant_Pot", x1 - 0.5, Z0 + 0.5, y)
-            P("Plant_Pot", x1 - 0.5, Z1 - 0.5, y)
-            P("Dustbin", X0 + 0.5, Z0 + 2.4, y)
-        panels((X0, X1, Z0, Z1), 0, 3.4, margin=0.9)
-        fans((X0, X1, Z0, Z1), 0, 4.2)
-        lights((X0, X1, Z0, Z1), 0, per=30.0, intensity=1.1)
-
-
-def furnish_block2_upper(C):
-    x0, x1, z0, z1 = C.inner
-    xs = x0 + ST_W + PART
-    _b, bw, lo = B.side_bays(C.name, "E")
-    zs = lo + 3 * bw
-    zv = z0 + 5.0
-    for k in UP:
-        y = level_floor(k)
-        P("Fire_Extinguisher", xs - WO, zs + 1.2, y, "W")
-        P("Tube_Light", (x0 + xs) / 2, zs + 1.6, level_ceil(k), "N")
-        lights((x0, xs, zs, z1), k, per=40.0, intensity=0.8)
-    y = level_floor(1)
-    # Bank: tellers' counters across the floor, customers to the north, staff to the south.
-    zc = -61.0
-    for X in (-72.6, -70.2, -67.8, -65.4):
-        P("Bank_Counter", X, zc, y, "N")
-        P("Chair_Office", X - 0.6, zc - 0.75, y, "N")
-    for X in (-73.6, -71.0, -68.4):
-        P("Desk_Computer", X, -64.8, y, "N")
-        P("Chair_Office", X, -65.5, y, "N")
-    for X in (-66.4, -65.6, -64.8):
-        P("Filing_Cabinet", X, z0 + OO + 0.3, y, "N")
-    P("Server_Rack", -67.6, z0 + 0.6, y, "N")
-    for Z in (-57.0, -54.4, -51.8):
-        P("Waiting_Chairs", -66.3, Z, y, "W")
-    P("Table_Coffee", -70.8, -52.8, y, "N")
-    P("Display_Panel", -71.0, -49.0, y, "S")
-    P("Water_Cooler", x1 - 0.4, z1 - 0.5, y, "W")
-    P("Plant_Pot", xs + 0.5, z1 - 0.5, y)
-    P("Wall_Clock", -69.0, z1 - OO, y, "S")
-    P("ATM_Machine", xs + WO, -50.0, y, "E")
-    for X in (-77.0, -75.9):
-        P("Storage_Rack", X, z0 + OO, y, "N")
-    P("Almirah", -75.0, zv - WO, y, "S")
-    P("Filing_Cabinet", x0 + 0.3, -61.5, y, "E")
-    P("Tube_Light", (x0 + xs) / 2, (z0 + zv) / 2, level_ceil(1), "N")
-    lights((x0, xs, z0, zv), 1, per=40.0, color=COOL, intensity=0.7)
-    panels((xs, x1, z0, z1), 1, 3.4)
-    lights((xs, x1, z0, z1), 1, per=30.0, color=COOL)
-    lights((x0, xs, zv, zs), 1, per=40.0, color=COOL)
-    y = level_floor(2)
-    # Bookshop: shelves round the walls, stacks down the floor, a reading corner.
-    for Z in (-66.5, -64.0, -61.5):
-        P("Library_Stack", -70.0, Z, y, "N")
-    for X in (-73.5, -72.4, -71.3, -70.2, -69.1, -68.0):
-        P("Bookshelf", X, z0 + OO, y, "N")
-    for Z in (-55.5, -54.4, -53.3, -52.2, -51.1, -50.0, -48.9):
-        P("Bookshelf", xs + WO, Z, y, "E")
-    P("Checkout_Counter", -66.0, -57.4, y, "N")
-    P("Chair_Office", -66.0, -58.1, y, "N")
-    P("Table_Round", -67.0, -50.6, y)
-    for dx, dz, f in ((0.0, 0.85, "S"), (0.0, -0.85, "N"), (0.85, 0.0, "W"), (-0.85, 0.0, "E")):
-        P("Chair_Cafe", -67.0 + dx, -50.6 + dz, y, f)
-    P("Sofa_3", -71.0, z1 - 0.55, y, "S")
-    P("Table_Coffee", -71.0, z1 - 1.6, y, "N")
-    P("Plant_Pot", x1 - 0.5, z1 - 0.5, y)
-    for X in (-77.0, -75.9):
-        P("Bookshelf", X, z0 + OO, y, "N")
-    P("Storage_Rack", x0 + OO + 0.3, -60.0, y, "E")
-    panels((xs, x1, z0, z1), 2, 3.4)
-    lights((xs, x1, z0, z1), 2, per=30.0)
-    lights((x0, xs, z0, zs), 2, per=40.0)
-
-
-def furnish_block3_upper(C):
-    x0, x1, z0, z1 = C.inner
-    xs = x0 + ST_W + PART
-    _b, bw, lo = B.side_bays(C.name, "E")
-    zs = lo + 3 * bw
-    zt = z0 + 7.0
-    for k in UP:
-        y = level_floor(k)
-        P("Fire_Extinguisher", xs - WO, zs + 1.2, y, "W")
-        P("Tube_Light", (x0 + xs) / 2, zs + 1.6, level_ceil(k), "N")
-        lights((x0, xs, zs, z1), k, per=40.0, intensity=0.8)
-    y = level_floor(1)
-    # Tailor: machines under the south windows, a cutting table, rails of finished work.
-    for X in (-76.0, -73.6, -71.2):
-        P("Sewing_Table", X, z0 + 0.35, y, "N")
-    P("Table_Meeting", -67.2, -91.6, y, "N")
-    P("Clothes_Rail", -67.2, zt - 0.6, y, "N")
-    P("Almirah", x1 - OO, -91.6, y, "W")
-    P("Salon_Station", x0 + OO, -90.6, y, "E")
-    P("Chair_Cafe", -76.0, z0 + 1.0, y, "S")
-    panels((x0, x1, z0, zt), 1, 3.4)
-    lights((x0, x1, z0, zt), 1, per=30.0)
-    # Laundry: washing machines, the press table, rails of pressed clothes, a counter.
-    for X in (-72.5, -71.8, -71.1, -70.4):
-        P("Washing_Machine", X, z1 - OO, y, "S")
-    put("Ironing_Table", -67.0, -79.0, y, yaw=90.0)
-    put("Ironing_Table", -67.0, -83.2, y, yaw=90.0)
-    for Z in (-79.0, -81.6):
-        put("Clothes_Rail", -70.6, Z, y, yaw=90.0)
-    P("Checkout_Counter", -72.4, -84.6, y, "W")
-    P("Chair_Office", -71.5, -84.6, y, "W")
-    P("Drying_Rack", -76.0, -85.6, y, "N")
-    P("Drying_Rack", -76.0, -83.4, y, "N")
-    P("Storage_Rack", x1 - OO - 0.25, -75.0, y, "W")
-    panels((xs, x1, zt, z1), 1, 3.4)
-    lights((xs, x1, zt, z1), 1, per=30.0)
-    lights((x0, xs, zt, zs), 1, per=40.0)
-    y = level_floor(2)
-    # Computer and reading room.
-    for Z in (-92.6, -90.6, -88.6, -86.6):
-        for X in (-73.4, -71.8, -70.2):
-            P("Desk_Computer", X, Z, y, "S")
-            P("Chair_Office", X, Z + 0.7, y, "S")
-    P("Photocopier", x1 - 0.5, -93.8, y, "W")
-    P("Reception_Counter", -66.2, -84.0, y, "W")
-    P("Chair_Office", -65.0, -84.0, y, "W")
-    for X, Z in ((-71.5, -79.2), (-68.6, -76.4)):
-        P("Table_Round", X, Z, y)
-        for dx, dz, f in ((0.0, 0.85, "S"), (0.0, -0.85, "N"), (0.85, 0.0, "W"), (-0.85, 0.0, "E")):
-            P("Chair_Cafe", X + dx, Z + dz, y, f)
-    for Z in (-80.6, -79.5, -78.4, -77.3, -76.2, -75.1):
-        P("Bookshelf", xs + WO, Z, y, "E")
-    P("Bookshelf", -66.0, z1 - OO, y, "S")
-    P("Bookshelf", -64.9, z1 - OO, y, "S")
-    for Z in (-92.0, -90.0):
-        P("Server_Rack", x0 + 0.5, Z, y, "E") if Z == -92.0 else P("Storage_Rack", x0 + OO + 0.25, Z, y, "E")
-    P("Plant_Pot", x1 - 0.5, z1 - 0.5, y)
-    panels((xs, x1, z0, z1), 2, 3.4)
-    lights((xs, x1, z0, z1), 2, per=30.0, color=COOL)
-    lights((x0, xs, z0, zs), 2, per=40.0, color=COOL)
+            F.P("Fruit_Stand", 1.4, 1.3, y, "out")
+            F.P("Fruit_Stand", 3.2, 1.3, y, "out")
+            F.P("Cafe_Counter", U / 2, D - 2.4, y, "out")
+            F.P("Drinks_Cooler", U - WO, 2.8, y, "-u")
+            F.P("Fridge", U - WO, 3.8, y, "-u")
+            F.P("Fridge", U - WO, 4.8, y, "-u")
+            F.P("Storage_Rack", 1.0, bk, y, "out")
+            F.P("Dustbin", U - 0.5, 0.5, y)
+        elif k == "repair":
+            F.P("Checkout_Counter", U / 2, 2.4, y, "out")
+            F.P("Chair_Office", U / 2, 3.3, y, "out")
+            for v in (4.4, 5.6, 6.8):
+                F.P("Wall_Shelf", WO, v, y, "+u")
+                F.P("Wall_Shelf", U - WO, v, y, "-u")
+            F.P("Desk_Computer", U / 2, bk - 0.35, y, "out")
+            F.P("Display_Panel", U - 0.7, 0.7, y, "out")
+        elif k == "stationery":
+            F.P("Checkout_Counter", U - 2.0, 1.8, y, "out")
+            F.P("Chair_Office", U - 2.0, 2.7, y, "out")
+            F.P("Photocopier", U - 1.2, bk - 0.4, y, "out")
+            F.P("Photocopier", U - 2.4, bk - 0.4, y, "out")
+            F.P("Desk_Computer", U - 4.0, bk - 0.35, y, "out")
+            F.P("Chair_Office", U - 4.0, bk - 1.0, y, "in")
+            u = 0.7
+            while u < U - 5.2:
+                F.P("Wall_Shelf", u, bk, y, "out")
+                u += 1.2
+            F.P("Shop_Gondola", 3.0, 3.6, y, "+u")
+            F.P("Storage_Rack", WO + 0.3, 1.2, y, "+u")
+            F.P("Display_Panel", 0.8, 0.7, y, "out")
+        elif k == "bank":
+            vc = D - 3.2
+            u = 1.2
+            while u < U - 0.9:
+                F.P("Bank_Counter", u, vc, y, "out")
+                F.P("Chair_Office", u - 0.6, vc + 0.75, y, "out")
+                u += 2.3
+            for u in (1.0, 1.8, 2.6):
+                F.P("Filing_Cabinet", u, bk - 0.3, y, "out")
+            F.P("Almirah", U - 1.0, bk, y, "out")
+            for v in (1.0, 2.6):
+                F.P("Waiting_Chairs", WO + 0.4, v, y, "+u")
+            F.P("Display_Panel", U - 0.8, 0.7, y, "out")
+            F.P("Water_Cooler", U - WO - 0.3, 2.4, y, "-u")
+            F.P("Wall_Clock", U / 2, bk, y, "out")
+        elif k == "store":
+            F.P("Checkout_Counter", 1.4, 1.5, y, "+u")
+            F.P("Chair_Office", 0.7, 1.5, y, "+u")
+            for u in (3.4, 5.6, 7.8):
+                if u < U - 1.2:
+                    F.P("Shop_Gondola", u, D / 2 + 0.4, y, "+u")
+            u = 0.8
+            while u < U - 0.6:
+                F.P("Wall_Shelf", u, bk, y, "out")
+                u += 1.2
+            F.P("Drinks_Cooler", U - WO, 1.6, y, "-u")
+            F.P("Drinks_Cooler", U - WO, 2.4, y, "-u")
+            F.P("Fridge", U - WO, 3.3, y, "-u")
+            F.P("Plant_Pot", U - 0.5, 0.5, y)
+        elif k == "post":
+            F.P("Checkout_Counter", U / 2, 3.0, y, "out")
+            F.P("Chair_Office", U / 2, 3.9, y, "out")
+            F.P("Storage_Rack", U / 2, bk, y, "out")
+            F.P("Filing_Cabinet", WO + 0.3, D - 1.6, y, "+u")
+            F.P("Notice_Board", WO, 1.4, y, "+u")
+            F.P("Dustbin", U - 0.4, 0.5, y)
+        panels(sp.rect, 0, 3.4, margin=0.9)
+        fans(sp.rect, 0, 4.2)
+        lights(sp.rect, 0, per=30.0, intensity=1.1)
 
 
 def furnish_sports(C):
@@ -1719,7 +1605,8 @@ def xg_():
 
 
 # ------------------------------------------------------------------ entry point for build_interiors
-BUILDERS = [(block1, furnish_block1), (block2, None), (block3, None), (sports, furnish_sports)]
+BUILDERS = [(block1, furnish_block1), (vipanan_west, furnish_vipanan), (vipanan_north, furnish_vipanan),
+            (sports, furnish_sports)]
 
 
 def build_all(zone):
@@ -1732,12 +1619,8 @@ def build_all(zone):
         with B.at_design(list(B.INTERIOR_DESIGN)):
             C = make()
             shell = civic_shell(C)
-            if furnish is not None:
-                furnish(C)
-            else:
-                furnish_shop_ground(C)
-                (furnish_block2_upper if C.name == "Shopping & Medical 2" else furnish_block3_upper)(C)
-            for k in range(TOP + 1):
+            furnish(C)
+            for k in range(C.top + 1):
                 door_leaves(C, k)
             entrance_leaves(C)
             exit_signs(C)
@@ -1754,22 +1637,22 @@ def build_all(zone):
             rooms.append(dict(name=sp.name, kind=sp.kind, rect=[round(v, 2) for v in sp.rect], level=sp.level, zone=zone))
         hall = C.hall is not None
         for p_ in PLACED[n0:]:
-            p_["level"] = level_of(p_["y"]) if not (hall and in_rect(p_, C.hall)) else 0
+            p_["level"] = level_of(p_["y"], C.top) if not (hall and in_rect(p_, C.hall)) else 0
             p_["zone"] = zone
         for l_ in LIGHTS[l0:]:
-            l_["level"] = level_of(l_["y"]) if not (hall and in_rect(l_, C.hall)) else 0
+            l_["level"] = level_of(l_["y"], C.top) if not (hall and in_rect(l_, C.hall)) else 0
             l_["zone"] = zone
-        out.append(dict(shell=shell, name=C.label, rooms=rooms, floorOffset=FL, maxLevel=TOP,
+        out.append(dict(shell=shell, name=C.label, rooms=rooms, floorOffset=FL, maxLevel=C.top,
                         hall=[round(v, 2) for v in C.hall] if hall else None))
-        print("%-26s %d rooms on %d floors, %d props" % (C.label, len(rooms), TOP + 1, len(PLACED) - n0))
+        print("%-26s %d rooms on %d floors, %d props" % (C.label, len(rooms), C.top + 1, len(PLACED) - n0))
         zone += 1
     return out
 
 
-def level_of(y):
+def level_of(y, top=TOP):
     """Storey of a height above the base: floor-standing props sit on level_floor(k), ceiling
     props hang from level_ceil(k)."""
-    return max(0, min(TOP, int(math.floor((y - FL + 0.5) / FLOOR))))
+    return max(0, min(top, int(math.floor((y - FL + 0.5) / FLOOR))))
 
 
 def in_rect(p_, r):
