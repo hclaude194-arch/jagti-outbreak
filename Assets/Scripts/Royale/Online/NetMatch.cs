@@ -74,6 +74,7 @@ namespace Jagti.Royale
             }
             Combatant.ForwardHit = OnForwardHit;
             Combatant.Damaged += OnDamaged;
+            Jagti.World.GlassPanes.Broken = OnGlassBroken;
             Ballistics.Fired = OnFired;
             Grenade.Launched = OnLaunched;
             director.SupplyDropSent = OnSupplyDrop;
@@ -91,6 +92,7 @@ namespace Jagti.Royale
             Combatant.Damaged -= OnDamaged;
             Ballistics.Fired = null;
             Grenade.Launched = null;
+            if (Jagti.World.GlassPanes.Broken == (System.Action<Jagti.World.GlassPanes, int>)OnGlassBroken) Jagti.World.GlassPanes.Broken = null;
             if (session != null && session.match == this) session.match = null;
         }
 
@@ -300,6 +302,15 @@ namespace Jagti.Royale
             peer.Broadcast(w, true);
         }
 
+        void OnGlassBroken(Jagti.World.GlassPanes panes, int index)
+        {
+            var w = peer.BeginMessage();
+            w.Byte(NetMsg.Glass);
+            w.UShort((ushort)panes.id);
+            w.UShort((ushort)index);
+            peer.Broadcast(w, true);
+        }
+
         void OnSupplyDrop(Vector3 at, int seed)
         {
             if (!Host) return;
@@ -457,6 +468,17 @@ namespace Jagti.Royale
                         int id = r.Int();
                         int count = r.UShort();
                         if (!r.Failed && loot != null) loot.SetRemote(id, count);
+                    }
+                    break;
+
+                case NetMsg.Glass:
+                    {
+                        Relay(from, r, true);
+                        int glassId = r.UShort();
+                        int pane = r.UShort();
+                        if (r.Failed) break;
+                        var g = Jagti.World.GlassPanes.ById(glassId);
+                        if (g != null) g.Break(pane, Vector3.zero, false);
                     }
                     break;
 

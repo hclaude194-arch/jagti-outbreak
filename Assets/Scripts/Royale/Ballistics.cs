@@ -154,8 +154,18 @@ namespace Jagti.Royale
                 var h = hitBuffer[i];
                 if (h.distance >= best) continue;
                 if (shooter != null && h.collider.transform.IsChildOf(shooter.transform)) continue;
+                if (Jagti.World.GlassPanes.IsGlass(h.collider)) continue;   // shots go through glass
                 best = h.distance;
                 bestIndex = i;
+            }
+            // Every pane the shot crossed on its way breaks.
+            for (int i = 0; i < n; i++)
+            {
+                var h = hitBuffer[i];
+                if (h.distance >= best) continue;
+                Jagti.World.GlassPanes pane;
+                int paneIndex;
+                if (Jagti.World.GlassPanes.TryGet(h.collider, h.point, out pane, out paneIndex)) pane.Break(paneIndex, dir, true);
             }
             if (bestIndex < 0) return false;
             var hit = hitBuffer[bestIndex];

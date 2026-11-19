@@ -15,7 +15,7 @@ namespace Jagti.Royale
         const string Prefix = "Jagti.Settings.";
 
         static bool loaded;
-        static float sensitivity = 2f, fov = 60f, volume = 0.85f, hudScale = 1f;
+        static float sensitivity = 2f, fov = 70f, volume = 0.85f, hudScale = 1f;
         static int crosshair;
         static bool damageNumbers = true, showFps, bigMinimap;
 

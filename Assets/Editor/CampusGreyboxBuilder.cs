@@ -790,15 +790,20 @@ namespace Jagti.EditorTools
             var player = new GameObject("Player");
             player.tag = "Player";
             var controller = player.AddComponent<CharacterController>();
-            controller.height = 1.8f;
-            controller.radius = 0.35f;
-            controller.center = new Vector3(0f, 0.9f, 0f);
-            controller.stepOffset = 0.35f;
+            // A slimmer capsule than before (0.35 m radius plus skin made the player 0.86 m wide, which
+            // jammed in the 1 m doorways): 0.28 m radius, a thin skin, and steps up to a kerb or a stair.
+            controller.height = 1.75f;
+            controller.radius = 0.28f;
+            controller.center = new Vector3(0f, 0.875f, 0f);
+            controller.stepOffset = 0.42f;
+            controller.skinWidth = 0.035f;
+            controller.slopeLimit = 50f;
+            controller.minMoveDistance = 0f;
 
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
             cameraObject.transform.SetParent(player.transform, false);
-            cameraObject.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+            cameraObject.transform.localPosition = new Vector3(0f, 1.58f, 0f);   // eye height of a ~1.7 m person
             var cam = cameraObject.AddComponent<Camera>();
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 1800f;
