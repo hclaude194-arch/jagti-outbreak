@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 21
+VERSION = 22
 
 
 def to_world(x, y):
@@ -66,14 +66,17 @@ BUILDINGS = [
     ("Walled Residence", "central", 348, 926, 22, 20, 2, "box"),
     ("Walled Residence - Wing", "central", 366, 936, 10, 16, 1, "box"),
     # The mess area follows the institute's scale model (owner, 2026-11-18): dining block 5
-    # (Annapurna Mess), the shopping block 6 as a stepped L (blocks 2 and 3) and the medical
-    # block 7 (block 1) on a terrace about four storeys above the girls' hostels, and the
-    # professor residences 4 behind them on a terrace a little higher again: a front row of two
-    # stepped towers and a back row of three. The mess and the shopping and medical blocks keep
-    # the sizes their interiors were drawn for (INTERIOR_DESIGN in build_buildings.py).
+    # (Annapurna Mess), the shopping block 6 (Vipanan, below) and the medical block 7 (block 1)
+    # on a terrace above the girls' hostels, and the professor residences 4 behind them on a
+    # terrace a little higher again: a front row of two stepped towers and a back row of three.
+    # The mess and the medical block keep the sizes their interiors were drawn for
+    # (INTERIOR_DESIGN in build_buildings.py).
     ("Shopping & Medical 1 (ATM)", "central", 370, 1020, 16, 30, 3, "box"),
-    ("Shopping & Medical 2", "central", 370, 1074, 15, 22, 3, "box"),
-    ("Shopping & Medical 3", "central", 385, 1052, 15, 22, 3, "box"),
+    # Vipanan, the shopping arcade (owner's video and photo, 2026-11-19; satellite view): a
+    # single-storey L of narrow arms round a paved forecourt, the west arm's shops facing east and
+    # the north arm's facing south, a covered passage between the arms at the corner.
+    ("Vipanan - West Arm", "central", 370, 1055, 9, 37, 1, "box"),
+    ("Vipanan - North Arm", "central", 382, 1055, 20, 9, 1, "box"),
     ("Annapurna Mess", "central", 363, 1102, 29, 26, 2, "box"),
     ("Annapurna Mess - Kitchen", "central", 378, 1118, 30, 29, 2, "box"),
     ("Faculty Residence 1 - South", "central", 324, 1104, 15, 22, 6, "box"),
@@ -225,6 +228,7 @@ AREAS = [
     ("courtyard", "box", 465, 678, 48, 74),
     ("lawn", "ellipse", 309.5, 1047, 17, 106),
     ("parking", "box", 379, 840, 20, 50),
+    ("plaza", "box", 383, 1068, 20, 24),   # Vipanan's paved forecourt, open to the spine road
     ("substation", "box", 247, 618, 30, 44),
     ("court", "box", 440, 1207, 26, 28),
     ("court", "box", 440, 1237, 26, 28),
@@ -251,7 +255,7 @@ PLACES = [
     ("Power Substation", 262, 640),
     ("Director's Residence", 359, 936),
     ("Medical Block", 378, 1035),
-    ("Shopping Block", 377, 1085),
+    ("Vipanan Shopping Arcade", 386, 1078),
     ("Annapurna Mess (Dining Block)", 386, 1124),
     ("Faculty Residences", 300, 1080),
     ("Girls' Hostels", 459, 1126),

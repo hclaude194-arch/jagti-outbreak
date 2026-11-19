@@ -316,6 +316,36 @@ def p_planter_box():
     return m
 
 
+@oprop("Kerbed_Bed")
+def p_kerbed_bed():
+    """Planting bed for Vipanan's forecourt (owner's video and photo, 2026-11-19): 6 x 1.6 m,
+    a low kerb painted in black and white blocks, clipped shrubs and young palms."""
+    m = new("Kerbed_Bed")
+    L, W, h, t = 3.0, 0.8, 0.2, 0.18
+    n = 12
+    for i in range(n):
+        x0, x1 = -L + 2 * L * i / n, -L + 2 * L * (i + 1) / n
+        mat = "Ceramic" if i % 2 == 0 else "Plastic"
+        bx(m, x0, x1, -W, -W + t, 0.0, h, mat)
+        bx(m, x0, x1, W - t, W, 0.0, h, mat)
+    for k, x in enumerate((-L, L - t)):
+        bx(m, x, x + t, -W + t, W - t, 0.0, h, "Plastic" if k else "Ceramic")
+    bx(m, -L + t, L - t, -W + t, W - t, 0.0, 0.12, "Planter")
+    rnd = random.Random(11)
+    x = -L + 0.5
+    while x < L - 0.5:
+        hh = rnd.uniform(0.35, 0.6)
+        bx(m, x - 0.22, x + 0.22, -0.3, 0.3, 0.12, 0.12 + hh, "Foliage")
+        x += 0.55
+    for x in (-1.6, 1.6):
+        cyl(m, x, 0.0, 0.07, 0.12, 1.6, "Wood")
+        for a in range(5):
+            ang = a * 2 * math.pi / 5
+            bx(m, x + 0.45 * math.cos(ang) - 0.25, x + 0.45 * math.cos(ang) + 0.25,
+               0.45 * math.sin(ang) - 0.08, 0.45 * math.sin(ang) + 0.08, 1.5, 1.56, "Foliage")
+    return m
+
+
 # ------------------------------------------------------------------ terrain and layout queries
 TER = json.load(open(os.path.join(DATA, "campus_terrain.json")))
 RES = TER["heightmapResolution"]
@@ -343,7 +373,7 @@ with open(B.TERRAIN_JSON) as _f:
 _cz = [z for z, _h in _cs["profile"]]
 BOX.append((_cs["x"] - 6.5, _cs["x"] + 6.5, min(_cz), max(_cz) + 1.5))
 BOUNDARY = list(zip(layout["boundary"][0::2], layout["boundary"][1::2]))
-KEEP_OUT_AREAS = ("court", "track", "field", "amphitheatre", "roundabout", "substation", "courtyard")
+KEEP_OUT_AREAS = ("plaza", "court", "track", "field", "amphitheatre", "roundabout", "substation", "courtyard")
 
 
 def pts(road):
@@ -576,6 +606,20 @@ def shops_walk_furniture():
             place("Planter_Box", Q[0], Q[1], 90.0)
 
 
+def vipanan_forecourt():
+    """Kerbed planting beds round Vipanan's paved forecourt (owner's video and photo): a row
+    along the road side with a gap for the drive in, and two along the south edge by the mess."""
+    a = next(a for a in layout["areas"] if a["type"] == "plaza")
+    x0, x1 = a["x"] - a["width"] / 2, a["x"] + a["width"] / 2
+    z0, z1 = a["z"] - a["depth"] / 2, a["z"] + a["depth"] / 2
+    for Z in (z1 - 4.0, z0 + 4.0):
+        place("Kerbed_Bed", x1 - 1.2, Z, 90.0)
+    for X in (x0 + 6.0, x0 + 13.0):
+        place("Kerbed_Bed", X, z0 + 1.2, 0.0)
+    place("Twin_Dustbin", x1 - 1.2, (z0 + z1) / 2 - 3.0, 270.0)
+    place("Lamp_Post", x1 - 1.0, (z0 + z1) / 2 + 3.0, 270.0)
+
+
 def hostel_furniture():
     """Benches, bins and cycle stands outside the hostels: a few metres out from the middle of
     each open side of every hostel wing."""
@@ -794,17 +838,28 @@ def courts():
 
 
 def shop_signs():
-    """Each unit's name on its fascia board, and the names over the clinic and the sports
-    complex lobby."""
+    """Each unit's name on its fascia board, the arcade's name on Vipanan's fascia band, and
+    the names over the clinic and the sports complex lobby."""
     z0, z1, d0, d1 = B.FASCIA
     for name, units in B.SHOP_UNITS.items():
         X0, X1, Z0, Z1 = B.box_rect(name)
-        bays, bw, lo = B.side_bays(name, "E")
+        side = B.shop_side(name)
+        bays, bw, lo = B.side_bays(name, side)
         cx, cz = B.centre(name)
         for unit, b0, b1, door in units:
             za, zb = lo + b0 * bw + B.SHOP_INSET, lo + (b1 + 1) * bw - B.SHOP_INSET
-            sign(unit.upper(), X1 + d1 + 0.012, (za + zb) / 2, (z0 + z1) / 2, 90.0,
-                 size=fit(unit, zb - za - 0.3, 0.26), gx=cx, gz=cz, color=(1.0, 0.95, 0.85))
+            size = fit(unit, zb - za - 0.3, 0.26)
+            if side == "E":
+                sign(unit.upper(), X1 + d1 + 0.012, (za + zb) / 2, (z0 + z1) / 2, 90.0, size=size, gx=cx, gz=cz,
+                     color=(1.0, 0.95, 0.85))
+            else:
+                sign(unit.upper(), (za + zb) / 2, Z0 - d1 - 0.012, (z0 + z1) / 2, 180.0, size=size, gx=cx, gz=cz,
+                     color=(1.0, 0.95, 0.85))
+    (a0, a1, a2, a3), (b0, b1, b2, b3) = B.arcade_rects()
+    f0, f1 = B.FASCIA_BAND
+    gx, gz = B.centre(B.VIPANAN[0])
+    sign("VIPANAN", a1 + 4.5, b2 - 0.03, (f0 + f1) / 2, 180.0, size=0.5, gx=gx, gz=gz, color=(0.45, 0.42, 0.38))
+    sign("VIPANAN", a1 + 0.03, (a2 + b2) / 2, (f0 + f1) / 2, 90.0, size=0.5, gx=gx, gz=gz, color=(0.45, 0.42, 0.38))
     med = "Shopping & Medical 1 (ATM)"
     X0, X1, Z0, Z1 = B.box_rect(med)
     _X, Zd = B.side_point(med, "E", 2)
@@ -820,6 +875,7 @@ def shop_signs():
 def main():
     os.makedirs(I.PROP_DIR, exist_ok=True)
     courts()
+    vipanan_forecourt()
     shops_walk_furniture()
     name_boards()
     signposts()

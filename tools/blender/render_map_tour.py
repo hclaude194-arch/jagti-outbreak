@@ -445,6 +445,10 @@ VIEWS = {
     "oval_loop": (-104, 12, 22, -106, -90, 0, 26),
     "spine_mess": (6, 6, 1.8, 2, -150, 1, 26),
     "mess_front_aerial": (60, -40, 40, -20, -120, 0, 26),
+    # Vipanan and the mess as in the owner's video and photo (2026-11-19).
+    "vipanan_forecourt": (-9, -97, 1.7, -36, -66, 2.5, 22),
+    "mess_from_forecourt": (-6, -84, 1.7, -36, -118, 4, 22),
+    "vipanan_aerial": (25, -128, 32, -30, -74, 0, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

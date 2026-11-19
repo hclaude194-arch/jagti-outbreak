@@ -90,6 +90,8 @@ ROOM_LOOT = {
     "stationery": ("academic", 1.0, 0.8),
     "repair": ("storage", 1.2, 0.8),
     "bookshop": ("academic", 0.8, 0.75),
+    "juice": ("food", 0.9, 0.8),
+    "post": ("office", 1.4, 0.85),
     "atm": ("office", 1.4, 0.8),
     "bank": ("vault", 1.0, 1.0),
     "vault": ("vault", 2.0, 1.0),
@@ -107,7 +109,7 @@ STASH_ROOMS = {
     "board": 1.0, "director": 1.0, "server": 0.8, "staff": 0.6, "activity": 0.6, "store": 0.45,
     "kitchen": 0.7, "pantry": 0.12, "cafe": 0.6, "mess_hall": 1.0, "pharmacy": 1.0, "ward": 0.8,
     "consult": 0.5, "nurses": 0.7, "physio": 0.6, "observation": 0.5, "records": 0.8, "linen": 0.8,
-    "duty": 0.8, "officer": 0.8, "stationery": 0.8, "repair": 0.8, "bookshop": 0.8, "bank": 1.0,
+    "duty": 0.8, "officer": 0.8, "stationery": 0.8, "repair": 0.8, "bookshop": 0.8, "bank": 1.0, "post": 0.8,
     "vault": 1.0, "games": 0.25, "changing": 0.7,
 }
 STASH_CHANCE = 0.6          # each stash spot is filled in about this share of matches
@@ -389,7 +391,7 @@ def outdoor_points(layout, rng):
             made += 1
 
     for a in layout["areas"]:
-        if a["type"] not in ("parking", "court", "lawn", "courtyard", "field", "amphitheatre", "track"):
+        if a["type"] not in ("parking", "plaza", "court", "lawn", "courtyard", "field", "amphitheatre", "track"):
             continue
         n = 1 + int(a["width"] * a["depth"] / 1500)
         n = min(n, 5)

@@ -61,7 +61,7 @@ namespace Jagti.EditorTools
         /// because fights depend on it. Anything not listed uses DefaultCull.</summary>
         static readonly Dictionary<string, float> CullDistance = new Dictionary<string, float>
         {
-            { "Bollard_Light", 90f }, { "Twin_Dustbin", 110f }, { "Cycle_Stand", 110f }, { "Planter_Box", 120f },
+            { "Bollard_Light", 90f }, { "Twin_Dustbin", 110f }, { "Cycle_Stand", 110f }, { "Planter_Box", 120f }, { "Kerbed_Bed", 130f },
             { "Park_Bench", 120f }, { "Sign_Arm", 120f }, { "Sign_Post", 140f }, { "Volleyball_Net", 160f },
             { "Badminton_Net", 120f }, { "Garden_Lamp", 140f }, { "Palm_Small", 140f }, { "Tennis_Net", 160f },
             { "Railing_Segment", 180f }, { "Fence_Panel", 200f }, { "Name_Board", 200f }, { "Basketball_Hoop", 200f },

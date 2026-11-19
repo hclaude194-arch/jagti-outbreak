@@ -150,7 +150,7 @@ for name, zone, x, y, w, d, floors, shape in L.BUILDINGS:
     else:
         group = name.split(" - ")[0]
     pads.append((group, cx, cz, w / 2, d / 2, False))
-FLAT_AREAS = {"parking", "court", "track", "field", "amphitheatre", "substation", "courtyard"}
+FLAT_AREAS = {"parking", "plaza", "court", "track", "field", "amphitheatre", "substation", "courtyard"}
 for typ, shape, x, y, w, d in L.AREAS:
     if typ not in FLAT_AREAS:
         continue
