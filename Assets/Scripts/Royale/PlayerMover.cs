@@ -44,6 +44,9 @@ namespace Jagti.Royale
         float zipS, zipDir, zipSpeed;
         AudioSource zipSound;
 
+        // Riding: the view's offset from the vehicle's heading (mouse look), kept level.
+        float rideLook, rideSetYaw, rideIdle;
+
         float splashT;
         float fallFrom = float.NaN;   // height let go of a zip line at, for landing damage
 
@@ -273,6 +276,9 @@ namespace Jagti.Royale
             transform.SetParent(v.Seat, false);
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
+            rideLook = 0f;
+            rideIdle = 0f;
+            rideSetYaw = transform.eulerAngles.y;
             if (riderHitbox != null) riderHitbox.enabled = true;
             v.Enter(me);
             ShowBody(HumanBody.Pose.Seat, 0f);
@@ -281,7 +287,28 @@ namespace Jagti.Royale
         void Ride(float dt)
         {
             if (Riding == null || Riding.Wrecked) { ForceExit(); return; }
-            // The walker turns the view; keep the body facing the bars.
+            Prompt = "[E] get off      W/S throttle   A/D steer   Space brake   Shift boost   H horn";
+            if (Input.GetKeyDown(KeyCode.E) && Mathf.Abs(Riding.Speed) < 9f) GetOff();
+        }
+
+        /// <summary>
+        /// After the vehicle has moved this frame: the view follows the vehicle's heading plus whatever the
+        /// mouse added, stays level (no rolling with the scooter's lean or pitching on bumps) and swings
+        /// back behind the vehicle a moment after the mouse is left alone. The body faces the bars.
+        /// </summary>
+        void LateUpdate()
+        {
+            if (State != Mode.Riding || Riding == null) return;
+            float dt = Time.deltaTime;
+            float mouse = Mathf.DeltaAngle(rideSetYaw, transform.eulerAngles.y);
+            rideLook = Mathf.DeltaAngle(0f, rideLook + mouse);
+            if (Mathf.Abs(mouse) > 0.05f) rideIdle = 0f;
+            else rideIdle += dt;
+            if (rideIdle > 1.2f && Mathf.Abs(Riding.Speed) > 2f)
+                rideLook = Mathf.MoveTowardsAngle(rideLook, 0f, (40f + Mathf.Abs(rideLook) * 2f) * dt);
+            transform.rotation = Quaternion.Euler(0f, Riding.Heading + rideLook, 0f);
+            rideSetYaw = transform.eulerAngles.y;
+
             var body = diver != null ? diver.body : null;
             if (body != null)
             {
@@ -293,8 +320,6 @@ namespace Jagti.Royale
                 body.footTargetL = Riding.transform.TransformPoint(new Vector3(-f.x + Riding.seatLocal.x, f.y, f.z));
                 body.footTargetR = Riding.transform.TransformPoint(new Vector3(f.x + Riding.seatLocal.x, f.y, f.z));
             }
-            Prompt = "[E] get off      W/S throttle   A/D steer   Space brake   Shift boost   H horn";
-            if (Input.GetKeyDown(KeyCode.E) && Mathf.Abs(Riding.Speed) < 9f) GetOff();
         }
 
         void GetOff()

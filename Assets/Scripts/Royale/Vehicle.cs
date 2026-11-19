@@ -37,6 +37,8 @@ namespace Jagti.Royale
         public float acceleration = 7f;
         public float maxSteer = 34f;
         public float maxHealth = 260f;
+        /// <summary>How hard it can corner before running wide (sideways acceleration, m/s²).</summary>
+        public float cornerGrip = 10f;
 
         public float Health { get; private set; }
         /// <summary>The boost tank, 0 to 1. Shift spends it; it refills when not boosting.</summary>
@@ -60,8 +62,13 @@ namespace Jagti.Royale
         }
         /// <summary>The seat: a rider's root sits here (0.8 m below the cushion, so the head is at a sitting height).</summary>
         public Transform Seat { get; private set; }
+        /// <summary>Which way the vehicle points on the map, in degrees (no pitch or roll).</summary>
+        public float Heading { get { return heading; } }
 
         float steer, vy, lean, noiseT, crashCooldown, hornT;
+        // The heading is kept here, not read back from the transform: the body's tilt is smoothed, but
+        // the turn itself must land in full every frame or the steering feels dead and the body slides.
+        float heading, tiltPitch, tiltRoll;
         bool boostLocked;
         Combatant lastRunOver;
         float lastRunOverTime;
@@ -82,6 +89,7 @@ namespace Jagti.Royale
                 acceleration = 5f;
                 maxSteer = 32f;
                 maxHealth = 420f;
+                cornerGrip = 8f;
             }
             else if (kind == Kind.Auto)
             {
@@ -90,6 +98,7 @@ namespace Jagti.Royale
                 acceleration = 6.5f;
                 maxSteer = 38f;
                 maxHealth = 340f;
+                cornerGrip = 7.5f;
             }
             else if (kind == Kind.Jeep)
             {
@@ -98,6 +107,7 @@ namespace Jagti.Royale
                 acceleration = 8f;
                 maxSteer = 30f;
                 maxHealth = 640f;
+                cornerGrip = 9f;
             }
             Health = maxHealth;
             Boost = 1f;
@@ -127,6 +137,7 @@ namespace Jagti.Royale
             engine.rolloffMode = AudioRolloffMode.Linear;
             engine.volume = 0f;
             engine.playOnAwake = false;
+            heading = transform.eulerAngles.y;
             SettleOnGround();
         }
 
@@ -303,8 +314,13 @@ namespace Jagti.Royale
             else Speed = Mathf.MoveTowards(Speed, 0f, (airborne ? 0.2f : 2.2f) * dt);
             if (brake && !airborne) Speed = Mathf.MoveTowards(Speed, 0f, 16f * dt);
 
-            float grip = Mathf.Lerp(1f, 0.38f, Mathf.Clamp01(Mathf.Abs(Speed) / maxSpeed));
-            steer = Mathf.MoveTowards(steer, steerIn * maxSteer * grip, 140f * dt);
+            // Less lock at speed: the tightest turn is the one the tyres can hold (cornering grip, m/s²),
+            // so slow it turns on the spot and fast it sweeps through a bend instead of spinning round.
+            float v2 = Speed * Speed;
+            float steerLock = v2 > 0.01f ? Mathf.Min(maxSteer, Mathf.Atan(wheelBase * cornerGrip / v2) * Mathf.Rad2Deg) : maxSteer;
+            float steerTarget = steerIn * steerLock;
+            // The wheel turns in briskly and comes back to centre faster still when the key is let go.
+            steer = Mathf.MoveTowards(steer, steerTarget, (Mathf.Abs(steerIn) < 0.1f ? 260f : 170f) * dt);
 
             float step = Speed * dt;
             if (Mathf.Abs(step) > 0.0001f && Blocked(Mathf.Sign(step), Mathf.Abs(step)))
@@ -323,7 +339,8 @@ namespace Jagti.Royale
 
             // Bicycle model about the rear axle.
             float yawRate = airborne ? 0f : Speed / wheelBase * Mathf.Tan(steer * Mathf.Deg2Rad) * Mathf.Rad2Deg;
-            float yaw = transform.eulerAngles.y + yawRate * dt;
+            heading = Mathf.Repeat(heading + yawRate * dt, 360f);
+            float yaw = heading;
             Quaternion flat = Quaternion.Euler(0f, yaw, 0f);
             Vector3 fwd = flat * Vector3.forward;
             Vector3 right = flat * Vector3.right;
@@ -366,22 +383,25 @@ namespace Jagti.Royale
             }
             else pos.y = Mathf.Lerp(transform.position.y, ground, 1f - Mathf.Exp(-14f * dt));
 
-            float pitch = airborne ? transform.eulerAngles.x : -Mathf.Atan2(front - rear, wheelBase) * Mathf.Rad2Deg;
+            float pitch = airborne ? tiltPitch : -Mathf.Atan2(front - rear, wheelBase) * Mathf.Rad2Deg;
             float roll = halfTrack > 0.3f ? Mathf.Atan2(rl + fl - rr - fr, 4f * halfTrack) * Mathf.Rad2Deg : 0f;
             if (kind == Kind.Scooter)
             {
                 // Lean into the turn with speed.
-                lean = Mathf.MoveTowards(lean, -steer / maxSteer * Mathf.Clamp01(Mathf.Abs(Speed) / 9f) * 24f, 90f * dt);
+                lean = Mathf.MoveTowards(lean, -Corner() * 24f, 90f * dt);
                 roll += lean;
             }
             else if (kind == Kind.Auto)
             {
                 // Three wheels: the body rolls out of a fast turn (and the inside wheel lifts a little).
-                lean = Mathf.MoveTowards(lean, steer / maxSteer * Mathf.Clamp01((Mathf.Abs(Speed) - 6f) / 8f) * 9f, 60f * dt);
+                lean = Mathf.MoveTowards(lean, Corner() * Mathf.Clamp01((Mathf.Abs(Speed) - 6f) / 8f) * 9f, 60f * dt);
                 roll += lean;
             }
-            var target = Quaternion.Euler(pitch, yaw, roll);
-            transform.SetPositionAndRotation(pos, Quaternion.Slerp(transform.rotation, target, 1f - Mathf.Exp(-9f * dt)));
+            // Only the tilt is smoothed (so bumps don't jolt); the heading is applied as it is.
+            float k = 1f - Mathf.Exp(-9f * dt);
+            tiltPitch = Mathf.Lerp(tiltPitch, pitch, k);
+            tiltRoll = Mathf.Lerp(tiltRoll, roll, k);
+            transform.SetPositionAndRotation(pos, Quaternion.Euler(tiltPitch, yaw, tiltRoll));
 
             // Wheels.
             float spin = Speed * dt / Mathf.Max(0.1f, wheelRadius) * Mathf.Rad2Deg;
@@ -390,14 +410,31 @@ namespace Jagti.Royale
             if (steeredWheels != null) foreach (var w in steeredWheels) if (w != null) w.localRotation = Quaternion.Euler(0f, steer, 0f);
         }
 
+        /// <summary>How hard it is cornering, -1 to 1 (sideways acceleration over the grip; + is a right turn).</summary>
+        float Corner()
+        {
+            if (airborne || wheelBase <= 0.01f) return 0f;
+            float lat = Speed * Mathf.Abs(Speed) / wheelBase * Mathf.Tan(steer * Mathf.Deg2Rad);
+            return Mathf.Clamp(lat / Mathf.Max(1f, cornerGrip), -1f, 1f);
+        }
+
         void SettleOnGround()
         {
-            Vector3 p = GroundAt(transform.position, transform.position.y);
+            Vector3 p = GroundAt(transform.position, transform.position.y, 3f);
             transform.position = p;
         }
 
-        /// <summary>The highest walkable surface under a point (not this vehicle, not people).</summary>
+        /// <summary>
+        /// The highest walkable surface under a point (not this vehicle, not people) that is no more than
+        /// a kerb's height above where the wheels are now, so benches, low walls and parked vehicles beside
+        /// the road don't lift a wheel onto them.
+        /// </summary>
         Vector3 GroundAt(Vector3 at, float fallback)
+        {
+            return GroundAt(at, fallback, 0.55f);
+        }
+
+        Vector3 GroundAt(Vector3 at, float fallback, float maxRise)
         {
             int n = Physics.RaycastNonAlloc(at + Vector3.up * 2.5f, Vector3.down, hits, 10f, ~0, QueryTriggerInteraction.Ignore);
             float best = float.NegativeInfinity;
@@ -405,7 +442,9 @@ namespace Jagti.Royale
             {
                 var c = hits[i].collider;
                 if (c.transform.IsChildOf(transform) || hits[i].normal.y < 0.5f) continue;
+                if (!(c is TerrainCollider) && hits[i].point.y > fallback + maxRise) continue;
                 if (c.GetComponentInParent<Combatant>() != null) continue;
+                if (c.GetComponentInParent<Vehicle>() != null) continue;
                 if (hits[i].point.y > best) best = hits[i].point.y;
             }
             return new Vector3(at.x, float.IsNegativeInfinity(best) ? fallback : best, at.z);
