@@ -24,6 +24,15 @@ namespace Jagti.Player
         /// <summary>A jump still works this long after running off an edge, and a press this early before landing counts.</summary>
         public float coyoteTime = 0.12f, jumpBuffer = 0.15f;
 
+        [Header("Body")]
+        /// <summary>
+        /// The player's capsule, set here as well as by the scene builder, so a scene built before a
+        /// change of size (the old 1.8 m, 0.35 m capsule jammed in doorways) still gets the new one.
+        /// </summary>
+        public float bodyHeight = 1.75f, bodyRadius = 0.28f, stepHeight = 0.42f, eyeHeight = 1.58f;
+        /// <summary>Duck by itself under a low lintel or beam while walking, and stand up again after it.</summary>
+        public bool autoDuck = true;
+
         [Header("Look")]
         public float mouseSensitivity = 2f;
 
@@ -88,16 +97,30 @@ namespace Jagti.Player
         float standHeight;
         Vector3 standCenter;
         const float CrouchDrop = 0.6f;
+        bool autoDucked;                // crouching only because of a low opening (stands up by itself)
+        float duckHold;
+        readonly RaycastHit[] probeHits = new RaycastHit[16];
 
         void Awake()
         {
             controller = GetComponent<CharacterController>();
+            controller.height = bodyHeight;
+            controller.radius = bodyRadius;
+            controller.center = new Vector3(0f, bodyHeight * 0.5f, 0f);
+            controller.stepOffset = Mathf.Min(stepHeight, bodyHeight * 0.5f);
+            controller.skinWidth = 0.035f;
+            controller.slopeLimit = 50f;
+            controller.minMoveDistance = 0f;
             if (cameraPivot == null)
             {
                 var cam = GetComponentInChildren<Camera>();
                 if (cam != null) cameraPivot = cam.transform;
             }
-            if (cameraPivot != null) pivotBase = cameraPivot.localPosition;
+            if (cameraPivot != null)
+            {
+                pivotBase = cameraPivot.localPosition;
+                pivotBase.y = eyeHeight;
+            }
             standHeight = controller.height;
             standCenter = controller.center;
         }
@@ -133,15 +156,17 @@ namespace Jagti.Player
                 return;
             }
 
-            if (crouchEnabled && (Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.LeftControl))) SetCrouch(!Crouching);
+            if (crouchEnabled && (Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.LeftControl))) SetCrouch(!(Crouching && !autoDucked));
+            if (autoDuck) AutoDuck(Time.deltaTime);
             UpdateCrouch();
 
             var input = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
             input = Vector3.ClampMagnitude(input, 1f);
             bool wantSprint = sprintAllowed && Input.GetKey(KeyCode.LeftShift) && input.z > 0.1f;
-            if (wantSprint && Crouching) SetCrouch(false);   // sprinting stands you up
+            if (wantSprint && Crouching && !autoDucked) SetCrouch(false);   // sprinting stands you up
             IsSprinting = wantSprint && !Crouching;
-            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale * wadeScale * (Crouching ? 0.48f : 1f);
+            // Ducking under a lintel only slows you a little; a real crouch is a creep.
+            float speed = (IsSprinting ? sprintSpeed : walkSpeed) * speedScale * wadeScale * (Crouching ? (autoDucked ? 0.8f : 0.48f) : 1f);
             float dt = Time.deltaTime;
 
             // Speed builds and fades over a fraction of a second instead of snapping, so starts, stops
@@ -173,6 +198,13 @@ namespace Jagti.Player
             Vector3 before = transform.position;
             var flags = controller.Move((planar + Vector3.up * velocity.y) * dt);
             if ((flags & CollisionFlags.Above) != 0 && velocity.y > 0f) velocity.y = 0f;   // head on a ceiling
+            // Walked head first into something low that the look-ahead missed: duck under it.
+            if (autoDuck && !Crouching && (flags & CollisionFlags.Above) != 0 && wasGrounded && !jumped && planar.sqrMagnitude > 0.2f && FitsCrouched())
+            {
+                Crouching = true;
+                autoDucked = true;
+                duckHold = 0.3f;
+            }
 
             // Stay on the ground going down slopes and stairs instead of hopping off every step.
             if (wasGrounded && !controller.isGrounded && !jumped && velocity.y <= 0f)
@@ -206,25 +238,99 @@ namespace Jagti.Player
             if (transform.position.y < -150f) Teleport(spawnPoint); // below the lowest ravine
         }
 
-        /// <summary>Crouches or stands (standing needs headroom).</summary>
+        /// <summary>Crouches or stands (standing needs headroom). A crouch asked for this way stays until asked off.</summary>
         public void SetCrouch(bool on)
         {
-            if (on == Crouching) return;
-            if (!on)
-            {
-                float r = controller.radius * 0.9f;
-                Vector3 bottom = transform.position + Vector3.up * (r + 0.05f);
-                if (Physics.SphereCast(bottom, r, Vector3.up, out RaycastHit hit, standHeight - r * 2f - 0.05f, ~0, QueryTriggerInteraction.Ignore)
-                    && !hit.collider.transform.IsChildOf(transform)) return;
-            }
+            if (on == Crouching) { if (on) autoDucked = false; return; }
+            if (!on && !Headroom()) return;
             Crouching = on;
+            autoDucked = false;
+        }
+
+        /// <summary>The nearest hit of a sphere cast that isn't the player's own collider.</summary>
+        bool Probe(Vector3 from, float r, Vector3 dir, float distance, out RaycastHit best)
+        {
+            best = new RaycastHit();
+            int n = Physics.SphereCastNonAlloc(from, r, dir, probeHits, distance, ~0, QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < n; i++)
+            {
+                var h = probeHits[i];
+                if (h.collider == null || h.collider.transform.IsChildOf(transform)) continue;
+                if (h.distance <= 0f && h.point == Vector3.zero) continue;   // started inside it
+                if (h.distance < nearest) { nearest = h.distance; best = h; }
+            }
+            return nearest < float.MaxValue;
+        }
+
+        /// <summary>Room to stand up here.</summary>
+        bool Headroom()
+        {
+            float r = controller.radius * 0.9f;
+            Vector3 bottom = transform.position + Vector3.up * (r + 0.05f);
+            RaycastHit hit;
+            return !Probe(bottom, r, Vector3.up, standHeight - r * 2f - 0.05f, out hit);
+        }
+
+        /// <summary>Room for the crouched body here.</summary>
+        bool FitsCrouched()
+        {
+            float r = controller.radius * 0.9f;
+            Vector3 bottom = transform.position + Vector3.up * (r + 0.05f);
+            RaycastHit hit;
+            return !Probe(bottom, r, Vector3.up, standHeight - CrouchDrop - r * 2f - 0.05f, out hit);
+        }
+
+        /// <summary>
+        /// Something low ahead that a ducked body passes under: the standing head would hit it, but
+        /// nothing at the crouched head's height or at the waist is in the way for a while after it
+        /// (a wall stops all three, so walls never make you duck).
+        /// </summary>
+        bool LowOpeningAhead(Vector3 dir, float speed)
+        {
+            float r = controller.radius * 0.85f;
+            float reach = controller.radius + 0.3f + speed * 0.22f;
+            Vector3 feet = transform.position;
+            RaycastHit hit;
+            if (!Probe(feet + Vector3.up * (standHeight - r - 0.02f), r, dir, reach, out hit)) return false;
+            if (hit.normal.y > 0.3f) return false;   // the ground rising ahead (a ramp, a step), not a beam
+            float clear = hit.distance + 0.6f;
+            if (Probe(feet + Vector3.up * (standHeight - CrouchDrop - r - 0.06f), r, dir, clear, out hit)) return false;
+            if (Probe(feet + Vector3.up * Mathf.Max(controller.stepOffset + r + 0.05f, 0.8f), r, dir, clear, out hit)) return false;
+            return true;
+        }
+
+        /// <summary>Ducks under low openings while walking and stands up once there is room again.</summary>
+        void AutoDuck(float dt)
+        {
+            Vector3 flat = new Vector3(planar.x, 0f, planar.z);
+            float speed = flat.magnitude;
+            if (!Crouching)
+            {
+                if (controller.isGrounded && speed > 0.4f && LowOpeningAhead(flat / speed, speed))
+                {
+                    Crouching = true;
+                    autoDucked = true;
+                    duckHold = 0.3f;
+                }
+                return;
+            }
+            if (!autoDucked) return;
+            duckHold -= dt;
+            if (duckHold > 0f) return;
+            if (speed > 0.4f && LowOpeningAhead(flat / speed, speed)) { duckHold = 0.15f; return; }
+            if (Headroom())
+            {
+                Crouching = false;
+                autoDucked = false;
+            }
         }
 
         void UpdateCrouch()
         {
             float target = Crouching ? 1f : 0f;
             if (Mathf.Approximately(crouchT, target)) return;
-            crouchT = Mathf.MoveTowards(crouchT, target, Time.deltaTime * 5f);
+            crouchT = Mathf.MoveTowards(crouchT, target, Time.deltaTime * (autoDucked ? 8f : 5f));
             float h = Mathf.Lerp(standHeight, standHeight - CrouchDrop, crouchT);
             controller.height = h;
             controller.center = new Vector3(standCenter.x, standCenter.y - (standHeight - h) * 0.5f, standCenter.z);

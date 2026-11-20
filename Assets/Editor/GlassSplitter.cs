@@ -11,15 +11,25 @@ namespace Jagti.EditorTools
     /// taken out into its own child mesh, cut into panes (big glass walls are divided into panes
     /// about 1.6 m wide), and a GlassPanes component on that child keeps the panes' positions and
     /// triangle ranges. The building keeps the rest of its mesh, which is also its collider, so a
-    /// broken pane leaves a real opening; each pane gets its own thin box collider at runtime.
+    /// broken pane leaves a real opening; each pane gets its own thin box collider (saved with the
+    /// scene under "Breakable Glass", so the NavMesh bake sees the windows as walls).
+    /// The interior shells' glass behind the windows (Glass_Clear) is split the same way
+    /// (InteriorBuilder), and GlassPanes breaks a window's two layers together.
     /// </summary>
     public static class GlassSplitter
     {
         const float MaxPaneWidth = 1.6f, MaxPaneHeight = 2.6f;
 
         static int nextId;
+        static Transform colliderRoot;
 
-        public static void Reset() { nextId = 0; }
+        public static void Reset() { nextId = 0; colliderRoot = null; }
+
+        static Transform ColliderRoot()
+        {
+            if (colliderRoot == null) colliderRoot = new GameObject("Breakable Glass").transform;
+            return colliderRoot;
+        }
 
         /// <summary>Splits every mesh under the building that uses the glass material. Returns the number of panes made.</summary>
         public static int Split(GameObject building, Material glass)
@@ -180,13 +190,14 @@ namespace Jagti.EditorTools
             mr.shadowCastingMode = ShadowCastingMode.Off;
             var gp = go.AddComponent<GlassPanes>();
             gp.id = nextId++;
-            gp.thickness = 0.08f / scale;
+            gp.thickness = 0.08f;
             gp.centres = centres.ToArray();
             gp.normals = paneNormals.ToArray();
             gp.uAxes = paneU.ToArray();
             gp.sizes = sizes.ToArray();
             gp.triStart = starts.ToArray();
             gp.triCount = counts.ToArray();
+            gp.MakeColliders(ColliderRoot());
             return starts.Count;
         }
 
