@@ -377,6 +377,7 @@ namespace Jagti.EditorTools
                 {
                     if (road.points == null || road.width < 4f) continue;
                     if (road.name == "Highway" || road.name.StartsWith("Courtyard")) continue;   // off campus / inside a building's court
+                    if (road.name.StartsWith("Roundabout")) continue;                             // nobody parks on a roundabout
                     float carry = 45f;          // the first spot a little way in from the road's start
                     int side = 1;
                     for (int i = 0; i + 3 < road.points.Length; i += 2)

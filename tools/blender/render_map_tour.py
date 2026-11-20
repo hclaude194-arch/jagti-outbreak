@@ -125,16 +125,23 @@ for (x0, x1, z0, z1) in [(-1000, 1048, -1044, CAMPUS[2]), (-1000, 1048, CAMPUS[3
 STRIPS = [0]
 
 
-def strip(name, pts, width, lift, mat):
-    dense = []
-    for a, b in zip(pts[:-1], pts[1:]):
+def strip(name, pts, width, lift, mat, left=None, right=None):
+    """A ribbon laid on the ground; left/right are per-point half widths (flared road ends)."""
+    dense, hl, hr = [], [], []
+    for i, (a, b) in enumerate(zip(pts[:-1], pts[1:])):
         L = math.dist(a, b)
         steps = max(1, int(L / 2))
         for s in range(steps):
-            dense.append((a[0] + (b[0] - a[0]) * s / steps, a[1] + (b[1] - a[1]) * s / steps))
+            f = s / steps
+            dense.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+            hl.append(left[i] + (left[i + 1] - left[i]) * f if left else width / 2)
+            hr.append(right[i] + (right[i + 1] - right[i]) * f if right else width / 2)
     dense.append(pts[-1])
+    hl.append(left[-1] if left else width / 2)
+    hr.append(right[-1] if right else width / 2)
     if len(dense) < 2:
         return
+    closed = len(dense) > 3 and math.dist(dense[0], dense[-1]) < 0.05
     bm = bmesh.new()
     rows = []
     STRIPS[0] += 1
@@ -142,11 +149,14 @@ def strip(name, pts, width, lift, mat):
     for i, (x, z) in enumerate(dense):
         q = dense[min(i + 1, len(dense) - 1)]
         p = dense[max(i - 1, 0)]
+        if closed and i in (0, len(dense) - 1):
+            q, p = dense[1], dense[-2]
         dx, dz = q[0] - p[0], q[1] - p[1]
         L = math.hypot(dx, dz) or 1
-        nx, nz = -dz / L * width / 2, dx / L * width / 2
-        rows.append((bm.verts.new((x + nx, z + nz, ground(x + nx, z + nz) + lift + bias)),
-                     bm.verts.new((x - nx, z - nz, ground(x - nx, z - nz) + lift + bias))))
+        ux, uz = -dz / L, dx / L
+        lx, lz, rx, rz = x + ux * hl[i], z + uz * hl[i], x - ux * hr[i], z - uz * hr[i]
+        rows.append((bm.verts.new((lx, lz, ground(lx, lz) + lift + bias)),
+                     bm.verts.new((rx, rz, ground(rx, rz) + lift + bias))))
     for (a1, b1), (a2, b2) in zip(rows[:-1], rows[1:]):
         f = bm.faces.new((a1, b1, b2, a2))
         f.normal_update()
@@ -165,7 +175,7 @@ for r in layout["roads"]:
     p = r["points"]
     pts = [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
     mat = paving if r["width"] < 4 or "path" in r.get("name", "").lower() or r.get("name", "").startswith("Paved") else asphalt
-    strip("Road", pts, r["width"], 0.12, mat)
+    strip("Road", pts, r["width"], 0.12 + 0.02 * r.get("layer", 0), mat, r.get("left"), r.get("right"))
 for w in layout.get("water", []):
     p = w["points"]
     strip("Water", [(p[i], p[i + 1]) for i in range(0, len(p), 2)], w["width"], 0.05, water)

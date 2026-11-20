@@ -91,14 +91,17 @@ namespace Jagti.EditorTools
             var southRb = M(421, 1364);
             var centralRb = M(414, 996);
             var gateRb = M(296, 487);
-            serpentine.RemoveAll(q => (q - gateRb).magnitude < 11f);   // the loop round the roundabout replaces its end
+            serpentine.RemoveAll(q => (q - gateRb).magnitude < 9f);    // the loop round the roundabout replaces its end
 
-            var spineSouth = new List<Vector3> { M(421, 1352), M(421, 1012) };       // northbound
-            var spineNorth = new List<Vector3> { M(405, 986), M(405, 812), M(405, 630) };
+            // The spine road meets the central roundabout square on from north and south (its
+            // halves swing in to the roundabout's axis); the rings' centre lines are 7.1 m (gate),
+            // 9.25 m (central) and 8 m (south) out (ROUNDABOUTS in generate_layout.py).
+            var spineSouth = new List<Vector3> { M(421, 1354), M(421, 1040), M(417, 1024), M(414, 1014), M(414, 1007) };   // northbound
+            var spineNorth = new List<Vector3> { M(414, 985), M(414, 976), M(410, 962), M(405, 948), M(405, 812), M(405, 630) };
 
             var fwd = new List<Vector3>();
             fwd.AddRange(spineSouth);
-            fwd.AddRange(Arc(centralRb, 12f, -70f, -210f));      // clockwise round the west side
+            fwd.AddRange(Arc(centralRb, 9.25f, -80f, -260f));    // clockwise round the west side
             fwd.AddRange(spineNorth);
             fwd.AddRange(serpentine);
 
@@ -108,14 +111,14 @@ namespace Jagti.EditorTools
             var sp = new List<Vector3>(serpentine); sp.Reverse();
             back.AddRange(sp);
             back.AddRange(sN);
-            back.AddRange(Arc(centralRb, 12f, 138f, -70f));      // clockwise round the east side
+            back.AddRange(Arc(centralRb, 9.25f, 100f, -80f));    // clockwise round the east side
             back.AddRange(sS);
 
             var loop = new List<Vector3>();
             loop.AddRange(fwd);
-            loop.AddRange(Arc(gateRb, 10.5f, -15f, -345f));      // once round the gate roundabout
+            loop.AddRange(Arc(gateRb, 7.1f, -15f, -345f));       // once round the gate roundabout
             loop.AddRange(back);
-            loop.AddRange(Arc(southRb, 9.5f, 75f, -255f));       // and round the south one
+            loop.AddRange(Arc(southRb, 8f, 80f, -260f));         // and round the south one
             var dense = Densify(loop, 3f);
             var route = KeepLeft(dense, Lane);
 
