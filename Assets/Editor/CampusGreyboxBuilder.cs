@@ -124,6 +124,7 @@ namespace Jagti.EditorTools
 
             Progress("Roads, areas and buildings", 0.5f);
             var areaRoot = Child(root.transform, "Areas");
+            layoutBuildings = layout.buildings;
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
             var roadRoot = Child(root.transform, "Roads");
@@ -249,7 +250,6 @@ namespace Jagti.EditorTools
                 case "track": color = new Color(0.62f, 0.30f, 0.22f); top = RoadTop; break;
                 case "field": color = new Color(0.32f, 0.50f, 0.20f); top = FieldTop; break;
                 case "amphitheatre": color = new Color(0.82f, 0.77f, 0.68f); break;
-                case "roundabout": color = new Color(0.28f, 0.48f, 0.18f); top = 0.35f; break;
                 case "substation": color = new Color(0.52f, 0.50f, 0.44f); break;
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
@@ -257,6 +257,11 @@ namespace Jagti.EditorTools
             if (a.shape == "pill")
             {
                 MakePillArea(a, top, color, parent, materials);
+                return;
+            }
+            if (a.type == "roundabout")
+            {
+                MakeRoundaboutIsland(a, parent);
                 return;
             }
             bool ellipse = a.shape == "ellipse";
@@ -270,8 +275,96 @@ namespace Jagti.EditorTools
             go.transform.localScale = ellipse
                 ? new Vector3(a.width, h / 2f, a.depth)
                 : new Vector3(a.width, h, a.depth);
-            if (a.type != "roundabout") Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
+            Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
             SetMaterial(go, materials.Get("Area_" + a.type, color));
+            MarkStatic(go);
+        }
+
+        static Material islandGrass;
+        static BuildingData[] layoutBuildings;
+
+        /// <summary>A roundabout's island (owner, 2026-11-20: no raised discs on the roads): a low grass
+        /// mound inside the ring road's inner kerb, its edge at the kerb's top and its crown 0.3 m
+        /// higher, so it reads as a planted island and never as a slab standing on the carriageway.
+        /// The ring's kerbs (MakeKerbs) make its edge; it keeps a collider so cars ride up onto it.</summary>
+        static void MakeRoundaboutIsland(AreaData a, Transform parent)
+        {
+            if (islandGrass == null)
+            {
+                var tex = ProceduralAssets.GroundTexture("Island_Grass",
+                    new Color(0.17f, 0.33f, 0.09f), new Color(0.29f, 0.50f, 0.16f), new Color(0.43f, 0.62f, 0.24f), 4, 0.40f, 5);
+                islandGrass = ProceduralAssets.LitMaterial("Roundabout_Island", Color.white, tex, 0.02f);
+            }
+            const int seg = 40, rings = 4;
+            const float kerbWidth = 0.3f, kerbTop = 0.18f, crown = 0.3f;
+            float r = a.width / 2f - kerbWidth + 0.02f;     // just under the kerb's inner edge
+            if (r < 1f) return;
+            // The gate's island is the gate model's own raised flower bed.
+            if (layoutBuildings != null)
+                foreach (var b in layoutBuildings)
+                    if (b.name == "Main Gate" && new Vector2(b.x - a.x, b.z - a.z).magnitude < 30f) return;
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+            // Rings from the edge (k = 0) to the crown; each vertex follows the ground beneath it.
+            for (int k = 0; k <= rings; k++)
+            {
+                float f = k / (float)rings;                     // 0 at the edge, 1 at the middle
+                float rr = r * (1f - f);
+                float lift = RoadTop + kerbTop + crown * Mathf.Sin(f * Mathf.PI * 0.5f);
+                int count = k == rings ? 1 : seg;
+                for (int i = 0; i < count; i++)
+                {
+                    float t = 2f * Mathf.PI * i / seg;
+                    float x = a.x + rr * Mathf.Cos(t), z = a.z + rr * Mathf.Sin(t);
+                    vertices.Add(new Vector3(x, Ground(x, z) + lift, z));
+                    uvs.Add(new Vector2(x / 3f, z / 3f));
+                }
+            }
+            for (int k = 0; k < rings; k++)
+            {
+                int o = k * seg, n = (k + 1) * seg;
+                for (int i = 0; i < seg; i++)
+                {
+                    int i1 = (i + 1) % seg;
+                    if (k == rings - 1)
+                    {
+                        triangles.Add(o + i); triangles.Add(n); triangles.Add(o + i1);
+                    }
+                    else
+                    {
+                        triangles.Add(o + i); triangles.Add(n + i); triangles.Add(o + i1);
+                        triangles.Add(o + i1); triangles.Add(n + i); triangles.Add(n + i1);
+                    }
+                }
+            }
+            // A short skirt from the edge down under the road, hidden by the kerb.
+            int skirt = vertices.Count;
+            for (int i = 0; i < seg; i++)
+            {
+                Vector3 e = vertices[i];
+                vertices.Add(e);
+                vertices.Add(new Vector3(e.x, e.y - kerbTop - RoadTop - 0.3f, e.z));
+                uvs.Add(new Vector2(i * 0.25f, 1f));
+                uvs.Add(new Vector2(i * 0.25f, 0f));
+            }
+            for (int i = 0; i < seg; i++)
+            {
+                int a0 = skirt + 2 * i, b0 = skirt + 2 * ((i + 1) % seg);
+                triangles.Add(a0); triangles.Add(b0); triangles.Add(a0 + 1);      // facing out, as the pill's skirt
+                triangles.Add(b0); triangles.Add(b0 + 1); triangles.Add(a0 + 1);
+            }
+            var mesh = new Mesh { name = "Roundabout Island" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject("Area - roundabout island");
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = islandGrass;
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
         }
 

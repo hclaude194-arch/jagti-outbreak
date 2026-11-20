@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 28
+VERSION = 33
 
 
 def to_world(x, y):
@@ -89,28 +89,39 @@ BUILDINGS = [
     ("Faculty Residence 4 - North", "central", 270, 1070, 16, 24, 6, "box"),
     ("Faculty Residence 5 - South", "central", 266, 1042, 16, 24, 6, "box"),
     ("Faculty Residence 5 - North", "central", 270, 1018, 16, 24, 6, "box"),
-    # Girls' hostels (label 9 on the institute's scale model; the owner's top view of 2026-11-18):
-    # two U-shaped blocks round courtyards with badminton courts, and a pair of tennis courts
-    # beside the running track. B is the U traced from the satellite view (opening south); A
-    # replaces the stepped chain with the model's U opening east, and its north wing meets B's
-    # west wing face to face so the corridors join.
-    ("Girls Hostel B - West Wing", "hostels", 462, 1078, 16, 40, 7, "box"),
-    ("Girls Hostel B - North Wing", "hostels", 478, 1078, 43, 18, 7, "box"),
-    ("Girls Hostel B - East Wing", "hostels", 521, 1078, 14, 40, 7, "box"),
-    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 26, 26, 7, "box"),   # 4 m clear of Girls Hostel B (they touched, and a doorway opened into a B room)
-    ("Girls Hostel A - West Wing", "hostels", 432, 1130, 14, 40, 7, "box"),
-    ("Girls Hostel A - South Wing", "hostels", 432, 1170, 30, 28, 7, "box"),
+    # Girls' hostels (owner, 2026-11-20, with the satellite view): four L-shaped hostels of two
+    # wings each, entrances at the inside corner where the wings meet, like the boys' hostels.
+    # B and C stand side by side as a U opening south round the badminton courtyard; A and D are
+    # stacked west of the other courtyard, A opening south-east and D north-east. Separate
+    # hostels stand 4 m apart. Every hostel, girls' and boys', is the same L (owner, 2026-11-20:
+    # both arms equally long and thick): two 14 m deep wings, each arm 32 m from the outer corner.
+    ("Girls Hostel B - West Wing", "hostels", 462, 1078, 14, 32, 7, "box"),
+    ("Girls Hostel B - North Wing", "hostels", 476, 1078, 18, 14, 7, "box"),
+    ("Girls Hostel C - North Wing", "hostels", 503, 1078, 18, 14, 7, "box"),
+    ("Girls Hostel C - East Wing", "hostels", 521, 1078, 14, 32, 7, "box"),
+    ("Girls Hostel A - North Wing", "hostels", 430, 1114, 32, 14, 7, "box"),
+    ("Girls Hostel A - West Wing", "hostels", 430, 1128, 14, 18, 7, "box"),
+    ("Girls Hostel D - West Wing", "hostels", 430, 1152, 14, 18, 7, "box"),
+    ("Girls Hostel D - South Wing", "hostels", 430, 1170, 32, 14, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
-    ("East Block 2", "hostels", 589, 1274, 34, 24, 2, "box"),   # clear of the track road (was across it)
-    # Sindhu (boys): two U blocks opening east round badminton courtyards.
-    ("Sindhu Hostel A - North Wing", "sindhu", 434, 1379, 40, 22, 7, "box"),
-    ("Sindhu Hostel A - West Wing", "sindhu", 434, 1401, 16, 32, 7, "box"),
-    ("Sindhu Hostel A - South Wing", "sindhu", 434, 1433, 40, 22, 7, "box"),
-    ("Sindhu Hostel B - North Wing", "sindhu", 434, 1461, 40, 22, 7, "box"),
-    ("Sindhu Hostel B - West Wing", "sindhu", 434, 1483, 16, 32, 7, "box"),
-    ("Sindhu Hostel B - South Wing", "sindhu", 434, 1515, 40, 22, 7, "box"),
+    # Chenab, east of the track by the roundabout where the road round the track ends (owner's
+    # satellite shot, 2026-11-20; a hostel, like the others named after rivers).
+    ("Chenab Hostel", "hostels", 581, 1279, 32, 22, 5, "box"),
+    # The boys' hostels south of the track (owner's sketch and satellite shot, 2026-11-20): four
+    # separate L-shaped hostels of two wings each, staggered down a diagonal round a lawn that
+    # opens east onto the hostel road: Yamuna top right and Sindhu upper left (both opening
+    # south-east), then two more lower left and bottom right (opening north-east). Each has its
+    # entrances at the inside corner where its wings meet (build_buildings.INNER_CORNER_HOSTELS).
+    ("Yamuna Hostel - North Wing", "sindhu", 475, 1370, 32, 14, 7, "box"),
+    ("Yamuna Hostel - West Wing", "sindhu", 475, 1384, 14, 18, 7, "box"),
+    ("Sindhu Hostel - North Wing", "sindhu", 440, 1415, 32, 14, 7, "box"),
+    ("Sindhu Hostel - West Wing", "sindhu", 440, 1429, 14, 18, 7, "box"),
+    ("Boys Hostel 3 - West Wing", "sindhu", 441, 1478, 14, 18, 7, "box"),
+    ("Boys Hostel 3 - South Wing", "sindhu", 441, 1496, 32, 14, 7, "box"),
+    ("Boys Hostel 4 - West Wing", "sindhu", 477, 1504, 14, 18, 7, "box"),
+    ("Boys Hostel 4 - South Wing", "sindhu", 477, 1522, 32, 14, 7, "box"),
     ("Service Shed 1", "sindhu", 388, 1490, 26, 13, 1, "box"),
     ("Service Shed 2", "sindhu", 392, 1512, 24, 12, 1, "box"),
     ("Service Shed 3", "sindhu", 395, 1531, 22, 12, 1, "box"),
@@ -167,6 +178,7 @@ ROUNDABOUTS = [
     ("Gate", 296, 487, 3.6, 7.0),       # the island is the gate model's flower bed (build_buildings.main_gate)
     ("Central", 414, 996, 5.5, 7.5),
     ("South", 421, 1364, 4.5, 7.0),
+    ("Chenab", 579, 1258, 3.5, 6.0),     # where the road round the track ends (owner, 2026-11-20)
 ]
 
 
@@ -196,8 +208,15 @@ ROADS = [
     ("Central Road West", 6, [[285, 990], [350, 990], [385, 995], ring_at("Central", "W")], True),
     ("Central Road East", 6, [ring_at("Central", "E"), [440, 994], [500, 985], [600, 972], [690, 962]], True),
     ("Southern Road West", 7, [[250, 1366], [330, 1366], [380, 1364.5], ring_at("South", "W")], True),
-    ("Southern Road East", 7, [ring_at("South", "E"), [500, 1362], [535, 1355], [562, 1338], [574, 1318]], True),
-    ("Track Road", 5, [[600, 972], [582, 1030], [562, 1075], [545, 1105], [548, 1140], [572, 1165], [584, 1215], [584, 1280], [574, 1318]], True),
+    # The road round the track (owner's satellite shot, 2026-11-20): east from the south
+    # roundabout past the hostels, round the track's south end and up its east side to the
+    # Chenab roundabout, where it ends.
+    ("Southern Road East", 7, [ring_at("South", "E"), [500, 1362], [530, 1357], [553, 1344], [566, 1324], [572, 1300], [576, 1280], ring_at("Chenab", "S")], True),
+    # The hostel road along the open east side of the Yamuna-Sindhu lawn, on to the back road.
+    ("Hostel East Road", 5, [[517, 1362], [517, 1530], [512, 1541]], False),
+    # From the central road down to the East Block; it stops there (the road round the track
+    # does not run on north from Chenab).
+    ("Track Road", 5, [[600, 972], [582, 1030], [562, 1075], [548, 1105], [547, 1132]], True),
     ("Sindhu Back Road", 5, [[421, 1545], [468, 1546], [512, 1541]], True),
     # The oval green west of the mess (satellite, 2026-11-19): a loop road all round a long lawn,
     # open at its north end onto the central road, with the faculty rows on both sides, and a
@@ -216,17 +235,17 @@ ROADS = [
     ("Courtyard Centre Square", 9.0, [[489, 710], [489, 720]], False),
     # Paved walks (Phase 4D): the pavement along the shop fronts beside the spine road (the only
     # road to Annapurna Mess, per the satellite), and from the spine road to the sports complex lobby.
-    ("Plaza Shops Walk", 4, [[405, 1004], [405, 1099]], False),
+    ("Plaza Shops Walk", 4, [[405, 1020], [405, 1099]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
     # The turn to the girls' hostels (owner's photos 5 and 6 of 2026-11-19, satellite): a lane of
     # interlocking pavers forks off the spine road at a shallow angle by the sports complex and
     # runs north beside it, a long kerbed island between them, past the courts (fenced on a stone
     # wall to its east) to the hostels. The spine climbs to the mess while the lane stays at the
     # hostels' level, so the island becomes a grassy bank with a railing along the spine. At the
-    # hostel the lane turns east past Girls Hostel A's south door, then north between the hostel
-    # and the tennis courts.
-    ("Paved Girls Hostel Lane", 4.5, rounded([[421, 1306], [435, 1280], [435, 1203.35], [470, 1203.35], [470, 1124]],
-                                             {1: 30, 2: 10, 3: 8}), False),
+    # hostel the lane turns east past Girls Hostel D's south front, then north between the hostels
+    # and the tennis courts, then east along the front of B and C (owner's sketch, 2026-11-20).
+    ("Paved Girls Hostel Lane", 4.5, rounded([[421, 1306], [435, 1280], [435, 1203.35], [470, 1203.35], [470, 1122.5], [536, 1122.5]],
+                                             {1: 30, 2: 6, 3: 8, 4: 6}), False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 
@@ -238,14 +257,9 @@ AREAS = [
     ("lawn", "box", 322, 529, 110, 21),
     ("lawn", "box", 430, 560, 40, 60),
     ("lawn", "box", 293, 908, 100, 72),
-    ("lawn", "box", 478, 1409, 33, 88),
-    # Badminton courtyards of the boys' hostels (Sindhu A and B, Brahmaputra).
-    ("lawn", "box", 450, 1401, 24, 32),
-    ("court", "box", 455, 1406, 13, 6),
-    ("court", "box", 455, 1422, 13, 6),
-    ("lawn", "box", 450, 1483, 24, 32),
-    ("court", "box", 455, 1488, 13, 6),
-    ("court", "box", 455, 1504, 13, 6),
+    # The big lawn the Yamuna-Sindhu chain wraps round, open east to the hostel road.
+    ("lawn", "box", 456, 1402, 55, 100),
+    # Brahmaputra's badminton courtyard.
     ("lawn", "box", 364, 792, 20, 24),
     ("court", "box", 368, 797, 13, 6),
     ("court", "box", 368, 805, 13, 6),
@@ -261,10 +275,10 @@ AREAS = [
     ("parking", "box", 379, 840, 20, 50),
     ("plaza", "box", 383, 1068, 20, 24),   # Vipanan's paved forecourt, open to the spine road
     ("substation", "box", 247, 618, 30, 44),
-    ("court", "box", 440, 1207, 26, 28),
+    ("court", "box", 441, 1209, 25, 27),   # clear of the lane's corner and its fence
     ("court", "box", 440, 1237, 26, 28),
     ("court", "box", 440, 1267, 26, 26),
-    ("court", "box", 478, 1124, 28, 30),   # the girls' hostel tennis courts (a pair)
+    ("court", "box", 478, 1128, 28, 30),   # the girls' hostel tennis courts (a pair), south of the lane
     # A 400 m running track is a pill (two straights joined by half circles), not an oval:
     # ends of radius width/2 along the long axis (owner, 2026-11-19).
     ("track", "pill", 517, 1261, 96, 170),
@@ -293,7 +307,11 @@ PLACES = [
     ("Indoor Games Block", 450, 1324),
     ("Athletics Track", 517, 1261),
     ("Water Tower", 375, 1250),
-    ("Sindhu Hostel (Executive Hostel?)", 448, 1442),
+    ("Yamuna Hostel", 491, 1386),
+    ("Sindhu Hostel", 456, 1431),
+    ("Boys Hostel 3", 457, 1494),
+    ("Boys Hostel 4", 493, 1520),
+    ("Chenab Hostel", 597, 1290),
     ("Service Yard", 401, 1515),
 ]
 
@@ -324,10 +342,9 @@ WATER += [
     ("Terrace Cascade North Basin", 8.0, [[324, 711], [332, 714]]),
 ]
 # (name, map x, map y, radius m)  round pools
-POOLS = [
-    # On the entrance axis in front of the porch, inside a square frame (see the academic model).
-    ("Entrance Fountain", 486, 619, 3.4),
-]
+# None at present: the round fountain that stood at the top of the clock tower walk in front of
+# the porch is not on the satellite and the owner said there is none (2026-11-20).
+POOLS = []
 # Trees planted in rows or spots that the scattered planting would miss
 # (kind: 0 broadleaf, 1 eucalyptus, 2 pine, 3 shrub; spacing m; offset east of the line m).
 # Sparse planted rows (the owner's photos show few trees on the campus, 2026-11-19).
@@ -336,11 +353,12 @@ TREE_ROWS = [(0, 18.0, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 18.0, -3
 TREE_SPOTS = []
 
 # The clock tower walk (campus model, satellite): a straight stepped walk from the serpentine's
-# second leg up to the fountain square in front of the academic porch, with the tower on a level
-# landing near its foot. generate_terrain.py designs the flights and landings to fit the heights
+# second leg straight up to the porch drive in front of the academic porch (owner's photo,
+# 2026-11-20: the steps meet the drive, with white planter boxes stepping down both sides), with
+# the tower on a level landing near its foot. generate_terrain.py designs the flights and landings to fit the heights
 # there and writes them to campus_terrain.json ("clockSteps"); build_buildings.py builds them.
 # (map x, map y bottom, map y top, width m, map y of the tower landing's centre, landing length m)
-CLOCK_STEPS = (486, 526.5, 613, 4.0, 545, 15.0)
+CLOCK_STEPS = (486, 526.5, 624, 4.0, 545, 15.0)
 # Height of the steps the walk climbs between the serpentine and the porch (m): the serpentine
 # is pinned this far below the porch where the walk meets it.
 CLOCK_STEPS_RISE = 15.0

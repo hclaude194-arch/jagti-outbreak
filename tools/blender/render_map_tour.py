@@ -259,13 +259,20 @@ for r in layout["roads"]:
     strip("Road", pts, r["width"], lift, mat, r.get("left"), r.get("right"))
     if r["name"] != "Highway" and not r["name"].startswith("Plaza ") and r["width"] >= 4:
         kerbs(r, lift)
-# Roundabout islands: raised green discs inside the rings' kerbs.
+# Roundabout islands: low grass mounds inside the rings' kerbs (CampusGreyboxBuilder's
+# MakeRoundaboutIsland); the gate's island is the gate model's flower bed.
 island = material("Island", (0.16, 0.30, 0.10))
+gate = next((b for b in layout["buildings"] if b["name"] == "Main Gate"), None)
 for a in layout["areas"]:
     if a["type"] == "roundabout":
-        bpy.ops.mesh.primitive_cylinder_add(radius=a["width"] / 2, depth=0.8, vertices=40,
-                                            location=(a["x"], a["z"], ground(a["x"], a["z"]) + 0.0))
-        bpy.context.active_object.data.materials.append(island)
+        if gate and math.hypot(gate["x"] - a["x"], gate["z"] - a["z"]) < 30:
+            continue
+        r = a["width"] / 2 - 0.28
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=40, ring_count=16,
+                                             location=(a["x"], a["z"], ground(a["x"], a["z"]) + 0.15 + 0.18 - 0.05))
+        o = bpy.context.active_object
+        o.scale = (r, r, 0.35)
+        o.data.materials.append(island)
 for w in layout.get("water", []):
     p = w["points"]
     strip("Water", [(p[i], p[i + 1]) for i in range(0, len(p), 2)], w["width"], 0.05, water)
@@ -583,6 +590,18 @@ VIEWS = {
     "girls_south_door": (52, -209, 1.7, 30, -199, 2.5, 24),
     "girls_lane_aerial": (75, -330, 45, 25, -235, 0, 26),
     "roof_stair": (66, -62, 4, 52, -84, 10, 24),
+    # 2026-11-20 (owner's satellite shot): the Yamuna-Sindhu chain and the road round the
+    # track to the Chenab roundabout.
+    "boys_hostels_aerial": (230, -560, 110, 90, -360, 0, 26),
+    "chenab_roundabout": (128, -312, 14, 168, -262, 1, 26),
+    # 2026-11-20 (owner's photos of the academic front): the colonnade and the steps up to the
+    # porch drive, from out over the slope like the aerial photo.
+    "academic_front": (73, 445, 30, 73, 352, 8, 24),
+    "clock_steps_top": (80, 392, 4, 73, 362, 3, 26),
+    # The hill east of the boys' hostel road and the cliff east of the girls' hostels and track
+    # (owner's comments on the plans, 2026-11-20).
+    "boys_hill": (60, -455, 1.7, 160, -470, 12, 24),
+    "girls_cliff": (130, -205, 1.7, 200, -200, 8, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).
@@ -594,6 +613,7 @@ PLANS = {
     "sindhu_plan": (50, -460, 220, "-X"),
     "girls_lane_plan": (28, -250, 130, "+Z"),
     "roundabout_plan": (0, 0, 70, "+Z"),
+    "boys_plan": (105, -380, 300, "+Z"),
 }
 os.makedirs(OUT, exist_ok=True)
 only = [a for a in sys.argv[1:] if a in VIEWS or a in PLANS]
