@@ -39,8 +39,8 @@ HOSTELS = [
     ("Brahmaputra_Hostel", "Brahmaputra", B.BRAHMAPUTRA),
     ("Girls_Hostel_A", "Girls Hostel A", B.GIRLS_A),
     ("Girls_Hostel_B", "Girls Hostel B", B.GIRLS_B),
-    ("Sindhu_Hostel_A", "Sindhu A", B.SINDHU_A),
-    ("Sindhu_Hostel_B", "Sindhu B", B.SINDHU_B),
+    ("Yamuna_Hostel", "Yamuna", B.YAMUNA),
+    ("Sindhu_Hostel", "Sindhu", B.SINDHU),
 ]
 
 INWARD = {"S": (0.0, 1.0), "N": (0.0, -1.0), "W": (1.0, 0.0), "E": (-1.0, 0.0)}

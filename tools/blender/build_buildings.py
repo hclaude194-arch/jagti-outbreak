@@ -2406,15 +2406,16 @@ def water_tower():
 
 
 BRAHMAPUTRA = ["Brahmaputra Hostel - East Wing", "Brahmaputra Hostel - North Wing", "Brahmaputra Hostel - South Wing"]
-SINDHU_A = ["Sindhu Hostel A - North Wing", "Sindhu Hostel A - West Wing", "Sindhu Hostel A - South Wing"]
-SINDHU_B = ["Sindhu Hostel B - North Wing", "Sindhu Hostel B - West Wing", "Sindhu Hostel B - South Wing"]
+# The stepped chain south of the track (owner's satellite shot, 2026-11-20).
+YAMUNA = ["Yamuna Hostel - North Block", "Yamuna Hostel - Step Block", "Yamuna Hostel - West Block", "Yamuna Hostel - South Block"]
+SINDHU = ["Sindhu Hostel - North Block", "Sindhu Hostel - Step Block", "Sindhu Hostel - South Block"]
 GIRLS_A = ["Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing"]
 GIRLS_B = ["Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing"]
 HAND_COVERED = {
     "Academic Block - North Wing", "Academic Block - South Wing", "Academic Block - West Wing",
     "Academic Block - East Wing", "Academic Block - Entrance", "Mandapam Auditorium (west drum)", "East Drum",
     "Annapurna Mess", "Annapurna Mess - Kitchen",
-    *BRAHMAPUTRA, *SINDHU_A, *SINDHU_B,
+    *BRAHMAPUTRA, *YAMUNA, *SINDHU,
     "Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing",
     "Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing",
     "Shopping & Medical 1 (ATM)", *VIPANAN, "Sports Complex",
@@ -2433,8 +2434,8 @@ MODELS = [
     vipanan,
     # The boys' hostels are U blocks too (owner, 2026-11-18).
     lambda: detailed_model("Brahmaputra_Hostel", BRAHMAPUTRA, "hostel"),
-    lambda: detailed_model("Sindhu_Hostel_A", SINDHU_A, "hostel"),
-    lambda: detailed_model("Sindhu_Hostel_B", SINDHU_B, "hostel"),
+    lambda: detailed_model("Yamuna_Hostel", YAMUNA, "hostel"),
+    lambda: detailed_model("Sindhu_Hostel", SINDHU, "hostel"),
     # The girls' hostels: two U blocks round badminton courtyards (the owner's top view).
     lambda: detailed_model("Girls_Hostel_A", GIRLS_A, "hostel"),
     lambda: detailed_model("Girls_Hostel_B", GIRLS_B, "hostel"),
@@ -2517,14 +2518,14 @@ FIRE_ESCAPES = {
     "Academic_Block": [("Academic Block - South Wing", "E", -15.0)],
     "Annapurna_Mess": [("Annapurna Mess - Kitchen", "S", 6.0)],
     "Brahmaputra_Hostel": [("Brahmaputra Hostel - East Wing", "N", 4.0)],
-    "Sindhu_Hostel_A": [("Sindhu Hostel A - North Wing", "N", -16.0)],
-    "Sindhu_Hostel_B": [("Sindhu Hostel B - South Wing", "W", 7.0)],
+    "Yamuna_Hostel": [("Yamuna Hostel - South Block", "W", 0.0)],
+    "Sindhu_Hostel": [("Sindhu Hostel - South Block", "S", -9.0)],
     "Girls_Hostel_A": [("Girls Hostel A - South Wing", "E", 6.0)],
     "Girls_Hostel_B": [("Girls Hostel B - West Wing", "N", -4.0)],
     "Shopping_Medical_1_ATM": [("Shopping & Medical 1 (ATM)", "W", 11.0)],
     "Sports_Complex": [("Sports Complex", "E", -23.0)],
     "East_Block": [("East Block", "E", -10.0)],
-    "East_Block_2": [("East Block 2", "N", -13.0)],
+    "Chenab_Hostel": [("Chenab Hostel", "E", 0.0)],
 }
 FE_W0, FE_LANE, FE_HALF = 0.9, 1.15, 2.6     # off the facade line; lane width; half length along the wall
 FE_FLIGHT = 1.4                               # each flight runs from -1.4 to +1.4 along the wall

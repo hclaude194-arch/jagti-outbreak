@@ -406,6 +406,7 @@ DEFAULT_GRADE, PATH_GRADE = 0.09, 0.12
 # the girls' hostel lane runs at the hostels' floor level, below the climbing spine road, to the
 # hostels' doors (owner's photos of the split, 2026-11-19).
 ROAD_LEVELS = {"Paved Girls Hostel Lane": "Girls Hostels"}
+ROAD_LEVEL_FOLLOW = 13.0
 
 
 def is_footpath(name):
@@ -452,6 +453,15 @@ def solve_road_profiles(h, fixed=None):
             prof = smooth_profile(sample(h, p[:, 0], p[:, 1]), window_pts)
             if name in ROAD_LEVELS:
                 prof[:] = pad_heights[ROAD_LEVELS[name]] - 0.15
+                # Beside the road it forks from (closer than ROAD_LEVEL_FOLLOW, centre to centre) it
+                # keeps that road's height, so the kerbed island between them is level and neither
+                # road's edge drops into a bank (owner, 2026-11-20: janky roads); then it eases
+                # down to the plot's level under its grade limit.
+                for oname, (op, oprof, owidth) in solved.items():
+                    for i, (x, z) in enumerate(p):
+                        d, oh = nearest_on(op, oprof, x, z)
+                        if d < ROAD_LEVEL_FOLLOW:
+                            pin[i] = oh
             if name == "Spine Road South":
                 # Level past the mess and shop fronts, at the roundabout's height.
                 first = pin[~np.isnan(pin)]

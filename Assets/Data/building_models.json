@@ -161,41 +161,42 @@
    ]
   },
   {
-   "name": "Sindhu_Hostel_A",
-   "fbx": "Assets/Models/Buildings/Sindhu_Hostel_A.fbx",
-   "pivotX": 40.0,
-   "pivotZ": -394.0,
+   "name": "Yamuna_Hostel",
+   "fbx": "Assets/Models/Buildings/Yamuna_Hostel.fbx",
+   "pivotX": 83.0,
+   "pivotZ": -387.0,
    "boundsMin": [
-    20.0,
-    -459.0
+    22.7,
+    -464.0
    ],
    "boundsMax": [
-    60.0,
-    -379.7
+    92.0,
+    -374.0
    ],
    "replaces": [
-    "Sindhu Hostel A - North Wing",
-    "Sindhu Hostel A - West Wing",
-    "Sindhu Hostel A - South Wing"
+    "Yamuna Hostel - North Block",
+    "Yamuna Hostel - Step Block",
+    "Yamuna Hostel - West Block",
+    "Yamuna Hostel - South Block"
    ]
   },
   {
-   "name": "Sindhu_Hostel_B",
-   "fbx": "Assets/Models/Buildings/Sindhu_Hostel_B.fbx",
-   "pivotX": 40.0,
-   "pivotZ": -476.0,
+   "name": "Sindhu_Hostel",
+   "fbx": "Assets/Models/Buildings/Sindhu_Hostel.fbx",
+   "pivotX": 44.0,
+   "pivotZ": -481.0,
    "boundsMin": [
-    16.7,
-    -541.0
+    26.0,
+    -539.3
    ],
    "boundsMax": [
-    60.0,
-    -465.0
+    96.0,
+    -468.0
    ],
    "replaces": [
-    "Sindhu Hostel B - North Wing",
-    "Sindhu Hostel B - West Wing",
-    "Sindhu Hostel B - South Wing"
+    "Sindhu Hostel - North Block",
+    "Sindhu Hostel - Step Block",
+    "Sindhu Hostel - South Block"
    ]
   },
   {
@@ -413,20 +414,20 @@
    ]
   },
   {
-   "name": "East_Block_2",
-   "fbx": "Assets/Models/Buildings/East_Block_2.fbx",
-   "pivotX": 192.0,
-   "pivotZ": -290.0,
+   "name": "Chenab_Hostel",
+   "fbx": "Assets/Models/Buildings/Chenab_Hostel.fbx",
+   "pivotX": 183.0,
+   "pivotZ": -294.0,
    "boundsMin": [
-    175.0,
-    -302.0
+    167.0,
+    -305.0
    ],
    "boundsMax": [
-    209.0,
-    -274.7
+    202.3,
+    -283.0
    ],
    "replaces": [
-    "East Block 2"
+    "Chenab Hostel"
    ]
   },
   {

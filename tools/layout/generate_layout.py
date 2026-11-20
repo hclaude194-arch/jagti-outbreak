@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 28
+VERSION = 29
 
 
 def to_world(x, y):
@@ -103,14 +103,20 @@ BUILDINGS = [
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
-    ("East Block 2", "hostels", 589, 1274, 34, 24, 2, "box"),   # clear of the track road (was across it)
-    # Sindhu (boys): two U blocks opening east round badminton courtyards.
-    ("Sindhu Hostel A - North Wing", "sindhu", 434, 1379, 40, 22, 7, "box"),
-    ("Sindhu Hostel A - West Wing", "sindhu", 434, 1401, 16, 32, 7, "box"),
-    ("Sindhu Hostel A - South Wing", "sindhu", 434, 1433, 40, 22, 7, "box"),
-    ("Sindhu Hostel B - North Wing", "sindhu", 434, 1461, 40, 22, 7, "box"),
-    ("Sindhu Hostel B - West Wing", "sindhu", 434, 1483, 16, 32, 7, "box"),
-    ("Sindhu Hostel B - South Wing", "sindhu", 434, 1515, 40, 22, 7, "box"),
+    # Chenab, east of the track by the roundabout where the road round the track ends (owner's
+    # satellite shot, 2026-11-20; a hostel, like the others named after rivers).
+    ("Chenab Hostel", "hostels", 581, 1279, 32, 22, 5, "box"),
+    # The boys' hostels south of the track (owner's satellite shot, 2026-11-20): one long stepped
+    # chain of blocks, Yamuna to the north and Sindhu to the south, running from the road south
+    # of the track down the spine road's side and back east, round a big lawn that opens east
+    # onto the hostel road. Blocks of one hostel touch; the two hostels stand 4 m apart.
+    ("Yamuna Hostel - North Block", "sindhu", 488, 1370, 18, 26, 7, "box"),
+    ("Yamuna Hostel - Step Block", "sindhu", 470, 1388, 18, 30, 7, "box"),
+    ("Yamuna Hostel - West Block", "sindhu", 440, 1400, 30, 26, 7, "box"),
+    ("Yamuna Hostel - South Block", "sindhu", 440, 1426, 22, 34, 7, "box"),
+    ("Sindhu Hostel - North Block", "sindhu", 440, 1464, 36, 26, 7, "box"),
+    ("Sindhu Hostel - Step Block", "sindhu", 476, 1474, 16, 34, 7, "box"),
+    ("Sindhu Hostel - South Block", "sindhu", 480, 1508, 30, 24, 7, "box"),
     ("Service Shed 1", "sindhu", 388, 1490, 26, 13, 1, "box"),
     ("Service Shed 2", "sindhu", 392, 1512, 24, 12, 1, "box"),
     ("Service Shed 3", "sindhu", 395, 1531, 22, 12, 1, "box"),
@@ -167,6 +173,7 @@ ROUNDABOUTS = [
     ("Gate", 296, 487, 3.6, 7.0),       # the island is the gate model's flower bed (build_buildings.main_gate)
     ("Central", 414, 996, 5.5, 7.5),
     ("South", 421, 1364, 4.5, 7.0),
+    ("Chenab", 579, 1258, 3.5, 6.0),     # where the road round the track ends (owner, 2026-11-20)
 ]
 
 
@@ -196,8 +203,15 @@ ROADS = [
     ("Central Road West", 6, [[285, 990], [350, 990], [385, 995], ring_at("Central", "W")], True),
     ("Central Road East", 6, [ring_at("Central", "E"), [440, 994], [500, 985], [600, 972], [690, 962]], True),
     ("Southern Road West", 7, [[250, 1366], [330, 1366], [380, 1364.5], ring_at("South", "W")], True),
-    ("Southern Road East", 7, [ring_at("South", "E"), [500, 1362], [535, 1355], [562, 1338], [574, 1318]], True),
-    ("Track Road", 5, [[600, 972], [582, 1030], [562, 1075], [545, 1105], [548, 1140], [572, 1165], [584, 1215], [584, 1280], [574, 1318]], True),
+    # The road round the track (owner's satellite shot, 2026-11-20): east from the south
+    # roundabout past the hostels, round the track's south end and up its east side to the
+    # Chenab roundabout, where it ends.
+    ("Southern Road East", 7, [ring_at("South", "E"), [500, 1362], [530, 1357], [553, 1344], [566, 1324], [572, 1300], [576, 1280], ring_at("Chenab", "S")], True),
+    # The hostel road along the open east side of the Yamuna-Sindhu lawn, on to the back road.
+    ("Hostel East Road", 5, [[517, 1362], [517, 1530], [512, 1541]], False),
+    # From the central road down to the East Block; it stops there (the road round the track
+    # does not run on north from Chenab).
+    ("Track Road", 5, [[600, 972], [582, 1030], [562, 1075], [548, 1105], [547, 1132]], True),
     ("Sindhu Back Road", 5, [[421, 1545], [468, 1546], [512, 1541]], True),
     # The oval green west of the mess (satellite, 2026-11-19): a loop road all round a long lawn,
     # open at its north end onto the central road, with the faculty rows on both sides, and a
@@ -216,7 +230,7 @@ ROADS = [
     ("Courtyard Centre Square", 9.0, [[489, 710], [489, 720]], False),
     # Paved walks (Phase 4D): the pavement along the shop fronts beside the spine road (the only
     # road to Annapurna Mess, per the satellite), and from the spine road to the sports complex lobby.
-    ("Plaza Shops Walk", 4, [[405, 1004], [405, 1099]], False),
+    ("Plaza Shops Walk", 4, [[405, 1020], [405, 1099]], False),
     ("Plaza Sports Walk", 4, [[425, 1342], [437, 1342]], False),
     # The turn to the girls' hostels (owner's photos 5 and 6 of 2026-11-19, satellite): a lane of
     # interlocking pavers forks off the spine road at a shallow angle by the sports complex and
@@ -226,7 +240,7 @@ ROADS = [
     # hostel the lane turns east past Girls Hostel A's south door, then north between the hostel
     # and the tennis courts.
     ("Paved Girls Hostel Lane", 4.5, rounded([[421, 1306], [435, 1280], [435, 1203.35], [470, 1203.35], [470, 1124]],
-                                             {1: 30, 2: 10, 3: 8}), False),
+                                             {1: 30, 2: 6, 3: 8}), False),
     ("Highway", 13, [[-10, 575], [80, 545], [180, 500], [260, 455], [330, 430], [420, 412], [560, 400], [700, 392], [940, 385]], True),
 ]
 
@@ -238,14 +252,10 @@ AREAS = [
     ("lawn", "box", 322, 529, 110, 21),
     ("lawn", "box", 430, 560, 40, 60),
     ("lawn", "box", 293, 908, 100, 72),
-    ("lawn", "box", 478, 1409, 33, 88),
-    # Badminton courtyards of the boys' hostels (Sindhu A and B, Brahmaputra).
-    ("lawn", "box", 450, 1401, 24, 32),
-    ("court", "box", 455, 1406, 13, 6),
-    ("court", "box", 455, 1422, 13, 6),
-    ("lawn", "box", 450, 1483, 24, 32),
-    ("court", "box", 455, 1488, 13, 6),
-    ("court", "box", 455, 1504, 13, 6),
+    # The big lawn the Yamuna-Sindhu chain wraps round, open east to the hostel road.
+    ("lawn", "box", 492, 1400, 20, 104),
+    ("lawn", "box", 462, 1420, 30, 52),
+    # Brahmaputra's badminton courtyard.
     ("lawn", "box", 364, 792, 20, 24),
     ("court", "box", 368, 797, 13, 6),
     ("court", "box", 368, 805, 13, 6),
@@ -261,7 +271,7 @@ AREAS = [
     ("parking", "box", 379, 840, 20, 50),
     ("plaza", "box", 383, 1068, 20, 24),   # Vipanan's paved forecourt, open to the spine road
     ("substation", "box", 247, 618, 30, 44),
-    ("court", "box", 440, 1207, 26, 28),
+    ("court", "box", 441, 1209, 25, 27),   # clear of the lane's corner and its fence
     ("court", "box", 440, 1237, 26, 28),
     ("court", "box", 440, 1267, 26, 26),
     ("court", "box", 478, 1124, 28, 30),   # the girls' hostel tennis courts (a pair)
@@ -293,7 +303,9 @@ PLACES = [
     ("Indoor Games Block", 450, 1324),
     ("Athletics Track", 517, 1261),
     ("Water Tower", 375, 1250),
-    ("Sindhu Hostel (Executive Hostel?)", 448, 1442),
+    ("Yamuna Hostel", 478, 1400),
+    ("Sindhu Hostel", 470, 1486),
+    ("Chenab Hostel", 597, 1290),
     ("Service Yard", 401, 1515),
 ]
 
