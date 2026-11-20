@@ -49,6 +49,11 @@ namespace Jagti.World
         public string name;
         public float width;
         public float[] points; // flat list: x0, z0, x1, z1, ...
+        public int layer;      // a road sits above every road that joins it (generate_layout.build_roads)
+        // Flared ends: per-point half widths on the left (+normal (-dz, dx)) and right of the
+        // points' direction. Empty when the road keeps width / 2 all along.
+        public float[] left;
+        public float[] right;
     }
 
     [Serializable]

@@ -135,10 +135,34 @@ def densify(points, step):
 
 # ------------------------------------------------------------------ geometry in world space
 boundary = world_poly(L.BOUNDARY)
+def densify_sides(points, left, right, step):
+    """densify() that also carries the per-point half widths of flared ends."""
+    out, lo, ro = [points[0]], [left[0]], [right[0]]
+    for i, ((ax, az), (bx, bz)) in enumerate(zip(points[:-1], points[1:])):
+        n = max(1, int(math.hypot(bx - ax, bz - az) / step))
+        for k in range(1, n + 1):
+            f = k / n
+            out.append((ax + (bx - ax) * f, az + (bz - az) * f))
+            lo.append(left[i] + (left[i + 1] - left[i]) * f)
+            ro.append(right[i] + (right[i + 1] - right[i]) * f)
+    return out, lo, ro
+
+
+# Roads as the layout writes them (generate_layout.build_roads): roundabout rings, ends carried
+# to the road they join, and flared corners (per-point half widths on each side).
 roads = []
-for name, width, pts, smooth in L.ROADS:
-    p = L.catmull(pts) if smooth else pts
-    roads.append((name, width, densify(world_poly(p), 2.0)))
+road_sides = {}   # name -> (left half widths, right half widths) per point, flared roads only
+road_layer = {}   # name -> layer (a road sits above the roads that join it)
+road_junctions = {}  # name -> [(end 0 or -1, [names of the roads it joins], flare radius)]
+for _r in L.build_roads():
+    road_layer[_r["name"]] = _r["layer"]
+    road_junctions[_r["name"]] = _r["junctions"]
+    if _r["left"] is not None:
+        _p, _lw, _rw = densify_sides(_r["pts"], _r["left"], _r["right"], 2.0)
+        road_sides[_r["name"]] = (np.array(_lw), np.array(_rw))
+    else:
+        _p = densify(_r["pts"], 2.0)
+    roads.append((_r["name"], _r["width"], _p))
 
 pads = []  # (group, cx, cz, half_w, half_d, ellipse)
 for name, zone, x, y, w, d, floors, shape in L.BUILDINGS:
@@ -279,6 +303,64 @@ for x0, x1, z0, z1, th, ramp, ramp_z in TERRACE_PADS:
     w = 1.0 - smoothstep(0.0, ramp, np.sqrt(ddx * ddx + ddz * ddz))
     plateau = plateau * (1 - w) + (th + 0.4 * n_mid) * w
 
+# Scarps on the campus's east side (owner, 2026-11-20, on the hostel plans; the satellite shows
+# the shadowed face east of the boys' hostel road): east of Hostel East Road the ground rises as
+# a steep wooded face almost as tall as the hostels, and east of the track and the girls'
+# hostels it is a cliff. Each is (foot line in map coords, running north to south with the face
+# on its east side; level at the foot; level on top; run of the face m; width of the top m).
+# West of the foot the ground is held level for FOOT_FLAT m so the face rises from flat ground;
+# the top keeps its level for the given width, then gives way to the ground beyond (the wall
+# and the drop to the ravines). Both ends fade over SCARP_TAPER m along the foot.
+SCARPS = [
+    ([[528, 1378], [526, 1420], [526, 1500], [529, 1562]], 27.8, 46.0, 14.0, 34.0),
+    ([[584, 1138], [583, 1190], [581, 1240]], 30.0, 44.0, 12.0, 30.0),
+]
+FOOT_FLAT = 22.0
+scarp_mask = np.zeros(X.shape)   # 1 on the faces and tops: wooded like the ravines (satellite)
+SCARP_TAPER = 30.0
+for foot, base, top, run, top_w in SCARPS:
+    pts = np.array([L.to_world(x, y) for x, y in foot], float)
+    seg_len = np.hypot(*(pts[1:] - pts[:-1]).T)
+    total = seg_len.sum()
+    reach = run + top_w + 40.0
+    x0, x1 = pts[:, 0].min() - FOOT_FLAT - 5, pts[:, 0].max() + reach
+    z0, z1 = pts[:, 1].min() - 5, pts[:, 1].max() + 5
+    cols = slice(max(0, int((x0 - MIN_X) / CELL)), min(RES, int((x1 - MIN_X) / CELL) + 2))
+    rows = slice(max(0, int((z0 - MIN_Z) / CELL)), min(RES, int((z1 - MIN_Z) / CELL) + 2))
+    px, pz = X[rows, cols], Z[rows, cols]
+    f_best = np.full(px.shape, np.inf)
+    f_side = np.zeros(px.shape)
+    f_along = np.zeros(px.shape)
+    s0 = 0.0
+    for (ax, az), (bx, bz), ln in zip(pts[:-1], pts[1:], seg_len):
+        dx, dz = (bx - ax) / ln, (bz - az) / ln
+        t = np.clip((px - ax) * dx + (pz - az) * dz, 0.0, ln)
+        qx, qz = ax + t * dx - px, az + t * dz - pz
+        d = np.hypot(qx, qz)
+        closer = d < f_best
+        f_best = np.where(closer, d, f_best)
+        # East of a line running south (-Z) is +X: the cross product picks the f_side.
+        cross = dx * (pz - az) - dz * (px - ax)
+        f_side = np.where(closer, np.sign(cross + 1e-9), f_side)
+        f_along = np.where(closer, s0 + t, f_along)
+        s0 += ln
+    f_sd = f_best * f_side      # + on the face's f_side
+    f_taper = smoothstep(0.0, SCARP_TAPER, f_along) * smoothstep(0.0, SCARP_TAPER, total - f_along)
+    f_seg = plateau[rows, cols]
+    f_rough = 1.2 * n_mid[rows, cols]
+    # West of the foot: level ground at the foot's height.
+    w_flat = (1 - smoothstep(0.0, FOOT_FLAT, -f_sd)) * (f_sd < 0) * f_taper
+    f_seg = f_seg * (1 - w_flat) + (base + 0.3 * f_rough) * w_flat
+    # The face and the top: a steep rise, then the top level, then back to the ground beyond.
+    rise = smoothstep(0.0, run, f_sd) ** 0.8
+    hold = 1 - smoothstep(run + top_w, run + top_w + 40.0, f_sd)
+    # A rough face and a lumpy top, so it reads as a hill rather than a cut terrace.
+    face = base + (top - base) * rise + f_rough * smoothstep(0.0, 4.0, f_sd) + 3.0 * n_hills[rows, cols] * rise
+    w_face = (f_sd >= 0) * f_taper * hold
+    f_seg = f_seg * (1 - w_face) + face * w_face
+    plateau[rows, cols] = f_seg
+    scarp_mask[rows, cols] = np.maximum(scarp_mask[rows, cols], w_face * smoothstep(-2.0, 4.0, f_sd))
+
 # Gate slope: the serpentine drive climbs from the gate (about 3 m) up to the ridge.
 gate_ramp = smoothstep(380.0, 528.0, Z)
 plateau = plateau * (1 - gate_ramp) + 3.0 * gate_ramp
@@ -378,6 +460,11 @@ def grade_limit(h, s, g, pinned):
 # vehicles; the highway is gentler; footpaths may be a little steeper.
 ROAD_GRADE = {"Highway": 0.06, "Serpentine Drive": 0.10}
 DEFAULT_GRADE, PATH_GRADE = 0.09, 0.12
+# Roads that keep to a plot's level away from their junctions rather than following the ground:
+# the girls' hostel lane runs at the hostels' floor level, below the climbing spine road, to the
+# hostels' doors (owner's photos of the split, 2026-11-19).
+ROAD_LEVELS = {"Paved Girls Hostel Lane": "Girls Hostels"}
+ROAD_LEVEL_FOLLOW = 13.0
 
 
 def is_footpath(name):
@@ -391,18 +478,23 @@ def solve_road_profiles(h, fixed=None):
     fixed maps a road name to a profile decided elsewhere (the serpentine)."""
     order = sorted(range(len(roads)), key=lambda k: (roads[k][0] != "Highway", is_footpath(roads[k][0]),
                                                       roads[k][0] not in (fixed or {}), -roads[k][1]))
-    rings = []   # roundabouts: [x, z, radius, height or None]
-    for typ, shape, x, y, w, d in L.AREAS:
-        if typ == "roundabout":
-            cx, cz = L.to_world(x, y)
-            rings.append([cx, cz, w / 2, None])
+    rings = []   # roundabouts: [x, z, outer radius of the ring road, height or None, ring road name]
+    for rname, x, y, island, ring_w in L.ROUNDABOUTS:
+        cx, cz = L.to_world(x, y)
+        rings.append([cx, cz, island + ring_w, None, "Roundabout Ring - " + rname])
     solved = {}
     for k in order:
         name, width, pts = roads[k]
         p = np.array(pts)
         s = arc_lengths(p)
+        ring = next((rg for rg in rings if rg[4] == name), None)
         if fixed and name in fixed:
             prof = np.asarray(fixed[name], float)
+        elif ring is not None:
+            # A roundabout's ring is level all round, at the height of the first road to reach it.
+            if ring[3] is None:
+                ring[3] = float(np.mean(sample(h, p[:, 0], p[:, 1])))
+            prof = np.full(len(p), ring[3])
         else:
             pin = np.full(len(p), np.nan)
             for oname, (op, oprof, owidth) in solved.items():
@@ -410,13 +502,24 @@ def solve_road_profiles(h, fixed=None):
                     d, oh = nearest_on(op, oprof, x, z)
                     if d < owidth / 2 + 0.5:
                         pin[i] = oh
-            for cx, cz, r, rh in rings:
+            for cx, cz, r, rh, _rn in rings:
                 if rh is None:
                     continue
                 inside = np.hypot(p[:, 0] - cx, p[:, 1] - cz) < r + width / 2
                 pin[inside] = rh
             window_pts = {"Highway": 25, "Serpentine Drive": 40}.get(name, 15)
             prof = smooth_profile(sample(h, p[:, 0], p[:, 1]), window_pts)
+            if name in ROAD_LEVELS:
+                prof[:] = pad_heights[ROAD_LEVELS[name]] - 0.15
+                # Beside the road it forks from (closer than ROAD_LEVEL_FOLLOW, centre to centre) it
+                # keeps that road's height, so the kerbed island between them is level and neither
+                # road's edge drops into a bank (owner, 2026-11-20: janky roads); then it eases
+                # down to the plot's level under its grade limit.
+                for oname, (op, oprof, owidth) in solved.items():
+                    for i, (x, z) in enumerate(p):
+                        d, oh = nearest_on(op, oprof, x, z)
+                        if d < ROAD_LEVEL_FOLLOW:
+                            pin[i] = oh
             if name == "Spine Road South":
                 # Level past the mess and shop fronts, at the roundabout's height.
                 first = pin[~np.isnan(pin)]
@@ -446,8 +549,15 @@ def flatten_roads(h, solved, rings, shoulder=9.0):
     (1 on the road surface, falling to 0 across the shoulder)."""
     best_d = np.full(h.shape, np.inf)
     best_h = np.zeros(h.shape)
-    for name, (p, prof, width) in solved.items():
-        reach = width / 2 + 1.0 + shoulder
+    best_l = np.full(h.shape, -1)       # layer of the road a cell was laid to
+    best_r = np.full(h.shape, -1)       # and which road (index into names)
+    best_c = np.full(h.shape, np.inf)   # distance from that road's centre line
+    names = list(solved)
+    for ri, (name, (p, prof, width)) in enumerate(solved.items()):
+        lay = road_layer.get(name, 0)
+        sides = road_sides.get(name)
+        widest = width / 2 if sides is None else max(sides[0].max(), sides[1].max())
+        reach = widest + 1.0 + shoulder
         for k in range(len(p) - 1):
             (ax, az), (bx, bz) = p[k], p[k + 1]
             rows, cols = window((ax + bx) / 2, (az + bz) / 2, math.hypot(bx - ax, bz - az) / 2 + reach)
@@ -455,12 +565,28 @@ def flatten_roads(h, solved, rings, shoulder=9.0):
             ex, ez = bx - ax, bz - az
             t = np.clip(((px - ax) * ex + (pz - az) * ez) / max(ex * ex + ez * ez, 1e-6), 0, 1)
             dx, dz = px - (ax + t * ex), pz - (az + t * ez)
-            d = np.sqrt(dx * dx + dz * dz) - width / 2
+            if sides is None:
+                half = width / 2
+            else:
+                # Flared corners: the half width on the cell's side of the centre line.
+                hl = sides[0][k] * (1 - t) + sides[0][k + 1] * t
+                hr = sides[1][k] * (1 - t) + sides[1][k + 1] * t
+                half = np.where(dz * ex - dx * ez > 0, hl, hr)
+            c = np.sqrt(dx * dx + dz * dz)
+            d = c - half
             rh = prof[k] * (1 - t) + prof[k + 1] * t
             sub_d, sub_h = best_d[rows, cols], best_h[rows, cols]
-            closer = d < sub_d
-            sub_d[closer], sub_h[closer] = d[closer], rh[closer]
-    for cx, cz, r, rh in rings:
+            sub_l, sub_r, sub_c = best_l[rows, cols], best_r[rows, cols], best_c[rows, cols]
+            # Along one road, the nearest point of its centre line (a flared end's wide half
+            # widths must not claim ground further along). Between roads: on a road surface the
+            # road on top wins (a host over the ends that run under it); off the roads, the
+            # nearest edge.
+            both_in = (d < 0) & (sub_d < 0)
+            closer = np.where(sub_r == ri, c < sub_c,
+                              np.where(both_in, (lay > sub_l) | ((lay == sub_l) & (d < sub_d)), d < sub_d))
+            sub_d[closer], sub_h[closer], sub_c[closer] = d[closer], rh[closer], c[closer]
+            sub_l[closer], sub_r[closer] = lay, ri
+    for cx, cz, r, rh, _rn in rings:
         if rh is None:
             continue
         rows, cols = window(cx, cz, r + 1.0 + shoulder)
@@ -468,6 +594,40 @@ def flatten_roads(h, solved, rings, shoulder=9.0):
         sub_d, sub_h = best_d[rows, cols], best_h[rows, cols]
         closer = d < sub_d
         sub_d[closer], sub_h[closer] = d[closer], rh
+        best_l[rows, cols][closer] = 99
+        best_r[rows, cols][closer] = -1
+        best_c[rows, cols][closer] = np.inf
+    # Where a road joins another, its end is level across but the road it joins may be on a
+    # slope: over the flared end the ground eases from the host's height at its edge to the
+    # joining road's own, so there is no step at the junction.
+    for ri, name in enumerate(names):
+        for k, host_names, rad in road_junctions.get(name, []):
+            hs = [solved[hn] for hn in host_names if hn in solved]
+            if not hs:
+                continue
+            ex_, ez_ = solved[name][0][0 if k == 0 else -1]
+            blend = rad + 3.0
+            rows, cols = window(ex_, ez_, max(w_ for _p, _pr, w_ in hs) / 2 + 2.5 * rad + 4.0)
+            px, pz = X[rows, cols], Z[rows, cols]
+            mine = best_r[rows, cols] == ri
+            if not mine.any():
+                continue
+            hd = np.full(px.shape, np.inf)
+            hh = np.zeros(px.shape)
+            for hp, hprof, hw in hs:
+                for j in range(len(hp) - 1):
+                    (ax, az), (bx, bz) = hp[j], hp[j + 1]
+                    if min(math.hypot(ax - ex_, az - ez_), math.hypot(bx - ex_, bz - ez_)) > 60.0:
+                        continue
+                    ex, ez = bx - ax, bz - az
+                    t = np.clip(((px - ax) * ex + (pz - az) * ez) / max(ex * ex + ez * ez, 1e-6), 0, 1)
+                    dd = np.hypot(px - (ax + t * ex), pz - (az + t * ez)) - hw / 2
+                    closer = dd < hd
+                    hd[closer] = dd[closer]
+                    hh[closer] = (hprof[j] * (1 - t) + hprof[j + 1] * t)[closer]
+            u = smoothstep(0.0, blend, np.maximum(hd, 0.0))
+            sub_h = best_h[rows, cols]
+            sub_h[mine] = (hh * (1 - u) + sub_h * u)[mine]
     w = 1.0 - smoothstep(1.0, 1.0 + shoulder, best_d)
     h[:] = h * (1 - w) + best_h * w
     return best_d, 1.0 - smoothstep(1.0, 2.5, best_d)
@@ -511,7 +671,7 @@ serp = np.array(next(r[2] for r in roads if r[0] == serp_name))
 serp_s = arc_lengths(serp)
 cs_x, cs_y0, cs_y1, cs_w, cs_ty, cs_land = L.CLOCK_STEPS
 cs_X, cs_Z0 = L.to_world(cs_x, cs_y0)          # foot of the walk (on the serpentine's edge)
-_, cs_Z1 = L.to_world(cs_x, cs_y1)             # top of the walk (fountain square)
+_, cs_Z1 = L.to_world(cs_x, cs_y1)             # top of the walk (the porch drive's edge)
 _, cs_TZ = L.to_world(cs_x, cs_ty)             # tower landing centre
 porch = np.array(next(r[2] for r in roads if r[0] == "Porch Drive"))
 # The gate roundabout: no higher than the gate approach can reach from the highway at 7.5 %
@@ -563,7 +723,7 @@ flatten_pads(height, 1.0, 3.0, pad_heights, keep=road_core)
 flatten_pads(height, 0.6, 0.01, pad_heights, keep=road_core)
 
 # ------------------------------------------------------------------ the clock tower walk
-# A straight walk of flights and landings from the serpentine up to the fountain square, the
+# A straight walk of flights and landings from the serpentine up to the porch drive, the
 # tower on a level landing near the foot. Risers 0.15 m, treads 0.30 m, a 1.8 m landing after
 # every 12 risers at most. The ground is cut to just below the steps; build_buildings.py builds
 # them (with side walls) from the profile written to campus_terrain.json.
@@ -621,12 +781,7 @@ along = np.maximum(pz - cs_Z0 - 1.0, cs_Z1 - 2.0 - pz)
 w = (1 - smoothstep(0.0, 10.0, across)) * (1 - smoothstep(0.0, 3.0, along)) * (1 - road_core[rows, cols])
 height[rows, cols] = height[rows, cols] * (1 - w) + walk_h * w
 road_dist[rows, cols] = np.minimum(road_dist[rows, cols], np.maximum(across, along))   # no trees on the walk
-# The fountain square at the top, level with the porch drive.
-fx0, fx1, fz0, fz1 = cs_X - 8.0, cs_X + 8.0, cs_Z1 - 12.0, cs_Z1
-rows, cols = window(cs_X, (fz0 + fz1) / 2, 16.0)
-px, pz = X[rows, cols], Z[rows, cols]
-w = 1 - smoothstep(0.0, 3.0, np.maximum.reduce([fx0 - px, px - fx1, fz0 - pz, pz - fz1]))
-height[rows, cols] = height[rows, cols] * (1 - w) + cs_top_h * w
+# The walk's top landing ends on the porch drive's edge (no square at the top: owner, 2026-11-20).
 print("Clock walk: %.1f m up from the serpentine (%.1f m) to the porch (%.1f m); tower landing %.1f m; risers %.3f / %.3f m" % (
     cs_top_h - cs_bottom_h, cs_bottom_h, cs_top_h, tower_h, r_low, r_up))
 
@@ -830,7 +985,7 @@ for name, width, pts in roads:
 spine_s = next(pts for name, width, pts in roads if name == "Spine Road South")
 for z in np.arange(-150.0, -545.0, -5.5):
     for off in (9.0, 14.0, 19.0):
-        tx, tz = spine_s[0][0] - off + rng.normal(0, 1.2), z + rng.normal(0, 1.5)
+        tx, tz = spine_s[-1][0] - off + rng.normal(0, 1.2), z + rng.normal(0, 1.5)
         if clear_at(tx, tz, 3.0) and rng.random() < 0.8:
             trees.append((tx, tz, BROAD if rng.random() < 0.75 else EUCA, float(rng.uniform(0.7, 1.1))))
 
@@ -846,7 +1001,7 @@ fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
 o = outside[fi, fj]
 # Inside the campus only a sprinkle of trees and bushes, and the pine wood on the hill by the
 # courts (owner's photos, 2026-11-19); outside, scrub forest in the ravines.
-density = np.where(sd[fi, fj] < 0, 0.006 + 0.32 * hill_mask[fi, fj],
+density = np.where(sd[fi, fj] < 0, 0.006 + 0.32 * hill_mask[fi, fj] + 0.30 * scarp_mask[fi, fj],
                    (0.30 - 0.22 * smoothstep(200, 650, o)) * (1 - smoothstep(650, 900, o)) * smoothstep(3, 15, o))
 density *= 0.5 + 0.8 * np.clip(0.5 - n_patch[fi, fj], 0, 1)   # clumps
 density *= 1 - farm_mask[fi, fj] * 0.92                        # few trees in fields
@@ -859,6 +1014,8 @@ for x, z, i, j in zip(JX[keep], JZ[keep], fi[keep], fj[keep]):
     r = rng.random()
     if sd[i, j] < 0 and hill_mask[i, j] > 0.3:
         kind = PINE if r < 0.6 else (BROAD if r < 0.8 else SHRUB)  # pine wood on the hill by the courts
+    elif sd[i, j] < 0 and scarp_mask[i, j] > 0.3:
+        kind = SHRUB if r < 0.5 else BROAD                          # scrub on the scarps
     elif sd[i, j] < 0:
         kind = SHRUB if r < 0.6 else BROAD
     elif slope[i, j] > 18:

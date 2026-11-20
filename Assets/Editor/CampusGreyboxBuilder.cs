@@ -124,6 +124,7 @@ namespace Jagti.EditorTools
 
             Progress("Roads, areas and buildings", 0.5f);
             var areaRoot = Child(root.transform, "Areas");
+            layoutBuildings = layout.buildings;
             foreach (var area in layout.areas) MakeArea(area, areaRoot, materials);
 
             var roadRoot = Child(root.transform, "Roads");
@@ -131,6 +132,7 @@ namespace Jagti.EditorTools
             asphaltLined = null;
             pavedRoad = null;
             kerbMaterial = null;
+            roadLines.Clear();
             foreach (var road in layout.roads) MakeRoad(road, layout.roads, roadRoot, materials);
             MakeWater(layout, Child(root.transform, "Water"));
 
@@ -248,7 +250,6 @@ namespace Jagti.EditorTools
                 case "track": color = new Color(0.62f, 0.30f, 0.22f); top = RoadTop; break;
                 case "field": color = new Color(0.32f, 0.50f, 0.20f); top = FieldTop; break;
                 case "amphitheatre": color = new Color(0.82f, 0.77f, 0.68f); break;
-                case "roundabout": color = new Color(0.28f, 0.48f, 0.18f); top = 0.35f; break;
                 case "substation": color = new Color(0.52f, 0.50f, 0.44f); break;
                 default: color = new Color(0.5f, 0.5f, 0.5f); break;
             }
@@ -256,6 +257,11 @@ namespace Jagti.EditorTools
             if (a.shape == "pill")
             {
                 MakePillArea(a, top, color, parent, materials);
+                return;
+            }
+            if (a.type == "roundabout")
+            {
+                MakeRoundaboutIsland(a, parent);
                 return;
             }
             bool ellipse = a.shape == "ellipse";
@@ -269,8 +275,96 @@ namespace Jagti.EditorTools
             go.transform.localScale = ellipse
                 ? new Vector3(a.width, h / 2f, a.depth)
                 : new Vector3(a.width, h, a.depth);
-            if (a.type != "roundabout") Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
+            Object.DestroyImmediate(go.GetComponent<Collider>()); // flat decal; the terrain carries the player
             SetMaterial(go, materials.Get("Area_" + a.type, color));
+            MarkStatic(go);
+        }
+
+        static Material islandGrass;
+        static BuildingData[] layoutBuildings;
+
+        /// <summary>A roundabout's island (owner, 2026-11-20: no raised discs on the roads): a low grass
+        /// mound inside the ring road's inner kerb, its edge at the kerb's top and its crown 0.3 m
+        /// higher, so it reads as a planted island and never as a slab standing on the carriageway.
+        /// The ring's kerbs (MakeKerbs) make its edge; it keeps a collider so cars ride up onto it.</summary>
+        static void MakeRoundaboutIsland(AreaData a, Transform parent)
+        {
+            if (islandGrass == null)
+            {
+                var tex = ProceduralAssets.GroundTexture("Island_Grass",
+                    new Color(0.17f, 0.33f, 0.09f), new Color(0.29f, 0.50f, 0.16f), new Color(0.43f, 0.62f, 0.24f), 4, 0.40f, 5);
+                islandGrass = ProceduralAssets.LitMaterial("Roundabout_Island", Color.white, tex, 0.02f);
+            }
+            const int seg = 40, rings = 4;
+            const float kerbWidth = 0.3f, kerbTop = 0.18f, crown = 0.3f;
+            float r = a.width / 2f - kerbWidth + 0.02f;     // just under the kerb's inner edge
+            if (r < 1f) return;
+            // The gate's island is the gate model's own raised flower bed.
+            if (layoutBuildings != null)
+                foreach (var b in layoutBuildings)
+                    if (b.name == "Main Gate" && new Vector2(b.x - a.x, b.z - a.z).magnitude < 30f) return;
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+            // Rings from the edge (k = 0) to the crown; each vertex follows the ground beneath it.
+            for (int k = 0; k <= rings; k++)
+            {
+                float f = k / (float)rings;                     // 0 at the edge, 1 at the middle
+                float rr = r * (1f - f);
+                float lift = RoadTop + kerbTop + crown * Mathf.Sin(f * Mathf.PI * 0.5f);
+                int count = k == rings ? 1 : seg;
+                for (int i = 0; i < count; i++)
+                {
+                    float t = 2f * Mathf.PI * i / seg;
+                    float x = a.x + rr * Mathf.Cos(t), z = a.z + rr * Mathf.Sin(t);
+                    vertices.Add(new Vector3(x, Ground(x, z) + lift, z));
+                    uvs.Add(new Vector2(x / 3f, z / 3f));
+                }
+            }
+            for (int k = 0; k < rings; k++)
+            {
+                int o = k * seg, n = (k + 1) * seg;
+                for (int i = 0; i < seg; i++)
+                {
+                    int i1 = (i + 1) % seg;
+                    if (k == rings - 1)
+                    {
+                        triangles.Add(o + i); triangles.Add(n); triangles.Add(o + i1);
+                    }
+                    else
+                    {
+                        triangles.Add(o + i); triangles.Add(n + i); triangles.Add(o + i1);
+                        triangles.Add(o + i1); triangles.Add(n + i); triangles.Add(n + i1);
+                    }
+                }
+            }
+            // A short skirt from the edge down under the road, hidden by the kerb.
+            int skirt = vertices.Count;
+            for (int i = 0; i < seg; i++)
+            {
+                Vector3 e = vertices[i];
+                vertices.Add(e);
+                vertices.Add(new Vector3(e.x, e.y - kerbTop - RoadTop - 0.3f, e.z));
+                uvs.Add(new Vector2(i * 0.25f, 1f));
+                uvs.Add(new Vector2(i * 0.25f, 0f));
+            }
+            for (int i = 0; i < seg; i++)
+            {
+                int a0 = skirt + 2 * i, b0 = skirt + 2 * ((i + 1) % seg);
+                triangles.Add(a0); triangles.Add(b0); triangles.Add(a0 + 1);      // facing out, as the pill's skirt
+                triangles.Add(b0); triangles.Add(b0 + 1); triangles.Add(a0 + 1);
+            }
+            var mesh = new Mesh { name = "Roundabout Island" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            var go = new GameObject("Area - roundabout island");
+            go.transform.SetParent(parent);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = islandGrass;
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
             MarkStatic(go);
         }
 
@@ -347,45 +441,126 @@ namespace Jagti.EditorTools
 
         static Material asphaltRoad, asphaltLined, pavedRoad, kerbMaterial;
 
+        /// <summary>A road's centre line densified to 2 m, with its half width on each side at every
+        /// point (flared ends carry their own; other roads keep width / 2), and whether it closes on
+        /// itself (a roundabout's ring).</summary>
+        class RoadLine
+        {
+            public Vector2[] p;
+            public float[] left, right;
+            public bool closed;
+        }
+
+        static readonly Dictionary<RoadData, RoadLine> roadLines = new Dictionary<RoadData, RoadLine>();
+
+        static RoadLine Line(RoadData road)
+        {
+            RoadLine line;
+            if (roadLines.TryGetValue(road, out line)) return line;
+            int n = road.points.Length / 2;
+            bool sides = road.left != null && road.right != null && road.left.Length == n && road.right.Length == n;
+            var p = new List<Vector2>();
+            var l = new List<float>();
+            var r = new List<float>();
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 q = Point(road.points, i);
+                float hl = sides ? road.left[i] : road.width / 2f;
+                float hr = sides ? road.right[i] : road.width / 2f;
+                if (i > 0)
+                {
+                    Vector2 prev = p[p.Count - 1];
+                    float pl = l[l.Count - 1], pr = r[r.Count - 1];
+                    float dist = Vector2.Distance(prev, q);
+                    if (dist < 0.01f) continue;
+                    int steps = Mathf.CeilToInt(dist / 2f);
+                    for (int s = 1; s < steps; s++)
+                    {
+                        float f = s / (float)steps;
+                        p.Add(Vector2.Lerp(prev, q, f));
+                        l.Add(Mathf.Lerp(pl, hl, f));
+                        r.Add(Mathf.Lerp(pr, hr, f));
+                    }
+                }
+                p.Add(q);
+                l.Add(hl);
+                r.Add(hr);
+            }
+            line = new RoadLine { p = p.ToArray(), left = l.ToArray(), right = r.ToArray() };
+            line.closed = line.p.Length > 3 && Vector2.Distance(line.p[0], line.p[line.p.Length - 1]) < 0.05f;
+            roadLines[road] = line;
+            return line;
+        }
+
+        /// <summary>Unit direction along the line at point i (a ring wraps round its seam).</summary>
+        static Vector2 LineDir(RoadLine line, int i)
+        {
+            int count = line.p.Length;
+            Vector2 a, b;
+            if (line.closed && (i == 0 || i == count - 1)) { a = line.p[count - 2]; b = line.p[1]; }
+            else if (i == 0) { a = line.p[0]; b = line.p[1]; }
+            else if (i == count - 1) { a = line.p[count - 2]; b = line.p[count - 1]; }
+            else { a = line.p[i - 1]; b = line.p[i + 1]; }
+            Vector2 dir = b - a;
+            return dir.sqrMagnitude < 1e-8f ? Vector2.up : dir.normalized;
+        }
+
+        /// <summary>The side offset at point i scaled for the bend, so a corner keeps its full width
+        /// (a mitre, capped at twice the half width).</summary>
+        static float Mitre(RoadLine line, int i)
+        {
+            int count = line.p.Length;
+            if (!line.closed && (i == 0 || i == count - 1)) return 1f;
+            Vector2 a = line.p[(i == 0 ? count - 1 : i) - 1], b = line.p[i], c = line.p[i == count - 1 ? 1 : i + 1];
+            Vector2 d1 = (b - a), d2 = (c - b);
+            if (d1.sqrMagnitude < 1e-8f || d2.sqrMagnitude < 1e-8f) return 1f;
+            float cosHalf = Mathf.Sqrt(Mathf.Clamp01((1f + Vector2.Dot(d1.normalized, d2.normalized)) / 2f));
+            return 1f / Mathf.Max(0.5f, cosHalf);
+        }
+
         static void MakeRoad(RoadData road, RoadData[] allRoads, Transform parent, MaterialLibrary materials)
         {
-            float[] points = Densify(road.points, 2f);
-            int count = points.Length / 2;
+            if (road.points == null || road.points.Length < 4) return;
+            var line = Line(road);
+            int count = line.p.Length;
             if (count < 2) return;
 
             var vertices = new List<Vector3>();
             var uvs = new List<Vector2>();
             var triangles = new List<int>();
-            float half = road.width / 2f;
             float distance = 0f;
             bool paved = IsPaved(road.name);
             float top = RoadTop + RoadLift(road, allRoads);
 
             for (int i = 0; i < count; i++)
             {
-                Vector2 p = Point(points, i);
-                Vector2 dir = i == 0 ? Point(points, 1) - p
-                            : i == count - 1 ? p - Point(points, i - 1)
-                            : Point(points, i + 1) - Point(points, i - 1);
-                if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
-                dir.Normalize();
+                Vector2 p = line.p[i];
+                Vector2 dir = LineDir(line, i);
                 var normal = new Vector2(-dir.y, dir.x);
-                if (i > 0) distance += Vector2.Distance(p, Point(points, i - 1));
+                float mitre = Mitre(line, i);
+                if (i > 0) distance += Vector2.Distance(p, line.p[i - 1]);
 
                 // Each edge follows the ground; the generator flattened the terrain across the road.
-                Vector2 left = p + normal * half, right = p - normal * half;
+                Vector2 left = p + normal * line.left[i] * mitre, right = p - normal * line.right[i] * mitre;
                 vertices.Add(new Vector3(left.x, Ground(left.x, left.y) + top, left.y));
                 vertices.Add(new Vector3(right.x, Ground(right.x, right.y) + top, right.y));
                 if (paved)
                 {
-                    // Paving tiles in metres so the slabs keep their size on every path width.
-                    uvs.Add(new Vector2(0f, distance / PavingTile));
-                    uvs.Add(new Vector2(road.width / PavingTile, distance / PavingTile));
+                    // Paving tiles in metres so the slabs keep their size on every path width
+                    // (flared corners keep the slab size too).
+                    uvs.Add(new Vector2((road.width / 2f - line.left[i] * mitre) / PavingTile, distance / PavingTile));
+                    uvs.Add(new Vector2((road.width / 2f + line.right[i] * mitre) / PavingTile, distance / PavingTile));
                 }
                 else
                 {
-                    uvs.Add(new Vector2(0f, distance / road.width));
-                    uvs.Add(new Vector2(1f, distance / road.width));
+                    // Across the road 0..1 over its own width. A flare runs on past the edges: the
+                    // plain slabs repeat into it, and on a lined road it keeps to the slab beside
+                    // the edge so the centre line never repeats in a corner.
+                    float ul = 0.5f - line.left[i] * mitre / road.width, ur = 0.5f + line.right[i] * mitre / road.width;
+                    if (road.width >= 6f && ul < -0.01f) ul = 0.06f;
+                    if (road.width >= 6f && ur > 1.01f) ur = 0.94f;
+                    uvs.Add(new Vector2(ul, distance / road.width));
+                    uvs.Add(new Vector2(ur, distance / road.width));
                 }
 
                 if (i > 0)
@@ -412,19 +587,19 @@ namespace Jagti.EditorTools
             MarkStatic(go);
 
             if (road.name != "Highway" && road.name != "Clock Tower Walkway" && !road.name.StartsWith("Plaza ") && road.width >= 4f)
-                MakeKerbs(road, points, allRoads, go.transform);
+                MakeKerbs(road, line, allRoads, go.transform);
         }
 
         /// <summary>
-        /// Where two roads overlap at a junction they would share one plane and flicker, so each
-        /// road sits a little higher than the narrower ones (1 cm per metre of width), with a
-        /// further centimetre step between roads of the same width. The wider road covers the end
-        /// of the narrower one that runs into it.
+        /// Where two roads overlap at a junction they would share one plane and flicker. The layout
+        /// gives each road a layer above every road that joins it (generate_layout.build_roads), so the
+        /// road carrying on through a junction (or a roundabout's ring) covers the ends that run
+        /// under it; a few millimetres between neighbours in the list keep crossings apart.
         /// </summary>
         static float RoadLift(RoadData road, RoadData[] allRoads)
         {
             int index = System.Array.IndexOf(allRoads, road);
-            return (Mathf.Clamp(road.width, 3f, 13f) - 3f) * 0.01f + (index < 0 ? 0 : index % 3) * 0.01f;
+            return road.layer * 0.012f + (index < 0 ? 0 : index % 3) * 0.003f;
         }
 
         const float PavingTile = 3f; // metres per paving texture tile (5 x 5 slabs of 0.6 m)
@@ -553,8 +728,9 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        // Kerbs painted in black and white blocks along both edges (owner's photos), left open where another road joins.
-        static void MakeKerbs(RoadData road, float[] points, RoadData[] allRoads, Transform parent)
+        // Kerbs painted in black and white blocks along both edges (owner's photos), left open where
+        // another road joins; they follow the flared corners round, and a ring's inner kerb rings its island.
+        static void MakeKerbs(RoadData road, RoadLine line, RoadData[] allRoads, Transform parent)
         {
             if (kerbMaterial == null)
             {
@@ -563,8 +739,7 @@ namespace Jagti.EditorTools
             }
             const float kerbWidth = 0.3f, kerbHeight = 0.18f;
             float top = RoadTop + RoadLift(road, allRoads);
-            int count = points.Length / 2;
-            float half = road.width / 2f;
+            int count = line.p.Length;
             var vertices = new List<Vector3>();
             var uvs = new List<Vector2>();
             var triangles = new List<int>();
@@ -576,14 +751,11 @@ namespace Jagti.EditorTools
                 float distance = 0f, prevDistance = 0f;
                 for (int i = 0; i < count; i++)
                 {
-                    Vector2 p = Point(points, i);
-                    Vector2 dir = i == 0 ? Point(points, 1) - p
-                                : i == count - 1 ? p - Point(points, i - 1)
-                                : Point(points, i + 1) - Point(points, i - 1);
-                    if (dir.sqrMagnitude < 1e-6f) dir = Vector2.up;
-                    dir.Normalize();
+                    Vector2 p = line.p[i];
+                    Vector2 dir = LineDir(line, i);
                     var normal = new Vector2(-dir.y, dir.x) * side;
-                    if (i > 0) distance += Vector2.Distance(p, Point(points, i - 1));
+                    float half = (side > 0f ? line.left[i] : line.right[i]) * Mitre(line, i);
+                    if (i > 0) distance += Vector2.Distance(p, line.p[i - 1]);
 
                     Vector2 inner = p + normal * half, outer = p + normal * (half + kerbWidth);
                     float gy = Ground(inner.x, inner.y) + top;
@@ -641,19 +813,31 @@ namespace Jagti.EditorTools
             }
         }
 
+        /// <summary>True when p lies on (or within 0.8 m of) another road's surface, flared corners
+        /// included: measured from the nearest point of that road's centre line, against its half width
+        /// there on p's side.</summary>
         static bool InsideOtherRoad(Vector2 p, RoadData self, RoadData[] roads)
         {
             foreach (var road in roads)
             {
-                if (road == self) continue;
-                float reach = road.width / 2f + 0.8f;
-                for (int i = 0; i + 1 < road.points.Length / 2; i++)
+                if (road == self || road.points == null || road.points.Length < 4) continue;
+                var line = Line(road);
+                float best = float.MaxValue, half = 0f;
+                for (int i = 0; i + 1 < line.p.Length; i++)
                 {
-                    Vector2 a = Point(road.points, i), b = Point(road.points, i + 1);
+                    Vector2 a = line.p[i], b = line.p[i + 1];
                     Vector2 ab = b - a;
                     float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
-                    if (Vector2.Distance(p, a + ab * t) < reach) return true;
+                    Vector2 q = a + ab * t;
+                    float d = Vector2.Distance(p, q);
+                    if (d < best)
+                    {
+                        best = d;
+                        bool leftSide = ab.x * (p.y - q.y) - ab.y * (p.x - q.x) > 0f;
+                        half = leftSide ? Mathf.Lerp(line.left[i], line.left[i + 1], t) : Mathf.Lerp(line.right[i], line.right[i + 1], t);
+                    }
                 }
+                if (best < half + 0.8f) return true;
             }
             return false;
         }

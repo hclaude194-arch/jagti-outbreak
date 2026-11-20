@@ -527,6 +527,25 @@ def line_dist(P_, poly):
 
 
 ROAD_PTS = [(r, pts(r)) for r in ROADS]
+
+
+def edge_dist(P_, r, poly):
+    """Distance from P to the road's edge (negative on it), flared corners included: measured from
+    the nearest point of the centre line, against the half width there on P's side."""
+    best, half = 1e9, r["width"] / 2
+    left, right = r.get("left"), r.get("right")
+    for i, (a, b_) in enumerate(zip(poly, poly[1:])):
+        dx, dz = b_[0] - a[0], b_[1] - a[1]
+        L2 = dx * dx + dz * dz
+        t = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((P_[0] - a[0]) * dx + (P_[1] - a[1]) * dz) / L2))
+        qx, qz = a[0] + t * dx, a[1] + t * dz
+        d = math.hypot(P_[0] - qx, P_[1] - qz)
+        if d < best:
+            best = d
+            if left:
+                side = left if dx * (P_[1] - qz) - dz * (P_[0] - qx) > 0 else right
+                half = side[i] + (side[i + 1] - side[i]) * t
+    return best - half
 WATER_PTS = [(w, list(zip(w["points"][0::2], w["points"][1::2]))) for w in layout["water"]]
 
 
@@ -566,7 +585,7 @@ def clear(P_, pad=1.2, road_pad=0.6, skip_road=None):
     for r, poly in ROAD_PTS:
         if r is skip_road:
             continue
-        if line_dist(P_, poly) < r["width"] / 2 + road_pad:
+        if edge_dist(P_, r, poly) < road_pad:
             return False
     for w, poly in WATER_PTS:
         if line_dist(P_, poly) < w["width"] / 2 + 0.8:
@@ -681,7 +700,7 @@ def near_road_except(Q, r, gap):
     for r2, poly2 in ROAD_PTS:
         if r2 is r:
             continue
-        if line_dist(Q, poly2) < r2["width"] / 2 + gap:
+        if edge_dist(Q, r2, poly2) < gap:
             return True
     return False
 
@@ -827,15 +846,43 @@ def mess_island():
 
 
 def girls_split():
-    """The split to the girls' hostel side (owner's photos): a kerbed island with young trees in
-    the corner between the spine road and the paved lane, and the blue map board."""
+    """The split to the girls' hostel side (owner's photos 5 and 6, 2026-11-19): the lane forks
+    off the spine road at a shallow angle, and the long island between them starts with a kerbed
+    bed of young frangipani by the fork, the blue map board at the bed's north end and a feather
+    flag; further on it is a grassy bank (railed along the spine by railings())."""
     lane = next(r for r in ROADS if r["name"].startswith("Paved Girls"))
     spine = next(r for r in ROADS if r["name"] == "Spine Road South")
-    sx = pts(spine)[0][0] + spine["width"] / 2
-    lz = pts(lane)[0][1] - lane["width"] / 2
-    place("Kerbed_Bed", sx + 6.5, lz - 2.2, 0.0)
-    place("Young_Tree", sx + 5.0, lz - 2.2, 30.0)
-    place("Map_Board", sx + 1.6, lz - 4.6, 270.0)
+    lp, sp = pts(lane), pts(spine)
+    # Walk up the lane from the fork until the island between the two roads is wide enough.
+    spots = []
+    for P_, t, d in walk(lp, 0.5):
+        gap = line_dist(P_, sp) - spine["width"] / 2 - lane["width"] / 2   # island width here
+        if gap >= 2.4 and not spots:
+            spots.append((P_, t))
+        if gap >= 2.4 and len(spots) == 1 and math.dist(P_, spots[0][0]) >= 7.0:
+            spots.append((P_, t))
+            break
+    if not spots:
+        return
+    for k, (P_, t) in enumerate(spots):
+        n = (t[1], -t[0])                                  # towards the spine (west of the lane)
+        if line_dist((P_[0] + n[0], P_[1] + n[1]), sp) > line_dist(P_, sp):
+            n = (-n[0], -n[1])
+        gap = line_dist(P_, sp) - spine["width"] / 2 - lane["width"] / 2
+        off = lane["width"] / 2 + gap / 2
+        C = (P_[0] + n[0] * off, P_[1] + n[1] * off)
+        yaw = yaw_to(t[0], t[1]) - 90.0                     # the bed's long side along the island
+        # Set it at the lowest corner, so it beds into the bank rather than floating over it.
+        corners = [(C[0] + t[0] * a + n[0] * b, C[1] + t[1] * a + n[1] * b) for a in (-3.0, 3.0) for b in (-0.8, 0.8)]
+        low = min(corners, key=lambda q: ground(*q))
+        place("Kerbed_Bed", C[0], C[1], yaw, gx=low[0], gz=low[1])
+        if k == 0:
+            place("Young_Tree", C[0] + t[0] * 1.6, C[1] + t[1] * 1.6, 30.0)
+            place("Feather_Flag_Yellow", C[0] - t[0] * 2.4, C[1] - t[1] * 2.4, yaw_to(-n[0], -n[1]))
+        else:
+            # The map board faces drivers coming up the spine road (south).
+            place("Map_Board", C[0] + t[0] * 3.8, C[1] + t[1] * 3.8, 180.0)
+            place("Young_Tree", C[0] - t[0] * 1.6, C[1] - t[1] * 1.6, 75.0)
 
 
 def court_walls():
@@ -1087,8 +1134,8 @@ def courts():
                 else:
                     place("Tennis_Net", a["x"] + s_ * a["width"] / 4, a["z"], 0.0)
         else:
-            if a["width"] < 30:      # the three courts by the hostels: open to the hill on the west (photo)
-                fence_round(x0, x1, z0, z1, west=False)
+            if a["width"] < 30:      # the three courts by the hostels: fenced, a gate onto the girls' hostel lane on the west (photo 6)
+                fence_round(x0, x1, z0, z1, west=True)
             if (sports and a is sports[0]) or a["width"] >= 30:
                 if long_x:
                     place("Basketball_Hoop", a["x"] - a["width"] / 2 + 0.4, a["z"], 90.0)

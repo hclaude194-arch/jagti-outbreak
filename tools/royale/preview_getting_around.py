@@ -98,7 +98,7 @@ def zip_lines():
 def vehicle_spots():
     spots = []
     for road in layout["roads"]:
-        if road["width"] < 4 or road["name"] == "Highway" or road["name"].startswith("Courtyard"):
+        if road["width"] < 4 or road["name"] == "Highway" or road["name"].startswith(("Courtyard", "Roundabout")):
             continue
         p = list(zip(road["points"][0::2], road["points"][1::2]))
         carry, side = 45.0, 1

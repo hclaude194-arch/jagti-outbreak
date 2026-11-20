@@ -1013,7 +1013,7 @@ def academic_block():
         c = m.b(X0 + P / 2, Z0 + P / 2)
         rooftop_box(m, c[0], c[1], 4.0, 4.0, top + 0.4, 2.6)
 
-    # --- north entrance: curved two-storey glass bay, flanking piers, porte-cochere, fountain
+    # --- north entrance: curved two-storey glass bay, flanking piers, porte-cochere
     e = BUILDINGS["Academic Block - Entrance"]
     ex = e["x"]
     bay_r = 9.0
@@ -1060,6 +1060,42 @@ def academic_block():
         for Z in (cz0 + (cz1 - cz0) / 2, cz1 - 0.9):
             m.box(X - 0.6, X + 0.6, Z - 0.6, Z + 0.6, -0.3, zs0, "Stone", None)
             m.box(X - 0.8, X + 0.8, Z - 0.8, Z + 0.8, -0.3, 0.9, "Concrete", "Concrete")
+    # More columns under the porch's front and middle beams, in pairs either side of the doors
+    # (owner's photo of the front, 2026-11-20: a deep porch on rows of white columns).
+    for Z in (cz0 + (cz1 - cz0) / 2, cz1 - 0.9):
+        for dx in (3.0, 4.5, 7.6):
+            for X in (ex - dx, ex + dx):
+                m.cylinder_local(*m.b(X, Z), 0.42, -0.3, zs0 - 0.5, "Stone", None, segments=12)
+                m.box(X - 0.6, X + 0.6, Z - 0.6, Z + 0.6, -0.3, 0.5, "Concrete", "Concrete")
+                m.box(X - 0.55, X + 0.55, Z - 0.55, Z + 0.55, zs0 - 0.8, zs0 - 0.5, "Concrete", None, bottom=True)
+
+    # --- the giant colonnade along the north front (owner's photos, 2026-11-20): square white
+    # pillars two storeys tall standing out from both side blocks (from the corner pavilions to
+    # past the flower beds; the middle by the porch stays recessed), carrying a deep entablature
+    # tied back to the facade, with the upper floors and the pavilions' glass top floor above it.
+    col_h = 2 * FLOOR - 0.4
+    col_out = OZ1 + PO + 2.4                 # pillar centres: clear of the pavilions' proud faces
+    col_w = 0.95
+    for side in (-1, 1):
+        if side < 0:
+            xa, xb = OX0 - PO + 1.2, ex - cw - 10.0
+        else:
+            xa, xb = ex + cw + 10.0, OX1 + PO - 1.2
+        n = max(2, int(round((xb - xa) / 3.9)) + 1)
+        for k in range(n):
+            X = xa + (xb - xa) * k / (n - 1)
+            m.box(X - col_w / 2, X + col_w / 2, col_out - col_w / 2, col_out + col_w / 2, -0.3, col_h, "Stone", None)
+            m.box(X - 0.7, X + 0.7, col_out - 0.7, col_out + 0.7, -0.3, 0.45, "Concrete", "Concrete")
+            m.box(X - 0.65, X + 0.65, col_out - 0.65, col_out + 0.65, col_h - 0.35, col_h, "Concrete", None, bottom=True)
+        # Entablature: over the pavilion it runs back to the pavilion's face, over the wing to
+        # the wing's face, so no gap shows from the drive.
+        x_pav = OX0 + P - PO if side < 0 else OX1 - P + PO
+        for (s0, s1) in ((xa - 0.8, x_pav), (x_pav, xb + 0.8)):
+            pav = (side < 0 and s1 <= x_pav + 1e-6) or (side > 0 and s0 >= x_pav - 1e-6)
+            back = OZ1 + PO + 0.02 if pav else OZ1 + 0.02
+            m.box(s0, s1, back, col_out + 0.75, col_h, col_h + 1.1, "Concrete", "Concrete", bottom=True)
+        m.box(min(xa, xb) - 1.0, max(xa, xb) + 1.0, col_out + 0.55, col_out + 0.95, col_h + 1.1, col_h + 1.5,
+              "Concrete", "Concrete", bottom=True)
     # Entrance plaza under the porch, with steps down to the drive at its front.
     plaza = rect_poly(m, ex - cw - 2, ex + cw + 2, OZ1, cz1 + 1.0)
     m.prism(plaza, -0.6, 0.45, "Concrete", "Concrete")
@@ -1074,18 +1110,8 @@ def academic_block():
         bed = anticlockwise(dedupe(bed))
         m.prism(bed, -0.3, 0.35, "Concrete", "Concrete")
         m.prism(inset_polygon(bed, 0.25), 0.35, 0.6, "Planter", "Planter")
-    # Square frame round the fountain (the water itself is drawn by the scene builder), with
-    # a quarter-round planter in each corner.
-    fx, fz = ex - 2.0, OZ1 + 27.0
-    hf = 5.5
-    for (X0, X1, Z0, Z1) in ((fx - hf, fx + hf, fz - hf, fz - hf + 0.5), (fx - hf, fx + hf, fz + hf - 0.5, fz + hf),
-                             (fx - hf, fx - hf + 0.5, fz - hf, fz + hf), (fx + hf - 0.5, fx + hf, fz - hf, fz + hf)):
-        m.box(X0, X1, Z0, Z1, -0.3, 0.45, "Stone", "Concrete")
-    for (cxs, czs) in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-        c0 = (fx + cxs * (hf - 0.5), fz + czs * (hf - 0.5))
-        a0 = math.atan2(-czs, -cxs)
-        q = [m.b(*c0)] + [m.b(c0[0] + 1.8 * math.cos(a0 + (k / 6 - 0.5) * math.pi / 2), c0[1] + 1.8 * math.sin(a0 + (k / 6 - 0.5) * math.pi / 2)) for k in range(7)]
-        m.prism(anticlockwise(q), -0.2, 0.55, "Concrete", "Planter")
+    # No fountain at the top of the clock tower walk (owner, 2026-11-20; not on the satellite):
+    # the walk opens straight onto the porch drive.
 
     # --- courtyard garden (owner's photo): lawns quartered by wide paved paths with a loop round
     # the middle, clipped hedges along the path edges and a small rectangular pool at the centre
@@ -1285,12 +1311,13 @@ TERRAIN_JSON = os.path.join(ROOT, "Assets", "Data", "campus_terrain.json")
 
 
 def clock_steps():
-    """The stepped walk from the serpentine up to the fountain square in front of the academic
-    porch (campus model and satellite), with the clock tower on a wide level landing near its
-    foot. Flights and landings come from generate_terrain.py ("clockSteps" in
+    """The stepped walk from the serpentine straight up to the porch drive in front of the
+    academic porch (campus model, satellite, owner's photo), with the clock tower on a wide level
+    landing near its foot. Flights and landings come from generate_terrain.py ("clockSteps" in
     campus_terrain.json), which fits them to the heights of the drive below and the porch above
-    and cuts the ground under them. Each tread and landing is a solid stone block; low side walls
-    with a concrete coping run along both edges and round the tower landing."""
+    and cuts the ground under them. Each tread and landing is a solid block with red sandstone
+    paving; white planter boxes with shrubs on top step down both edges (owner's photo,
+    2026-11-20) and round the tower landing."""
     with open(TERRAIN_JSON) as f:
         cs = json.load(f)["clockSteps"]
     X = cs["x"]
@@ -1299,7 +1326,7 @@ def clock_steps():
     base = cs["towerHeight"] - STEP_PAVING          # the ground at the pivot, on the tower landing
     prof = cs["profile"]
     land1, land0 = cs["landing"]
-    wall = 0.3
+    wall = 0.7
     # Treads and landings: each level stretch of the profile becomes a block down into the ground.
     for (za, ha), (zb, hb) in zip(prof[:-1], prof[1:]):
         if abs(ha - hb) > 1e-6 or abs(za - zb) < 1e-4:
@@ -1307,7 +1334,7 @@ def clock_steps():
         z0, z1 = min(za, zb), max(za, zb)
         top = ha - base
         hw = 6.0 if land1 - 0.01 < (z0 + z1) / 2 < land0 + 0.01 else half
-        m.box(X - hw, X + hw, z0, z1, top - 0.75, top, "Stone", "Stone", bottom=False)
+        m.box(X - hw, X + hw, z0, z1, top - 0.75, top, "Stone", "Brick", bottom=False)
     # Side walls: along each edge, a wall from below the steps to 0.6 m over the nosing line,
     # stepping with the flights (one segment per profile corner pair, sloped along the flights).
     noses = [(z, h) for z, h in prof]
@@ -1321,24 +1348,24 @@ def clock_steps():
             x0, x1 = (X + side * hw, X + side * (hw + wall))
             xa, xb = min(x0, x1), max(x0, x1)
             lo = min(ha, hb) - base - 1.2
-            hi_a, hi_b = ha - base + 0.6, hb - base + 0.6
+            hi_a, hi_b = ha - base + 0.7, hb - base + 0.7
             # A sloped-top wall segment: two side faces, a top and both ends.
             for xx, hint in ((xa, -1.0), (xb, 1.0)):
                 lx, _ = m.b(xx, 0.0)
                 _, ya = m.b(0.0, za)
                 _, yb = m.b(0.0, zb)
-                m.face([(lx, ya, lo), (lx, yb, lo), (lx, yb, hi_b), (lx, ya, hi_a)], "Stone", (-hint, 0, 0))
+                m.face([(lx, ya, lo), (lx, yb, lo), (lx, yb, hi_b), (lx, ya, hi_a)], "Concrete", (-hint, 0, 0))
             lxa, _ = m.b(xa, 0.0)
             lxb, _ = m.b(xb, 0.0)
             _, ya = m.b(0.0, za)
             _, yb = m.b(0.0, zb)
-            m.face([(lxa, ya, hi_a), (lxb, ya, hi_a), (lxb, yb, hi_b), (lxa, yb, hi_b)], "Concrete", (0, 0, 1))
+            m.face([(lxa, ya, hi_a), (lxb, ya, hi_a), (lxb, yb, hi_b), (lxa, yb, hi_b)], "Planter", (0, 0, 1))
     # Short return walls joining the narrow walls to the wide landing walls.
     for zz in (land0, land1):
         h_ = next(h for z, h in prof if abs(z - zz) < 0.01) - base
         for side in (-1, 1):
             xa, xb = sorted((X + side * (half + wall), X + side * (6.0 + wall)))
-            m.box(xa, xb, zz - wall / 2, zz + wall / 2, h_ - 1.2, h_ + 0.6, "Stone", "Concrete")
+            m.box(xa, xb, zz - wall / 2, zz + wall / 2, h_ - 1.2, h_ + 0.7, "Concrete", "Planter")
     m.local_bounds_to_solid()
     return m
 
@@ -1532,6 +1559,73 @@ def hostel_door_bay(L, slot_at):
     return None
 
 
+def inner_corner(rects):
+    """World (X, Z) of the inside corner of an L of two touching wings: a corner of one wing that
+    lies part way along an edge of the other (not at its corner)."""
+    if len(rects) != 2:
+        return None
+    for a, b in ((rects[0], rects[1]), (rects[1], rects[0])):
+        X0, X1, Z0, Z1 = b
+        for x in (a[0], a[1]):
+            for z in (a[2], a[3]):
+                on_edge = ((abs(x - X0) < 1e-3 or abs(x - X1) < 1e-3) and Z0 + 1e-3 < z < Z1 - 1e-3) or \
+                          ((abs(z - Z0) < 1e-3 or abs(z - Z1) < 1e-3) and X0 + 1e-3 < x < X1 - 1e-3)
+                if on_edge:
+                    return (x, z)
+    return None
+
+
+def hostel_entrance(rects):
+    """The entrance point of a hostel whose doors are at the inside corner of its L (the owner's
+    sketch, 2026-11-20), or None for the older hostels (door beside the first stair slot)."""
+    key = sorted(rects)
+    for parts in INNER_CORNER_HOSTELS:
+        if sorted(box_rect(n) for n in parts) == key:
+            return inner_corner(rects)
+    return None
+
+
+def hostel_wing_doors(m, subs, rects):
+    """The ground-floor entrance bay (s0, s1) for each of a wing's visible wall pieces, or None.
+    Older hostels: the first piece long enough to have a stair slot gets one, beside the slot.
+    L hostels (hostel_entrance): the piece that ends at the inside corner gets one, in the bay
+    nearest the corner, so both wings open onto the courtyard side where they meet."""
+    target = hostel_entrance(rects)
+    out = [None] * len(subs)
+    if target is None:
+        for i, sub in enumerate(subs):
+            bay = hostel_door_bay(sub.L, hostel_slots(sub.L))
+            if bay is not None:
+                out[i] = True
+                break
+        return out
+    best = None
+    for i, sub in enumerate(subs):
+        p0, p1 = sub.P(0.0, 0, 0), sub.P(sub.L, 0, 0)
+        A = (m.px - p0[0], m.pz - p0[1])
+        Bp = (m.px - p1[0], m.pz - p1[1])
+        ex, ez = Bp[0] - A[0], Bp[1] - A[1]
+        l2 = ex * ex + ez * ez
+        t = max(0.0, min(1.0, ((target[0] - A[0]) * ex + (target[1] - A[1]) * ez) / l2))
+        d = math.hypot(A[0] + t * ex - target[0], A[1] + t * ez - target[1])
+        if d < 1.0 and (best is None or d < best[0]):
+            best = (d, i, t * sub.L)
+    if best is None:
+        return out
+    _, i, st = best
+    sub = subs[i]
+    bays = []
+    for p0, p1, n, bw in hostel_pieces(sub.L, hostel_slots(sub.L)):
+        if bw < 2.0:
+            continue
+        for j in range(n):
+            bays.append((p0 + j * bw, p0 + (j + 1) * bw))
+    if bays:
+        b = min(bays, key=lambda q: abs((q[0] + q[1]) / 2 - st))
+        out[i] = b
+    return out
+
+
 def hostel_door(run, s0, s1):
     """A hostel entrance: a doorway through the wall, a concrete canopy and steps."""
     os0, os1 = s0 + 0.5, s1 - 0.5
@@ -1609,7 +1703,8 @@ def hostel_facade(run, floors, top, slots=True, door=False, rects=()):
     """Off-white hostel walls as in the owner's photos: windows sunk in paired niches in a plain
     wall that stands proud of the facade line, and jali-screened stair cores on long walls, each
     between two sand-coloured fins that rise above the roof with a stair head behind them.
-    door=True puts the block's entrance in the bay beside the first stair slot. rects are the
+    door=True puts the block's entrance in the bay beside the first stair slot; door=(s0, s1)
+    puts it in that bay (hostel_wing_doors). rects are the
     model's wing footprints (world), used to finish the wall at corners."""
     L = run.L
     P = HOSTEL_PROUD
@@ -1617,7 +1712,7 @@ def hostel_facade(run, floors, top, slots=True, door=False, rects=()):
     e0, e1 = hostel_end_shift(run, rects) if rects else (0.0, 0.0)
     run.box(-e0, L + e1, -0.8, 0.5, 0.0, P + 0.12, "Concrete", bottom=False)
     slot_at = hostel_slots(L, slots)
-    door_bay = hostel_door_bay(L, slot_at) if door else None
+    door_bay = door if isinstance(door, tuple) else (hostel_door_bay(L, slot_at) if door else None)
     for c in slot_at:
         s0, s1 = c - 1.6, c + 1.6
         run.rect(s0, s1, 0.5, top, -0.6, "Jali")
@@ -2025,14 +2120,12 @@ def detailed_model(model_name, parts, style, doors=(), shops=(), arcade=False):
         poly = rect_poly(m, X0, X1, Z0, Z1)
         m.face([(p[0], p[1], top) for p in poly], "Roof", (0, 0, 1))
         others = rects[:k] + rects[k + 1:]
-        door_done = False
-        for run in outline_runs(m, poly):
-            for (s0, s1) in hidden_intervals(m, run, others):
-                sub = SubRun(run, s0, s1)
+        subs = [SubRun(run, s0, s1) for run in outline_runs(m, poly) for (s0, s1) in hidden_intervals(m, run, others)]
+        wing_doors = hostel_wing_doors(m, subs, rects) if style == "hostel" else []
+        for si, sub in enumerate(subs):
+            if True:
                 if style == "hostel":
-                    door = not door_done and hostel_door_bay(sub.L, hostel_slots(sub.L)) is not None
-                    door_done = door_done or door
-                    hostel_facade(sub, floors, top, door=door, rects=rects)
+                    hostel_facade(sub, floors, top, door=wing_doors[si] or False, rects=rects)
                 elif style == "residential":
                     residential_facade(sub, floors, top)
                 elif style == "utility":
@@ -2406,17 +2499,23 @@ def water_tower():
 
 
 BRAHMAPUTRA = ["Brahmaputra Hostel - East Wing", "Brahmaputra Hostel - North Wing", "Brahmaputra Hostel - South Wing"]
-SINDHU_A = ["Sindhu Hostel A - North Wing", "Sindhu Hostel A - West Wing", "Sindhu Hostel A - South Wing"]
-SINDHU_B = ["Sindhu Hostel B - North Wing", "Sindhu Hostel B - West Wing", "Sindhu Hostel B - South Wing"]
-GIRLS_A = ["Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing"]
-GIRLS_B = ["Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing"]
+# The four L-shaped boys' hostels south of the track (owner's sketch, 2026-11-20).
+YAMUNA = ["Yamuna Hostel - North Wing", "Yamuna Hostel - West Wing"]
+SINDHU = ["Sindhu Hostel - North Wing", "Sindhu Hostel - West Wing"]
+BOYS_3 = ["Boys Hostel 3 - West Wing", "Boys Hostel 3 - South Wing"]
+BOYS_4 = ["Boys Hostel 4 - West Wing", "Boys Hostel 4 - South Wing"]
+GIRLS_A = ["Girls Hostel A - North Wing", "Girls Hostel A - West Wing"]
+GIRLS_B = ["Girls Hostel B - West Wing", "Girls Hostel B - North Wing"]
+GIRLS_C = ["Girls Hostel C - North Wing", "Girls Hostel C - East Wing"]
+GIRLS_D = ["Girls Hostel D - West Wing", "Girls Hostel D - South Wing"]
+# Hostels whose entrances are at the inside corner of their L (hostel_wing_doors).
+INNER_CORNER_HOSTELS = [YAMUNA, SINDHU, BOYS_3, BOYS_4, GIRLS_A, GIRLS_B, GIRLS_C, GIRLS_D]
 HAND_COVERED = {
     "Academic Block - North Wing", "Academic Block - South Wing", "Academic Block - West Wing",
     "Academic Block - East Wing", "Academic Block - Entrance", "Mandapam Auditorium (west drum)", "East Drum",
     "Annapurna Mess", "Annapurna Mess - Kitchen",
-    *BRAHMAPUTRA, *SINDHU_A, *SINDHU_B,
-    "Girls Hostel B - West Wing", "Girls Hostel B - North Wing", "Girls Hostel B - East Wing",
-    "Girls Hostel A - North Wing", "Girls Hostel A - West Wing", "Girls Hostel A - South Wing",
+    *BRAHMAPUTRA, *YAMUNA, *SINDHU, *BOYS_3, *BOYS_4,
+    *GIRLS_A, *GIRLS_B, *GIRLS_C, *GIRLS_D,
     "Shopping & Medical 1 (ATM)", *VIPANAN, "Sports Complex",
 }
 CIVIC_4D = [("Shopping_Medical_1_ATM", "Shopping & Medical 1 (ATM)"), ("Sports_Complex", "Sports Complex")]
@@ -2433,11 +2532,15 @@ MODELS = [
     vipanan,
     # The boys' hostels are U blocks too (owner, 2026-11-18).
     lambda: detailed_model("Brahmaputra_Hostel", BRAHMAPUTRA, "hostel"),
-    lambda: detailed_model("Sindhu_Hostel_A", SINDHU_A, "hostel"),
-    lambda: detailed_model("Sindhu_Hostel_B", SINDHU_B, "hostel"),
+    lambda: detailed_model("Yamuna_Hostel", YAMUNA, "hostel"),
+    lambda: detailed_model("Sindhu_Hostel", SINDHU, "hostel"),
+    lambda: detailed_model("Boys_Hostel_3", BOYS_3, "hostel"),
+    lambda: detailed_model("Boys_Hostel_4", BOYS_4, "hostel"),
     # The girls' hostels: two U blocks round badminton courtyards (the owner's top view).
     lambda: detailed_model("Girls_Hostel_A", GIRLS_A, "hostel"),
     lambda: detailed_model("Girls_Hostel_B", GIRLS_B, "hostel"),
+    lambda: detailed_model("Girls_Hostel_C", GIRLS_C, "hostel"),
+    lambda: detailed_model("Girls_Hostel_D", GIRLS_D, "hostel"),
 ]
 MODELS += [(lambda mn=mn, n=n: detailed_model(mn, [n], "civic", doors=door_points(n), shops=shop_points(n)))
            for mn, n in CIVIC_4D]
@@ -2517,14 +2620,18 @@ FIRE_ESCAPES = {
     "Academic_Block": [("Academic Block - South Wing", "E", -15.0)],
     "Annapurna_Mess": [("Annapurna Mess - Kitchen", "S", 6.0)],
     "Brahmaputra_Hostel": [("Brahmaputra Hostel - East Wing", "N", 4.0)],
-    "Sindhu_Hostel_A": [("Sindhu Hostel A - North Wing", "N", -16.0)],
-    "Sindhu_Hostel_B": [("Sindhu Hostel B - South Wing", "W", 7.0)],
-    "Girls_Hostel_A": [("Girls Hostel A - South Wing", "E", 6.0)],
+    "Yamuna_Hostel": [("Yamuna Hostel - West Wing", "W", 0.0)],
+    "Sindhu_Hostel": [("Sindhu Hostel - West Wing", "W", 0.0)],
+    "Boys_Hostel_3": [("Boys Hostel 3 - West Wing", "W", 0.0)],
+    "Boys_Hostel_4": [("Boys Hostel 4 - West Wing", "W", 0.0)],
+    "Girls_Hostel_A": [("Girls Hostel A - North Wing", "N", 8.0)],
     "Girls_Hostel_B": [("Girls Hostel B - West Wing", "N", -4.0)],
+    "Girls_Hostel_C": [("Girls Hostel C - East Wing", "E", 0.0)],
+    "Girls_Hostel_D": [("Girls Hostel D - South Wing", "S", 6.0)],
     "Shopping_Medical_1_ATM": [("Shopping & Medical 1 (ATM)", "W", 11.0)],
     "Sports_Complex": [("Sports Complex", "E", -23.0)],
     "East_Block": [("East Block", "E", -10.0)],
-    "East_Block_2": [("East Block 2", "N", -13.0)],
+    "Chenab_Hostel": [("Chenab Hostel", "E", 0.0)],
 }
 FE_W0, FE_LANE, FE_HALF = 0.9, 1.15, 2.6     # off the facade line; lane width; half length along the wall
 FE_FLIGHT = 1.4                               # each flight runs from -1.4 to +1.4 along the wall

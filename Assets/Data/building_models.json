@@ -47,11 +47,11 @@
    "pivotX": 72.0,
    "pivotZ": 451.0,
    "boundsMin": [
-    65.7,
-    383.0
+    65.3,
+    372.0
    ],
    "boundsMax": [
-    78.3,
+    78.7,
     469.5
    ],
    "replaces": []
@@ -161,79 +161,147 @@
    ]
   },
   {
-   "name": "Sindhu_Hostel_A",
-   "fbx": "Assets/Models/Buildings/Sindhu_Hostel_A.fbx",
-   "pivotX": 40.0,
-   "pivotZ": -394.0,
+   "name": "Yamuna_Hostel",
+   "fbx": "Assets/Models/Buildings/Yamuna_Hostel.fbx",
+   "pivotX": 77.0,
+   "pivotZ": -381.0,
    "boundsMin": [
-    20.0,
-    -459.0
+    57.7,
+    -406.0
    ],
    "boundsMax": [
-    60.0,
-    -379.7
+    93.0,
+    -374.0
    ],
    "replaces": [
-    "Sindhu Hostel A - North Wing",
-    "Sindhu Hostel A - West Wing",
-    "Sindhu Hostel A - South Wing"
+    "Yamuna Hostel - North Wing",
+    "Yamuna Hostel - West Wing"
    ]
   },
   {
-   "name": "Sindhu_Hostel_B",
-   "fbx": "Assets/Models/Buildings/Sindhu_Hostel_B.fbx",
-   "pivotX": 40.0,
-   "pivotZ": -476.0,
+   "name": "Sindhu_Hostel",
+   "fbx": "Assets/Models/Buildings/Sindhu_Hostel.fbx",
+   "pivotX": 42.0,
+   "pivotZ": -426.0,
    "boundsMin": [
-    16.7,
-    -541.0
+    22.7,
+    -451.0
    ],
    "boundsMax": [
-    60.0,
-    -465.0
+    58.0,
+    -419.0
    ],
    "replaces": [
-    "Sindhu Hostel B - North Wing",
-    "Sindhu Hostel B - West Wing",
-    "Sindhu Hostel B - South Wing"
+    "Sindhu Hostel - North Wing",
+    "Sindhu Hostel - West Wing"
+   ]
+  },
+  {
+   "name": "Boys_Hostel_3",
+   "fbx": "Assets/Models/Buildings/Boys_Hostel_3.fbx",
+   "pivotX": 34.0,
+   "pivotZ": -491.0,
+   "boundsMin": [
+    23.7,
+    -514.0
+   ],
+   "boundsMax": [
+    59.0,
+    -482.0
+   ],
+   "replaces": [
+    "Boys Hostel 3 - West Wing",
+    "Boys Hostel 3 - South Wing"
+   ]
+  },
+  {
+   "name": "Boys_Hostel_4",
+   "fbx": "Assets/Models/Buildings/Boys_Hostel_4.fbx",
+   "pivotX": 70.0,
+   "pivotZ": -517.0,
+   "boundsMin": [
+    59.7,
+    -540.0
+   ],
+   "boundsMax": [
+    95.0,
+    -508.0
+   ],
+   "replaces": [
+    "Boys Hostel 4 - West Wing",
+    "Boys Hostel 4 - South Wing"
    ]
   },
   {
    "name": "Girls_Hostel_A",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_A.fbx",
-   "pivotX": 31.0,
-   "pivotZ": -121.0,
+   "pivotX": 32.0,
+   "pivotZ": -125.0,
    "boundsMin": [
-    18.0,
-    -202.0
+    16.0,
+    -150.0
    ],
    "boundsMax": [
-    51.3,
-    -108.0
+    48.0,
+    -114.7
    ],
    "replaces": [
     "Girls Hostel A - North Wing",
-    "Girls Hostel A - West Wing",
-    "Girls Hostel A - South Wing"
+    "Girls Hostel A - West Wing"
    ]
   },
   {
    "name": "Girls_Hostel_B",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_B.fbx",
-   "pivotX": 56.0,
-   "pivotZ": -102.0,
+   "pivotX": 55.0,
+   "pivotZ": -98.0,
    "boundsMin": [
     48.0,
-    -122.0
+    -114.0
    ],
    "boundsMax": [
-    121.0,
+    80.0,
     -78.7
    ],
    "replaces": [
     "Girls Hostel B - West Wing",
-    "Girls Hostel B - North Wing",
-    "Girls Hostel B - East Wing"
+    "Girls Hostel B - North Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_C",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_C.fbx",
+   "pivotX": 98.0,
+   "pivotZ": -89.0,
+   "boundsMin": [
+    89.0,
+    -114.0
+   ],
+   "boundsMax": [
+    124.3,
+    -82.0
+   ],
+   "replaces": [
+    "Girls Hostel C - North Wing",
+    "Girls Hostel C - East Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_D",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_D.fbx",
+   "pivotX": 23.0,
+   "pivotZ": -165.0,
+   "boundsMin": [
+    16.0,
+    -191.3
+   ],
+   "boundsMax": [
+    48.0,
+    -156.0
+   ],
+   "replaces": [
+    "Girls Hostel D - West Wing",
+    "Girls Hostel D - South Wing"
    ]
   },
   {
@@ -413,20 +481,20 @@
    ]
   },
   {
-   "name": "East_Block_2",
-   "fbx": "Assets/Models/Buildings/East_Block_2.fbx",
-   "pivotX": 192.0,
-   "pivotZ": -290.0,
+   "name": "Chenab_Hostel",
+   "fbx": "Assets/Models/Buildings/Chenab_Hostel.fbx",
+   "pivotX": 183.0,
+   "pivotZ": -294.0,
    "boundsMin": [
-    175.0,
-    -302.0
+    167.0,
+    -305.0
    ],
    "boundsMax": [
-    209.0,
-    -274.7
+    202.3,
+    -283.0
    ],
    "replaces": [
-    "East Block 2"
+    "Chenab Hostel"
    ]
   },
   {
