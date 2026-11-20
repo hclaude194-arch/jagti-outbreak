@@ -118,7 +118,7 @@ namespace Jagti.Royale
                 float px = x + cw + 80f, pw = Mathf.Min(640f, w - px - 60f), py = 80f;
                 if (pw >= 360f)
                 {
-                    float ph = Mathf.Min(h - py - 120f, page == 0 ? 720f : 480f);
+                    float ph = Mathf.Min(h - py - 120f, page == 0 ? MenuPanels.SettingsPanelHeight : 480f);
                     HudKit.Panel(px, py, pw, ph, new Color(0.06f, 0.07f, 0.09f, 0.9f), 10f);
                     HudKit.Outline(px, py, pw, ph, HudKit.Line, 1f, 10f);
                     HudKit.Label(px + 32f, py + 20f, pw - 64f, 40f, page == 0 ? "SETTINGS" : "CONTROLS", 30f, HudKit.Text, TextAnchor.MiddleLeft, true);

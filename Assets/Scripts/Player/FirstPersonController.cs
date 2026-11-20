@@ -35,6 +35,13 @@ namespace Jagti.Player
 
         [Header("Look")]
         public float mouseSensitivity = 2f;
+        /// <summary>Mouse up looks down (settings menu).</summary>
+        [HideInInspector] public bool invertY;
+        /// <summary>Multiplies the mouse turn; the gun lowers it while aiming so a zoomed view doesn't whip about.</summary>
+        [HideInInspector] public float lookScale = 1f;
+        /// <summary>Shift starts a sprint that lasts until you stop pushing forward (settings menu).</summary>
+        [HideInInspector] public bool toggleSprint;
+        bool sprintLatched;
 
         [Header("Feel")]
         public float bobAmount = 0.035f;
@@ -139,8 +146,8 @@ namespace Jagti.Player
 
             if (Cursor.lockState == CursorLockMode.Locked)
             {
-                float mx = Input.GetAxis("Mouse X") * mouseSensitivity;
-                float my = Input.GetAxis("Mouse Y") * mouseSensitivity;
+                float mx = Input.GetAxis("Mouse X") * mouseSensitivity * lookScale;
+                float my = Input.GetAxis("Mouse Y") * mouseSensitivity * lookScale * (invertY ? -1f : 1f);
                 transform.Rotate(0f, mx, 0f);
                 pitch = Mathf.Clamp(pitch - my, -85f, 85f);
             }
@@ -162,7 +169,15 @@ namespace Jagti.Player
 
             var input = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
             input = Vector3.ClampMagnitude(input, 1f);
-            bool wantSprint = sprintAllowed && Input.GetKey(KeyCode.LeftShift) && input.z > 0.1f;
+            bool shift = Input.GetKey(KeyCode.LeftShift);
+            if (toggleSprint)
+            {
+                // Tap Shift to run; stopping, backing off or crouching ends it.
+                if (Input.GetKeyDown(KeyCode.LeftShift) && input.z > 0.1f) sprintLatched = !sprintLatched;
+                if (input.z <= 0.1f || Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.LeftControl)) sprintLatched = false;
+                shift = sprintLatched;
+            }
+            bool wantSprint = sprintAllowed && shift && input.z > 0.1f;
             if (wantSprint && Crouching && !autoDucked) SetCrouch(false);   // sprinting stands you up
             IsSprinting = wantSprint && !Crouching;
             // Ducking under a lintel only slows you a little; a real crouch is a creep.

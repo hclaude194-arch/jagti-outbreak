@@ -435,8 +435,9 @@ namespace Jagti.Royale
             if (victim.isPlayer)
             {
                 GameState.PlayerDead = true;
+                // The death camera lifts out of the head and turns to the killer; without a camera, drop the view to the ground.
                 var walker = victim.GetComponent<Jagti.Player.FirstPersonController>();
-                if (walker != null) walker.Collapse();
+                if (SpectatorCam.Begin(victim, killer) == null && walker != null) walker.Collapse();
                 if (LootDirector.Instance != null) LootDirector.Instance.DropLoadout(victim.loadout, victim.transform.position);
                 EndMatch(false);
                 return;
@@ -458,7 +459,7 @@ namespace Jagti.Royale
             if (Over) return;
             Over = true;
             PlayerWon = won;
-            overTimer = won ? 2f : 3f;
+            overTimer = won ? 2.5f : 4.5f;   // time for the death camera to show who did it
             if (won)
             {
                 Announce("Top of the hill!");
@@ -499,9 +500,8 @@ namespace Jagti.Royale
 
         public static void Reload()
         {
-            Time.timeScale = 1f;
-            Combatant.All.Clear();
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            // Fade out, load the campus behind a loading screen, fade back in.
+            LoadingScreen.Load(SceneManager.GetActiveScene().buildIndex, SkipMenu ? "NEXT MATCH" : "JAGTI ROYALE");
         }
     }
 }
