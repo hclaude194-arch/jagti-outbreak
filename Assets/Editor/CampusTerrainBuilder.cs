@@ -203,14 +203,16 @@ namespace Jagti.EditorTools
                 new Color(0.33f, 0.31f, 0.28f), new Color(0.50f, 0.47f, 0.43f), new Color(0.66f, 0.63f, 0.58f), 3, 0.35f, 4);
             return new[]
             {
-                Layer("Grass", grass, 5f),
-                Layer("DryGrass", dry, 6f),
-                Layer("Soil", soil, 5f),
-                Layer("Rock", rock, 9f),
+                Layer("Grass", grass, 5f, 4f),
+                Layer("DryGrass", dry, 6f, 5f),
+                Layer("Soil", soil, 5f, 6f),
+                Layer("Rock", rock, 9f, 9f),
             };
         }
 
-        static TerrainLayer Layer(string name, Texture2D texture, float tile)
+        /// <summary>relief: slope of the layer's normal map (look pass 2), made from its own texture so
+        /// clods, stones and tufts catch the low sun.</summary>
+        static TerrainLayer Layer(string name, Texture2D texture, float tile, float relief)
         {
             var layer = new TerrainLayer
             {
@@ -220,6 +222,12 @@ namespace Jagti.EditorTools
                 smoothness = 0.05f,
                 metallic = 0f,
             };
+            var normal = ProceduralAssets.NormalFor(texture, relief);
+            if (normal != null)
+            {
+                layer.normalMapTexture = normal;
+                layer.normalScale = 1f;
+            }
             AssetDatabase.CreateAsset(layer, TerrainFolder + "/" + name + ".terrainlayer");
             return layer;
         }
@@ -247,6 +255,7 @@ namespace Jagti.EditorTools
             if (shader == null) shader = Shader.Find("Nature/Terrain/Standard");
             if (shader == null) return null; // Unity falls back to the pipeline's default terrain material
             var mat = new Material(shader) { name = "Campus_Terrain", enableInstancing = true };
+            mat.EnableKeyword("_NORMALMAP");   // the layers carry normal maps (look pass 2)
             AssetDatabase.CreateAsset(mat, TerrainFolder + "/Campus_Terrain.mat");
             return mat;
         }

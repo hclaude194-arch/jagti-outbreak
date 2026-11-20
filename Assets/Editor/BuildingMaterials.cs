@@ -58,6 +58,25 @@ namespace Jagti.EditorTools
                 ["Water"] = ProceduralAssets.LitMaterial("Bld_Water", Color.white, Water(), 0.92f),
                 ["Planter"] = ProceduralAssets.LitMaterial("Bld_Planter", Color.white, Planter(), 0.05f),
             };
+            // Look pass 2: relief from each texture (plaster grain, brick and stone joints, window
+            // reveals) and large patches of weathering so walls stop repeating one tile. The
+            // tiling is per tile of the material's own texture: walls tile every metre or two, the
+            // facades every bay. Glass, water and solar panels stay smooth.
+            foreach (var key in new[] { "Plaster", "Hostel_Plaster", "Concrete", "Roof" })
+            {
+                ProceduralAssets.AddRelief(mats[key], 3f, 0.7f);
+                ProceduralAssets.AddMacroVariation(mats[key], 0.09f);
+            }
+            foreach (var key in new[] { "Brick", "Stone", "Planter" })
+            {
+                ProceduralAssets.AddRelief(mats[key], 4f);
+                ProceduralAssets.AddMacroVariation(mats[key], 0.12f);
+            }
+            foreach (var key in new[] { "Facade_Academic", "Facade_Hostel", "Facade_Ground", "Jali" })
+            {
+                ProceduralAssets.AddRelief(mats[key], 1.5f, 0.6f);
+                ProceduralAssets.AddMacroVariation(mats[key], 0.17f);
+            }
             InteriorMaterials.AddTo(mats);
             return mats;
         }
