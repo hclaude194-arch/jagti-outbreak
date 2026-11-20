@@ -594,6 +594,14 @@ VIEWS = {
     # track to the Chenab roundabout.
     "boys_hostels_aerial": (230, -560, 110, 90, -360, 0, 26),
     "chenab_roundabout": (128, -312, 14, 168, -262, 1, 26),
+    # 2026-11-20 (owner's photos of the academic front): the colonnade and the steps up to the
+    # porch drive, from out over the slope like the aerial photo.
+    "academic_front": (73, 445, 30, 73, 352, 8, 24),
+    "clock_steps_top": (80, 392, 4, 73, 362, 3, 26),
+    # The hill east of the boys' hostel road and the cliff east of the girls' hostels and track
+    # (owner's comments on the plans, 2026-11-20).
+    "boys_hill": (60, -455, 1.7, 160, -470, 12, 24),
+    "girls_cliff": (130, -205, 1.7, 200, -200, 8, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

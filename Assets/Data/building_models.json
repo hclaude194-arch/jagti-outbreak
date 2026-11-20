@@ -47,11 +47,11 @@
    "pivotX": 72.0,
    "pivotZ": 451.0,
    "boundsMin": [
-    65.7,
-    383.0
+    65.3,
+    372.0
    ],
    "boundsMax": [
-    78.3,
+    78.7,
     469.5
    ],
    "replaces": []
@@ -163,14 +163,14 @@
   {
    "name": "Yamuna_Hostel",
    "fbx": "Assets/Models/Buildings/Yamuna_Hostel.fbx",
-   "pivotX": 79.5,
+   "pivotX": 77.0,
    "pivotZ": -381.0,
    "boundsMin": [
     57.7,
-    -414.0
+    -406.0
    ],
    "boundsMax": [
-    98.0,
+    93.0,
     -374.0
    ],
    "replaces": [
@@ -181,14 +181,14 @@
   {
    "name": "Sindhu_Hostel",
    "fbx": "Assets/Models/Buildings/Sindhu_Hostel.fbx",
-   "pivotX": 41.5,
+   "pivotX": 42.0,
    "pivotZ": -426.0,
    "boundsMin": [
     22.7,
-    -460.0
+    -451.0
    ],
    "boundsMax": [
-    57.0,
+    58.0,
     -419.0
    ],
    "replaces": [
@@ -199,15 +199,15 @@
   {
    "name": "Boys_Hostel_3",
    "fbx": "Assets/Models/Buildings/Boys_Hostel_3.fbx",
-   "pivotX": 35.0,
-   "pivotZ": -485.0,
+   "pivotX": 34.0,
+   "pivotZ": -491.0,
    "boundsMin": [
-    24.7,
+    23.7,
     -514.0
    ],
    "boundsMax": [
-    57.0,
-    -470.0
+    59.0,
+    -482.0
    ],
    "replaces": [
     "Boys Hostel 3 - West Wing",
@@ -218,14 +218,14 @@
    "name": "Boys_Hostel_4",
    "fbx": "Assets/Models/Buildings/Boys_Hostel_4.fbx",
    "pivotX": 70.0,
-   "pivotZ": -515.5,
+   "pivotZ": -517.0,
    "boundsMin": [
     59.7,
     -540.0
    ],
    "boundsMax": [
-    96.0,
-    -505.0
+    95.0,
+    -508.0
    ],
    "replaces": [
     "Boys Hostel 4 - West Wing",
@@ -235,15 +235,15 @@
   {
    "name": "Girls_Hostel_A",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_A.fbx",
-   "pivotX": 31.0,
-   "pivotZ": -116.0,
+   "pivotX": 32.0,
+   "pivotZ": -125.0,
    "boundsMin": [
-    14.7,
-    -148.0
+    16.0,
+    -150.0
    ],
    "boundsMax": [
-    44.0,
-    -108.0
+    48.0,
+    -114.7
    ],
    "replaces": [
     "Girls Hostel A - North Wing",
@@ -253,14 +253,14 @@
   {
    "name": "Girls_Hostel_B",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_B.fbx",
-   "pivotX": 56.0,
-   "pivotZ": -102.0,
+   "pivotX": 55.0,
+   "pivotZ": -98.0,
    "boundsMin": [
     48.0,
-    -122.0
+    -114.0
    ],
    "boundsMax": [
-    83.0,
+    80.0,
     -78.7
    ],
    "replaces": [
@@ -271,11 +271,11 @@
   {
    "name": "Girls_Hostel_C",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_C.fbx",
-   "pivotX": 97.0,
-   "pivotZ": -91.0,
+   "pivotX": 98.0,
+   "pivotZ": -89.0,
    "boundsMin": [
-    87.0,
-    -122.0
+    89.0,
+    -114.0
    ],
    "boundsMax": [
     124.3,
@@ -289,15 +289,15 @@
   {
    "name": "Girls_Hostel_D",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_D.fbx",
-   "pivotX": 25.0,
-   "pivotZ": -163.0,
+   "pivotX": 23.0,
+   "pivotZ": -165.0,
    "boundsMin": [
-    18.0,
-    -202.0
+    16.0,
+    -191.3
    ],
    "boundsMax": [
-    51.3,
-    -152.0
+    48.0,
+    -156.0
    ],
    "replaces": [
     "Girls Hostel D - West Wing",

@@ -303,6 +303,64 @@ for x0, x1, z0, z1, th, ramp, ramp_z in TERRACE_PADS:
     w = 1.0 - smoothstep(0.0, ramp, np.sqrt(ddx * ddx + ddz * ddz))
     plateau = plateau * (1 - w) + (th + 0.4 * n_mid) * w
 
+# Scarps on the campus's east side (owner, 2026-11-20, on the hostel plans; the satellite shows
+# the shadowed face east of the boys' hostel road): east of Hostel East Road the ground rises as
+# a steep wooded face almost as tall as the hostels, and east of the track and the girls'
+# hostels it is a cliff. Each is (foot line in map coords, running north to south with the face
+# on its east side; level at the foot; level on top; run of the face m; width of the top m).
+# West of the foot the ground is held level for FOOT_FLAT m so the face rises from flat ground;
+# the top keeps its level for the given width, then gives way to the ground beyond (the wall
+# and the drop to the ravines). Both ends fade over SCARP_TAPER m along the foot.
+SCARPS = [
+    ([[528, 1378], [526, 1420], [526, 1500], [529, 1562]], 27.8, 46.0, 14.0, 34.0),
+    ([[584, 1138], [583, 1190], [581, 1240]], 30.0, 44.0, 12.0, 30.0),
+]
+FOOT_FLAT = 22.0
+scarp_mask = np.zeros(X.shape)   # 1 on the faces and tops: wooded like the ravines (satellite)
+SCARP_TAPER = 30.0
+for foot, base, top, run, top_w in SCARPS:
+    pts = np.array([L.to_world(x, y) for x, y in foot], float)
+    seg_len = np.hypot(*(pts[1:] - pts[:-1]).T)
+    total = seg_len.sum()
+    reach = run + top_w + 40.0
+    x0, x1 = pts[:, 0].min() - FOOT_FLAT - 5, pts[:, 0].max() + reach
+    z0, z1 = pts[:, 1].min() - 5, pts[:, 1].max() + 5
+    cols = slice(max(0, int((x0 - MIN_X) / CELL)), min(RES, int((x1 - MIN_X) / CELL) + 2))
+    rows = slice(max(0, int((z0 - MIN_Z) / CELL)), min(RES, int((z1 - MIN_Z) / CELL) + 2))
+    px, pz = X[rows, cols], Z[rows, cols]
+    f_best = np.full(px.shape, np.inf)
+    f_side = np.zeros(px.shape)
+    f_along = np.zeros(px.shape)
+    s0 = 0.0
+    for (ax, az), (bx, bz), ln in zip(pts[:-1], pts[1:], seg_len):
+        dx, dz = (bx - ax) / ln, (bz - az) / ln
+        t = np.clip((px - ax) * dx + (pz - az) * dz, 0.0, ln)
+        qx, qz = ax + t * dx - px, az + t * dz - pz
+        d = np.hypot(qx, qz)
+        closer = d < f_best
+        f_best = np.where(closer, d, f_best)
+        # East of a line running south (-Z) is +X: the cross product picks the f_side.
+        cross = dx * (pz - az) - dz * (px - ax)
+        f_side = np.where(closer, np.sign(cross + 1e-9), f_side)
+        f_along = np.where(closer, s0 + t, f_along)
+        s0 += ln
+    f_sd = f_best * f_side      # + on the face's f_side
+    f_taper = smoothstep(0.0, SCARP_TAPER, f_along) * smoothstep(0.0, SCARP_TAPER, total - f_along)
+    f_seg = plateau[rows, cols]
+    f_rough = 1.2 * n_mid[rows, cols]
+    # West of the foot: level ground at the foot's height.
+    w_flat = (1 - smoothstep(0.0, FOOT_FLAT, -f_sd)) * (f_sd < 0) * f_taper
+    f_seg = f_seg * (1 - w_flat) + (base + 0.3 * f_rough) * w_flat
+    # The face and the top: a steep rise, then the top level, then back to the ground beyond.
+    rise = smoothstep(0.0, run, f_sd) ** 0.8
+    hold = 1 - smoothstep(run + top_w, run + top_w + 40.0, f_sd)
+    # A rough face and a lumpy top, so it reads as a hill rather than a cut terrace.
+    face = base + (top - base) * rise + f_rough * smoothstep(0.0, 4.0, f_sd) + 3.0 * n_hills[rows, cols] * rise
+    w_face = (f_sd >= 0) * f_taper * hold
+    f_seg = f_seg * (1 - w_face) + face * w_face
+    plateau[rows, cols] = f_seg
+    scarp_mask[rows, cols] = np.maximum(scarp_mask[rows, cols], w_face * smoothstep(-2.0, 4.0, f_sd))
+
 # Gate slope: the serpentine drive climbs from the gate (about 3 m) up to the ridge.
 gate_ramp = smoothstep(380.0, 528.0, Z)
 plateau = plateau * (1 - gate_ramp) + 3.0 * gate_ramp
@@ -613,7 +671,7 @@ serp = np.array(next(r[2] for r in roads if r[0] == serp_name))
 serp_s = arc_lengths(serp)
 cs_x, cs_y0, cs_y1, cs_w, cs_ty, cs_land = L.CLOCK_STEPS
 cs_X, cs_Z0 = L.to_world(cs_x, cs_y0)          # foot of the walk (on the serpentine's edge)
-_, cs_Z1 = L.to_world(cs_x, cs_y1)             # top of the walk (fountain square)
+_, cs_Z1 = L.to_world(cs_x, cs_y1)             # top of the walk (the porch drive's edge)
 _, cs_TZ = L.to_world(cs_x, cs_ty)             # tower landing centre
 porch = np.array(next(r[2] for r in roads if r[0] == "Porch Drive"))
 # The gate roundabout: no higher than the gate approach can reach from the highway at 7.5 %
@@ -665,7 +723,7 @@ flatten_pads(height, 1.0, 3.0, pad_heights, keep=road_core)
 flatten_pads(height, 0.6, 0.01, pad_heights, keep=road_core)
 
 # ------------------------------------------------------------------ the clock tower walk
-# A straight walk of flights and landings from the serpentine up to the fountain square, the
+# A straight walk of flights and landings from the serpentine up to the porch drive, the
 # tower on a level landing near the foot. Risers 0.15 m, treads 0.30 m, a 1.8 m landing after
 # every 12 risers at most. The ground is cut to just below the steps; build_buildings.py builds
 # them (with side walls) from the profile written to campus_terrain.json.
@@ -723,12 +781,7 @@ along = np.maximum(pz - cs_Z0 - 1.0, cs_Z1 - 2.0 - pz)
 w = (1 - smoothstep(0.0, 10.0, across)) * (1 - smoothstep(0.0, 3.0, along)) * (1 - road_core[rows, cols])
 height[rows, cols] = height[rows, cols] * (1 - w) + walk_h * w
 road_dist[rows, cols] = np.minimum(road_dist[rows, cols], np.maximum(across, along))   # no trees on the walk
-# The fountain square at the top, level with the porch drive.
-fx0, fx1, fz0, fz1 = cs_X - 8.0, cs_X + 8.0, cs_Z1 - 12.0, cs_Z1
-rows, cols = window(cs_X, (fz0 + fz1) / 2, 16.0)
-px, pz = X[rows, cols], Z[rows, cols]
-w = 1 - smoothstep(0.0, 3.0, np.maximum.reduce([fx0 - px, px - fx1, fz0 - pz, pz - fz1]))
-height[rows, cols] = height[rows, cols] * (1 - w) + cs_top_h * w
+# The walk's top landing ends on the porch drive's edge (no square at the top: owner, 2026-11-20).
 print("Clock walk: %.1f m up from the serpentine (%.1f m) to the porch (%.1f m); tower landing %.1f m; risers %.3f / %.3f m" % (
     cs_top_h - cs_bottom_h, cs_bottom_h, cs_top_h, tower_h, r_low, r_up))
 
@@ -948,7 +1001,7 @@ fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
 o = outside[fi, fj]
 # Inside the campus only a sprinkle of trees and bushes, and the pine wood on the hill by the
 # courts (owner's photos, 2026-11-19); outside, scrub forest in the ravines.
-density = np.where(sd[fi, fj] < 0, 0.006 + 0.32 * hill_mask[fi, fj],
+density = np.where(sd[fi, fj] < 0, 0.006 + 0.32 * hill_mask[fi, fj] + 0.30 * scarp_mask[fi, fj],
                    (0.30 - 0.22 * smoothstep(200, 650, o)) * (1 - smoothstep(650, 900, o)) * smoothstep(3, 15, o))
 density *= 0.5 + 0.8 * np.clip(0.5 - n_patch[fi, fj], 0, 1)   # clumps
 density *= 1 - farm_mask[fi, fj] * 0.92                        # few trees in fields
@@ -961,6 +1014,8 @@ for x, z, i, j in zip(JX[keep], JZ[keep], fi[keep], fj[keep]):
     r = rng.random()
     if sd[i, j] < 0 and hill_mask[i, j] > 0.3:
         kind = PINE if r < 0.6 else (BROAD if r < 0.8 else SHRUB)  # pine wood on the hill by the courts
+    elif sd[i, j] < 0 and scarp_mask[i, j] > 0.3:
+        kind = SHRUB if r < 0.5 else BROAD                          # scrub on the scarps
     elif sd[i, j] < 0:
         kind = SHRUB if r < 0.6 else BROAD
     elif slope[i, j] > 18:

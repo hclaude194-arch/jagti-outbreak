@@ -17,7 +17,7 @@ ORIGIN = (414.0, 996.0)
 SCALE = 1.0  # metres per map unit
 FLOOR = 3.4  # metres per storey
 # Bump when the layout or terrain changes: Unity rebuilds the scene on next open.
-VERSION = 32
+VERSION = 33
 
 
 def to_world(x, y):
@@ -93,15 +93,16 @@ BUILDINGS = [
     # wings each, entrances at the inside corner where the wings meet, like the boys' hostels.
     # B and C stand side by side as a U opening south round the badminton courtyard; A and D are
     # stacked west of the other courtyard, A opening south-east and D north-east. Separate
-    # hostels stand 4 m apart.
-    ("Girls Hostel B - West Wing", "hostels", 462, 1078, 16, 40, 7, "box"),
-    ("Girls Hostel B - North Wing", "hostels", 478, 1078, 19, 18, 7, "box"),
-    ("Girls Hostel C - North Wing", "hostels", 501, 1078, 20, 18, 7, "box"),
-    ("Girls Hostel C - East Wing", "hostels", 521, 1078, 14, 40, 7, "box"),
-    ("Girls Hostel A - North Wing", "hostels", 432, 1104, 26, 16, 7, "box"),
-    ("Girls Hostel A - West Wing", "hostels", 432, 1120, 14, 24, 7, "box"),
-    ("Girls Hostel D - West Wing", "hostels", 432, 1148, 14, 22, 7, "box"),
-    ("Girls Hostel D - South Wing", "hostels", 432, 1170, 30, 28, 7, "box"),
+    # hostels stand 4 m apart. Every hostel, girls' and boys', is the same L (owner, 2026-11-20:
+    # both arms equally long and thick): two 14 m deep wings, each arm 32 m from the outer corner.
+    ("Girls Hostel B - West Wing", "hostels", 462, 1078, 14, 32, 7, "box"),
+    ("Girls Hostel B - North Wing", "hostels", 476, 1078, 18, 14, 7, "box"),
+    ("Girls Hostel C - North Wing", "hostels", 503, 1078, 18, 14, 7, "box"),
+    ("Girls Hostel C - East Wing", "hostels", 521, 1078, 14, 32, 7, "box"),
+    ("Girls Hostel A - North Wing", "hostels", 430, 1114, 32, 14, 7, "box"),
+    ("Girls Hostel A - West Wing", "hostels", 430, 1128, 14, 18, 7, "box"),
+    ("Girls Hostel D - West Wing", "hostels", 430, 1152, 14, 18, 7, "box"),
+    ("Girls Hostel D - South Wing", "hostels", 430, 1170, 32, 14, 7, "box"),
     ("Track Pavilion", "hostels", 484, 1161, 50, 8, 1, "box"),
     ("Sports Complex", "hostels", 438, 1297, 25, 54, 3, "box"),
     ("East Block", "hostels", 564, 1098, 18, 28, 3, "box"),
@@ -113,14 +114,14 @@ BUILDINGS = [
     # opens east onto the hostel road: Yamuna top right and Sindhu upper left (both opening
     # south-east), then two more lower left and bottom right (opening north-east). Each has its
     # entrances at the inside corner where its wings meet (build_buildings.INNER_CORNER_HOSTELS).
-    ("Yamuna Hostel - North Wing", "sindhu", 475, 1370, 37, 14, 7, "box"),
-    ("Yamuna Hostel - West Wing", "sindhu", 475, 1384, 14, 26, 7, "box"),
-    ("Sindhu Hostel - North Wing", "sindhu", 440, 1415, 31, 14, 7, "box"),
-    ("Sindhu Hostel - West Wing", "sindhu", 440, 1429, 14, 27, 7, "box"),
-    ("Boys Hostel 3 - West Wing", "sindhu", 442, 1466, 14, 30, 7, "box"),
-    ("Boys Hostel 3 - South Wing", "sindhu", 442, 1496, 29, 14, 7, "box"),
-    ("Boys Hostel 4 - West Wing", "sindhu", 477, 1501, 14, 21, 7, "box"),
-    ("Boys Hostel 4 - South Wing", "sindhu", 477, 1522, 33, 14, 7, "box"),
+    ("Yamuna Hostel - North Wing", "sindhu", 475, 1370, 32, 14, 7, "box"),
+    ("Yamuna Hostel - West Wing", "sindhu", 475, 1384, 14, 18, 7, "box"),
+    ("Sindhu Hostel - North Wing", "sindhu", 440, 1415, 32, 14, 7, "box"),
+    ("Sindhu Hostel - West Wing", "sindhu", 440, 1429, 14, 18, 7, "box"),
+    ("Boys Hostel 3 - West Wing", "sindhu", 441, 1478, 14, 18, 7, "box"),
+    ("Boys Hostel 3 - South Wing", "sindhu", 441, 1496, 32, 14, 7, "box"),
+    ("Boys Hostel 4 - West Wing", "sindhu", 477, 1504, 14, 18, 7, "box"),
+    ("Boys Hostel 4 - South Wing", "sindhu", 477, 1522, 32, 14, 7, "box"),
     ("Service Shed 1", "sindhu", 388, 1490, 26, 13, 1, "box"),
     ("Service Shed 2", "sindhu", 392, 1512, 24, 12, 1, "box"),
     ("Service Shed 3", "sindhu", 395, 1531, 22, 12, 1, "box"),
@@ -306,10 +307,10 @@ PLACES = [
     ("Indoor Games Block", 450, 1324),
     ("Athletics Track", 517, 1261),
     ("Water Tower", 375, 1250),
-    ("Yamuna Hostel", 490, 1395),
-    ("Sindhu Hostel", 455, 1440),
-    ("Boys Hostel 3", 458, 1490),
-    ("Boys Hostel 4", 492, 1520),
+    ("Yamuna Hostel", 491, 1386),
+    ("Sindhu Hostel", 456, 1431),
+    ("Boys Hostel 3", 457, 1494),
+    ("Boys Hostel 4", 493, 1520),
     ("Chenab Hostel", 597, 1290),
     ("Service Yard", 401, 1515),
 ]
@@ -352,11 +353,12 @@ TREE_ROWS = [(0, 18.0, 4.5, _pts) for _pts in TERRACE_LINES[:4]] + [(0, 18.0, -3
 TREE_SPOTS = []
 
 # The clock tower walk (campus model, satellite): a straight stepped walk from the serpentine's
-# second leg up to the fountain square in front of the academic porch, with the tower on a level
-# landing near its foot. generate_terrain.py designs the flights and landings to fit the heights
+# second leg straight up to the porch drive in front of the academic porch (owner's photo,
+# 2026-11-20: the steps meet the drive, with white planter boxes stepping down both sides), with
+# the tower on a level landing near its foot. generate_terrain.py designs the flights and landings to fit the heights
 # there and writes them to campus_terrain.json ("clockSteps"); build_buildings.py builds them.
 # (map x, map y bottom, map y top, width m, map y of the tower landing's centre, landing length m)
-CLOCK_STEPS = (486, 526.5, 613, 4.0, 545, 15.0)
+CLOCK_STEPS = (486, 526.5, 624, 4.0, 545, 15.0)
 # Height of the steps the walk climbs between the serpentine and the porch (m): the serpentine
 # is pinned this far below the porch where the walk meets it.
 CLOCK_STEPS_RISE = 15.0

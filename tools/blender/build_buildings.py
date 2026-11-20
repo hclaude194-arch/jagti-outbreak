@@ -1013,7 +1013,7 @@ def academic_block():
         c = m.b(X0 + P / 2, Z0 + P / 2)
         rooftop_box(m, c[0], c[1], 4.0, 4.0, top + 0.4, 2.6)
 
-    # --- north entrance: curved two-storey glass bay, flanking piers, porte-cochere, fountain
+    # --- north entrance: curved two-storey glass bay, flanking piers, porte-cochere
     e = BUILDINGS["Academic Block - Entrance"]
     ex = e["x"]
     bay_r = 9.0
@@ -1060,6 +1060,42 @@ def academic_block():
         for Z in (cz0 + (cz1 - cz0) / 2, cz1 - 0.9):
             m.box(X - 0.6, X + 0.6, Z - 0.6, Z + 0.6, -0.3, zs0, "Stone", None)
             m.box(X - 0.8, X + 0.8, Z - 0.8, Z + 0.8, -0.3, 0.9, "Concrete", "Concrete")
+    # More columns under the porch's front and middle beams, in pairs either side of the doors
+    # (owner's photo of the front, 2026-11-20: a deep porch on rows of white columns).
+    for Z in (cz0 + (cz1 - cz0) / 2, cz1 - 0.9):
+        for dx in (3.0, 4.5, 7.6):
+            for X in (ex - dx, ex + dx):
+                m.cylinder_local(*m.b(X, Z), 0.42, -0.3, zs0 - 0.5, "Stone", None, segments=12)
+                m.box(X - 0.6, X + 0.6, Z - 0.6, Z + 0.6, -0.3, 0.5, "Concrete", "Concrete")
+                m.box(X - 0.55, X + 0.55, Z - 0.55, Z + 0.55, zs0 - 0.8, zs0 - 0.5, "Concrete", None, bottom=True)
+
+    # --- the giant colonnade along the north front (owner's photos, 2026-11-20): square white
+    # pillars two storeys tall standing out from both side blocks (from the corner pavilions to
+    # past the flower beds; the middle by the porch stays recessed), carrying a deep entablature
+    # tied back to the facade, with the upper floors and the pavilions' glass top floor above it.
+    col_h = 2 * FLOOR - 0.4
+    col_out = OZ1 + PO + 2.4                 # pillar centres: clear of the pavilions' proud faces
+    col_w = 0.95
+    for side in (-1, 1):
+        if side < 0:
+            xa, xb = OX0 - PO + 1.2, ex - cw - 10.0
+        else:
+            xa, xb = ex + cw + 10.0, OX1 + PO - 1.2
+        n = max(2, int(round((xb - xa) / 3.9)) + 1)
+        for k in range(n):
+            X = xa + (xb - xa) * k / (n - 1)
+            m.box(X - col_w / 2, X + col_w / 2, col_out - col_w / 2, col_out + col_w / 2, -0.3, col_h, "Stone", None)
+            m.box(X - 0.7, X + 0.7, col_out - 0.7, col_out + 0.7, -0.3, 0.45, "Concrete", "Concrete")
+            m.box(X - 0.65, X + 0.65, col_out - 0.65, col_out + 0.65, col_h - 0.35, col_h, "Concrete", None, bottom=True)
+        # Entablature: over the pavilion it runs back to the pavilion's face, over the wing to
+        # the wing's face, so no gap shows from the drive.
+        x_pav = OX0 + P - PO if side < 0 else OX1 - P + PO
+        for (s0, s1) in ((xa - 0.8, x_pav), (x_pav, xb + 0.8)):
+            pav = (side < 0 and s1 <= x_pav + 1e-6) or (side > 0 and s0 >= x_pav - 1e-6)
+            back = OZ1 + PO + 0.02 if pav else OZ1 + 0.02
+            m.box(s0, s1, back, col_out + 0.75, col_h, col_h + 1.1, "Concrete", "Concrete", bottom=True)
+        m.box(min(xa, xb) - 1.0, max(xa, xb) + 1.0, col_out + 0.55, col_out + 0.95, col_h + 1.1, col_h + 1.5,
+              "Concrete", "Concrete", bottom=True)
     # Entrance plaza under the porch, with steps down to the drive at its front.
     plaza = rect_poly(m, ex - cw - 2, ex + cw + 2, OZ1, cz1 + 1.0)
     m.prism(plaza, -0.6, 0.45, "Concrete", "Concrete")
@@ -1275,12 +1311,13 @@ TERRAIN_JSON = os.path.join(ROOT, "Assets", "Data", "campus_terrain.json")
 
 
 def clock_steps():
-    """The stepped walk from the serpentine up to the fountain square in front of the academic
-    porch (campus model and satellite), with the clock tower on a wide level landing near its
-    foot. Flights and landings come from generate_terrain.py ("clockSteps" in
+    """The stepped walk from the serpentine straight up to the porch drive in front of the
+    academic porch (campus model, satellite, owner's photo), with the clock tower on a wide level
+    landing near its foot. Flights and landings come from generate_terrain.py ("clockSteps" in
     campus_terrain.json), which fits them to the heights of the drive below and the porch above
-    and cuts the ground under them. Each tread and landing is a solid stone block; low side walls
-    with a concrete coping run along both edges and round the tower landing."""
+    and cuts the ground under them. Each tread and landing is a solid block with red sandstone
+    paving; white planter boxes with shrubs on top step down both edges (owner's photo,
+    2026-11-20) and round the tower landing."""
     with open(TERRAIN_JSON) as f:
         cs = json.load(f)["clockSteps"]
     X = cs["x"]
@@ -1289,7 +1326,7 @@ def clock_steps():
     base = cs["towerHeight"] - STEP_PAVING          # the ground at the pivot, on the tower landing
     prof = cs["profile"]
     land1, land0 = cs["landing"]
-    wall = 0.3
+    wall = 0.7
     # Treads and landings: each level stretch of the profile becomes a block down into the ground.
     for (za, ha), (zb, hb) in zip(prof[:-1], prof[1:]):
         if abs(ha - hb) > 1e-6 or abs(za - zb) < 1e-4:
@@ -1297,7 +1334,7 @@ def clock_steps():
         z0, z1 = min(za, zb), max(za, zb)
         top = ha - base
         hw = 6.0 if land1 - 0.01 < (z0 + z1) / 2 < land0 + 0.01 else half
-        m.box(X - hw, X + hw, z0, z1, top - 0.75, top, "Stone", "Stone", bottom=False)
+        m.box(X - hw, X + hw, z0, z1, top - 0.75, top, "Stone", "Brick", bottom=False)
     # Side walls: along each edge, a wall from below the steps to 0.6 m over the nosing line,
     # stepping with the flights (one segment per profile corner pair, sloped along the flights).
     noses = [(z, h) for z, h in prof]
@@ -1311,24 +1348,24 @@ def clock_steps():
             x0, x1 = (X + side * hw, X + side * (hw + wall))
             xa, xb = min(x0, x1), max(x0, x1)
             lo = min(ha, hb) - base - 1.2
-            hi_a, hi_b = ha - base + 0.6, hb - base + 0.6
+            hi_a, hi_b = ha - base + 0.7, hb - base + 0.7
             # A sloped-top wall segment: two side faces, a top and both ends.
             for xx, hint in ((xa, -1.0), (xb, 1.0)):
                 lx, _ = m.b(xx, 0.0)
                 _, ya = m.b(0.0, za)
                 _, yb = m.b(0.0, zb)
-                m.face([(lx, ya, lo), (lx, yb, lo), (lx, yb, hi_b), (lx, ya, hi_a)], "Stone", (-hint, 0, 0))
+                m.face([(lx, ya, lo), (lx, yb, lo), (lx, yb, hi_b), (lx, ya, hi_a)], "Concrete", (-hint, 0, 0))
             lxa, _ = m.b(xa, 0.0)
             lxb, _ = m.b(xb, 0.0)
             _, ya = m.b(0.0, za)
             _, yb = m.b(0.0, zb)
-            m.face([(lxa, ya, hi_a), (lxb, ya, hi_a), (lxb, yb, hi_b), (lxa, yb, hi_b)], "Concrete", (0, 0, 1))
+            m.face([(lxa, ya, hi_a), (lxb, ya, hi_a), (lxb, yb, hi_b), (lxa, yb, hi_b)], "Planter", (0, 0, 1))
     # Short return walls joining the narrow walls to the wide landing walls.
     for zz in (land0, land1):
         h_ = next(h for z, h in prof if abs(z - zz) < 0.01) - base
         for side in (-1, 1):
             xa, xb = sorted((X + side * (half + wall), X + side * (6.0 + wall)))
-            m.box(xa, xb, zz - wall / 2, zz + wall / 2, h_ - 1.2, h_ + 0.6, "Stone", "Concrete")
+            m.box(xa, xb, zz - wall / 2, zz + wall / 2, h_ - 1.2, h_ + 0.7, "Concrete", "Planter")
     m.local_bounds_to_solid()
     return m
 
@@ -2587,10 +2624,10 @@ FIRE_ESCAPES = {
     "Sindhu_Hostel": [("Sindhu Hostel - West Wing", "W", 0.0)],
     "Boys_Hostel_3": [("Boys Hostel 3 - West Wing", "W", 0.0)],
     "Boys_Hostel_4": [("Boys Hostel 4 - West Wing", "W", 0.0)],
-    "Girls_Hostel_A": [("Girls Hostel A - West Wing", "W", 0.0)],
+    "Girls_Hostel_A": [("Girls Hostel A - North Wing", "N", 8.0)],
     "Girls_Hostel_B": [("Girls Hostel B - West Wing", "N", -4.0)],
     "Girls_Hostel_C": [("Girls Hostel C - East Wing", "E", 0.0)],
-    "Girls_Hostel_D": [("Girls Hostel D - South Wing", "E", 6.0)],
+    "Girls_Hostel_D": [("Girls Hostel D - South Wing", "S", 6.0)],
     "Shopping_Medical_1_ATM": [("Shopping & Medical 1 (ATM)", "W", 11.0)],
     "Sports_Complex": [("Sports Complex", "E", -23.0)],
     "East_Block": [("East Block", "E", -10.0)],
