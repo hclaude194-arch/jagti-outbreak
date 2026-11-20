@@ -4,7 +4,9 @@
 Reads the campus geometry from generate_layout.py and writes:
   Assets/Data/terrain_height.bytes  1025 x 1025 uint16, row 0 = south edge (min Z)
   Assets/Data/terrain_splat.bytes   512 x 512 x 4 uint8 (grass, dry grass, soil, rock)
-  Assets/Data/terrain_grass.bytes   1024 x 1024 uint8 grass density 0..255
+  Assets/Data/terrain_grass.bytes   1024 x 1024 uint8 grass density 0..255 (older builders)
+  Assets/Data/terrain_details.bytes 1024 x 1024 x 5 uint8 detail densities 0..255: lawn grass,
+                                    wild grass, yellow flowers, white flowers, grass clumps
   Assets/Data/campus_terrain.json   terrain size, offsets and tree list
 
 The shape is a design, not survey data, modelled on the Shivalik foothills: the
@@ -851,6 +853,11 @@ inside = sd < 0
 farm_zone = farm_mask > 0.6
 n_patch = fbm(RES, 30, 3, SEED + 6)
 n_fine = fbm(RES, 90, 2, SEED + 7)
+# Small-scale noise (about 5-8 m) for ragged edges and detail patches: the terrain tutorial's
+# "noise brush" painted along the paths, done here for every edge at once.
+n_edge = fbm(RES, 300, 1, SEED + 11)
+n_flower = fbm(RES, 150, 2, SEED + 12)
+n_clump = fbm(RES, 220, 2, SEED + 13)
 
 # ------------------------------------------------------------------ ground paint
 grass = np.zeros(height.shape)
@@ -878,11 +885,19 @@ dry = dry * (1 - fz) + fz * (crop >= 0.75) * 1.0
 grass = grass * (1 - lawn_mask) + 1.6 * lawn_mask
 dry *= 1 - 0.85 * lawn_mask
 soil *= 1 - lawn_mask
-# Bare soil on building plots and along road edges.
+# Bare soil on building plots and along road edges. The worn strip is ragged, wider in some
+# places and broken by tufts in others, rather than a ruled line beside the kerb.
 verge = 1.0 - smoothstep(0.0, 2.5, road_dist)
-soil = np.maximum(soil, np.maximum(pad_mask * (1 - lawn_mask), verge))
-grass *= 1 - 0.8 * verge
-dry *= 1 - 0.8 * verge
+worn = 1.0 - smoothstep(0.0, 1.6 + 1.6 * np.clip(n_edge + 0.35, 0, 1), road_dist)
+worn *= np.clip(0.75 + 0.6 * n_edge, 0, 1)
+soil = np.maximum(soil, np.maximum(pad_mask * (1 - lawn_mask), worn))
+grass *= 1 - 0.8 * worn
+dry *= 1 - 0.8 * worn
+# A dry, trodden ring where lawns meet buildings and hard ground, broken up by noise.
+lawn_edge = lawn_mask * (1 - smoothstep(0.15, 0.6, lawn_mask)) * np.clip(0.5 + n_edge, 0, 1)
+dry += 0.5 * lawn_edge
+# Sun-bleached patches inside big lawns, so they are not one flat green.
+dry += 0.22 * lawn_mask * np.clip(n_flower - 0.25, 0, 1) * 2.0
 # Steep ground: soil, then rock.
 steep_soil = smoothstep(16, 26, slope)
 steep_rock = smoothstep(26, 36, slope)
@@ -904,6 +919,33 @@ grass_density *= 1 - verge
 grass_density *= 0.55 + 0.45 * n_fine
 gd = resample(np.clip(grass_density, 0, 1), GRASS_RES)
 np.round(gd * 255).astype(np.uint8).tofile(os.path.join(DATA, "terrain_grass.bytes"))
+
+# Detail layers (CampusTerrainBuilder.DetailPrototypes, in this order). As in the terrain
+# tutorial: a short billboard grass for the mown lawns, a taller one for the wild ground, flowers
+# painted thinly in patches, and real mesh clumps where the grass grows long. CampusTerrainBuilder
+# turns 255 into each layer's maximum tufts per cell.
+open_ground = (1 - smoothstep(0.0, 0.5, pad_mask)) * (1 - verge) * (1 - smoothstep(28, 38, slope))
+is_lawn = smoothstep(0.3, 0.8, lawn_mask)
+# Inside the campus wall the level ground is kept mown, as in the owner's photos; long grass
+# grows on the banks, the hill and outside.
+mown = inside * (1 - smoothstep(10, 20, slope))
+lawn_grass = (stack[:, :, 0] * (0.35 + 0.65 * np.maximum(is_lawn, mown)) + 0.4 * is_lawn) * open_ground
+lawn_grass *= 0.75 + 0.25 * n_fine
+wild_grass = (stack[:, :, 1] + 0.6 * stack[:, :, 0] * (1 - is_lawn)) * open_ground * (1 - 0.85 * is_lawn)
+wild_grass *= np.clip(0.55 + 0.6 * n_fine, 0, 1) * (1 - 0.8 * mown)
+# Flowers: thin patches; marigold yellow in the wild ground and lawn edges, small white ones
+# scattered on the lawns.
+patches = smoothstep(0.25, 0.6, n_flower)
+flower_y = patches * (0.6 * wild_grass + 0.5 * lawn_edge) * (1 - smoothstep(0.7, 1.0, farm_mask))
+flower_w = smoothstep(0.05, 0.4, -n_flower) * is_lawn * open_ground
+# Mesh clumps: long grass in the wild ground and on the banks, in clusters.
+clumps = smoothstep(0.05, 0.45, n_clump) * wild_grass * (1 - is_lawn)
+details = np.stack([lawn_grass, wild_grass, flower_y, flower_w, clumps], axis=-1)
+details = np.clip(details, 0, 1)
+details = np.stack([resample(details[:, :, k], GRASS_RES) for k in range(details.shape[-1])], axis=-1)
+np.round(details * 255).astype(np.uint8).tofile(os.path.join(DATA, "terrain_details.bytes"))
+print("Detail cover: lawn %.0f%%, wild %.0f%%, flowers %.1f%% / %.1f%%, clumps %.1f%%" % tuple(
+    100 * (details[:, :, k] > 0.2).mean() for k in range(5)))
 
 # ------------------------------------------------------------------ trees
 # Types: 0 broadleaf (neem / sheesham), 1 eucalyptus, 2 chir pine, 3 shrub
@@ -1060,6 +1102,7 @@ terrain = {
     "minHeight": H_MIN, "heightRange": H_RANGE,
     "splatResolution": SPLAT_RES,
     "grassResolution": GRASS_RES,
+    "detailLayers": ["lawn grass", "wild grass", "yellow flowers", "white flowers", "grass clumps"],
     "treeTypes": ["broadleaf", "eucalyptus", "pine", "shrub"],
     "trees": [round(v, 2) for t in trees for v in t],  # x, z, type, scale
     # The clock tower walk (see generate_layout.CLOCK_STEPS): its centre line X and width, the

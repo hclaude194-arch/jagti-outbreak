@@ -694,7 +694,7 @@ def settings_page(k, x, y, w, page=1):
     y += 54
     if page == 1:
         heading(y, "SCREEN"); y += 30
-        k.choice(x, y, w, "Graphics", ["Low", "Medium", "High"], 1); y += row
+        k.choice(x, y, w, "Graphics", ["Low", "Medium", "High"], 2); y += row
         k.choice(x, y, w, "Time of day", ["Day", "Sunset", "Night", "Changing"], 3); y += row
         k.slider(x, y, w, "Field of view", (70 - 50) / 40, "70°"); y += row
         k.slider(x, y, w, "HUD size", (1 - 0.75) / 0.55, "100%"); y += row

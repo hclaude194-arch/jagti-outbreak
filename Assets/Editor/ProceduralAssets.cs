@@ -105,22 +105,36 @@ namespace Jagti.EditorTools
         /// <summary>Grass tufts for terrain detail: pale blades on a transparent background (tinted by the terrain).</summary>
         public static Texture2D GrassBladesTexture()
         {
+            return GrassTexture("Grass_Blades", 18, 0.45f, 2.5f, 30f, 11, false);
+        }
+
+        /// <summary>
+        /// A billboard grass card (terrain detail, GrassBillboard mode): blades darker at the root
+        /// and pale at the tip on a transparent background; the terrain tints it with the
+        /// prototype's healthy and dry colours. minHeight is the shortest blade as a share of the
+        /// card; seedHeads adds a few taller stems with seed tips (wild grass).
+        /// Mirrored by tools/blender/preview_terrain_detail.py (grass_card).
+        /// </summary>
+        public static Texture2D GrassTexture(string name, int blades, float minHeight, float width, float lean,
+                                             int seed, bool seedHeads)
+        {
             const int size = 128;
             var pixels = new Color32[size * size];
             for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(200, 210, 170, 0);
-            var random = new System.Random(11);
-            for (int blade = 0; blade < 18; blade++)
+            var random = new System.Random(seed);
+            for (int blade = 0; blade < blades; blade++)
             {
-                float baseX = 10 + (float)random.NextDouble() * (size - 20);
-                float height = size * (0.45f + 0.55f * (float)random.NextDouble());
-                float lean = ((float)random.NextDouble() - 0.5f) * 30f;
-                float width = 2.5f + (float)random.NextDouble() * 2.5f;
+                float baseX = 8 + (float)random.NextDouble() * (size - 16);
+                float height = size * (minHeight + (1f - minHeight) * (float)random.NextDouble());
+                float tilt = ((float)random.NextDouble() - 0.5f) * lean;
+                float w = width + (float)random.NextDouble() * width;
+                float tone = 0.8f + 0.2f * (float)random.NextDouble();
                 for (int y = 0; y < height; y++)
                 {
                     float t = y / height;
-                    float cx = baseX + lean * t * t;
-                    float half = width * (1f - t);
-                    float shade = 0.55f + 0.45f * t;
+                    float cx = baseX + tilt * t * t;
+                    float half = w * (1f - t);
+                    float shade = (0.5f + 0.5f * t) * tone;
                     for (int x = Mathf.FloorToInt(cx - half); x <= Mathf.CeilToInt(cx + half); x++)
                     {
                         if (x < 0 || x >= size) continue;
@@ -128,7 +142,205 @@ namespace Jagti.EditorTools
                     }
                 }
             }
-            return SaveTexture("Grass_Blades", size, pixels, true);
+            if (seedHeads)
+            {
+                for (int stem = 0; stem < 4; stem++)
+                {
+                    int x = 16 + random.Next(size - 32);
+                    int top = size - 4 - random.Next(10);
+                    for (int y = 0; y < top; y++) pixels[y * size + x] = new Color(0.8f, 0.78f, 0.62f, 1f);
+                    for (int y = top - 14; y < top; y++)
+                        for (int dx = -1; dx <= 1; dx++)
+                            if (x + dx >= 0 && x + dx < size) pixels[y * size + x + dx] = new Color(0.95f, 0.88f, 0.7f, 1f);
+                }
+            }
+            return SaveTexture(name, size, pixels, true);
+        }
+
+        /// <summary>
+        /// A billboard card of small flowers on thin stems among a few blades. The terrain
+        /// multiplies it by the prototype's colours, so those stay near white and the flower
+        /// colour comes from here. Mirrored by preview_terrain_detail.py (flower_card).
+        /// </summary>
+        public static Texture2D FlowerTexture(string name, Color petal, Color centre, int flowers, int seed)
+        {
+            const int size = 128;
+            var pixels = new Color32[size * size];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(120, 150, 80, 0);
+            var random = new System.Random(seed);
+            var stemColour = new Color(0.32f, 0.45f, 0.18f, 1f);
+            for (int blade = 0; blade < 8; blade++)
+            {
+                float baseX = 10 + (float)random.NextDouble() * (size - 20);
+                float height = size * (0.25f + 0.3f * (float)random.NextDouble());
+                for (int y = 0; y < height; y++)
+                {
+                    float t = y / height;
+                    float half = 2.5f * (1f - t);
+                    for (int x = Mathf.FloorToInt(baseX - half); x <= Mathf.CeilToInt(baseX + half); x++)
+                        if (x >= 0 && x < size) pixels[y * size + x] = stemColour * (0.7f + 0.3f * t);
+                }
+            }
+            for (int f = 0; f < flowers; f++)
+            {
+                int cx = 14 + random.Next(size - 28);
+                int cy = (int)(size * (0.5f + 0.4f * (float)random.NextDouble()));
+                float r = 6f + 4f * (float)random.NextDouble();
+                for (int y = 0; y < cy; y++) pixels[y * size + cx] = stemColour;
+                for (int y = Mathf.Max(0, (int)(cy - r)); y < Mathf.Min(size, (int)(cy + r + 1)); y++)
+                {
+                    for (int x = Mathf.Max(0, (int)(cx - r)); x < Mathf.Min(size, (int)(cx + r + 1)); x++)
+                    {
+                        float dx = x - cx, dy = y - cy, d = Mathf.Sqrt(dx * dx + dy * dy);
+                        // Five soft petals: the edge pulls in between them.
+                        float a = Mathf.Atan2(dy, dx);
+                        float edge = r * (0.75f + 0.25f * Mathf.Cos(a * 5f));
+                        if (d > edge) continue;
+                        Color c = d < r * 0.3f ? centre : petal * (0.85f + 0.15f * (1f - d / r));
+                        c.a = 1f;
+                        pixels[y * size + x] = c;
+                    }
+                }
+            }
+            return SaveTexture(name, size, pixels, true);
+        }
+
+        /// <summary>
+        /// A clump of real grass blades for terrain detail (mesh, Grass mode), about 0.55 m tall:
+        /// curved, tapering strips leaning out from the root. Vertex alpha runs 0 at the root to 1 at
+        /// the tip, which the terrain's grass shader uses to wave the tips only; normals lean
+        /// upwards so the clump is lit softly like the ground under it.
+        /// Mirrored by preview_terrain_detail.py (clump_mesh).
+        /// </summary>
+        public static GameObject GrassClumpPrefab()
+        {
+            const int blades = 11, rows = 4;
+            var verts = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var colours = new List<Color>();
+            var tris = new List<int>();
+            var random = new System.Random(21);
+            for (int b = 0; b < blades; b++)
+            {
+                float yaw = b * 2.4f + (float)random.NextDouble() * 0.6f;        // golden-angle spread
+                float height = 0.35f + 0.25f * (float)random.NextDouble();
+                float lean = 0.12f + 0.22f * (float)random.NextDouble();
+                float width = 0.025f + 0.015f * (float)random.NextDouble();
+                var outward = new Vector3(Mathf.Cos(yaw), 0f, Mathf.Sin(yaw));
+                var side = new Vector3(-outward.z, 0f, outward.x);
+                var root = outward * (0.03f * (float)random.NextDouble());
+                int start = verts.Count;
+                for (int r = 0; r <= rows; r++)
+                {
+                    float t = r / (float)rows;
+                    var centre = root + outward * (lean * t * t);
+                    centre.y = height * t * (1f - 0.3f * lean * t);      // a leaning blade is a little shorter
+                    float half = width * (1f - t * 0.92f);
+                    var normal = (Vector3.up * 0.75f + outward * 0.25f).normalized;
+                    verts.Add(centre - side * half);
+                    verts.Add(centre + side * half);
+                    normals.Add(normal);
+                    normals.Add(normal);
+                    uvs.Add(new Vector2(0f, t));
+                    uvs.Add(new Vector2(1f, t));
+                    colours.Add(new Color(1f, 1f, 1f, t));
+                    colours.Add(new Color(1f, 1f, 1f, t));
+                }
+                for (int r = 0; r < rows; r++)
+                {
+                    int a = start + r * 2, c = a + 2;
+                    tris.Add(a); tris.Add(c); tris.Add(a + 1);
+                    tris.Add(a + 1); tris.Add(c); tris.Add(c + 1);
+                }
+            }
+            var mesh = new Mesh { name = "Grass_Clump" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uvs);
+            mesh.SetColors(colours);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            EnsureFolder(Folder + "/Terrain");
+            AssetDatabase.CreateAsset(mesh, Folder + "/Terrain/Grass_Clump_Mesh.asset");
+
+            // Root dark, tip pale; opaque, since the blades are real geometry.
+            const int size = 32;
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float t = y / (float)(size - 1);
+                    float v = 0.45f + 0.55f * Mathf.Sqrt(t);
+                    px[y * size + x] = new Color(v, v, v * 0.92f, 1f);
+                }
+            var tex = SaveTexture("Grass_Clump", size, px, true);
+            var mat = LitMaterial("Grass_Clump", Color.white, tex, 0.1f);
+            if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 0f);   // blades are single sheets
+            mat.doubleSidedGI = true;
+
+            var go = new GameObject("Grass_Clump");
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = mat;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var prefab = PrefabUtility.SaveAsPrefabAsset(go, Folder + "/Terrain/Grass_Clump.prefab");
+            Object.DestroyImmediate(go);
+            return prefab;
+        }
+
+        /// <summary>
+        /// A terrain layer's mask map, channel-packed the way URP's terrain reads it: R metallic
+        /// (0), G ambient occlusion, B height, A smoothness. Height and occlusion come from the
+        /// albedo's own brightness (light clods and tufts stand up, dark gaps sink), so with height
+        /// blending a layer shows through another in its gaps instead of a soft smear. Linear.
+        /// Returns null if the texture's pixels are not known (see NormalFor).
+        /// </summary>
+        public static Texture2D MaskFor(Texture2D albedo, float smoothness)
+        {
+            if (albedo == null) return null;
+            Color32[] src;
+            if (!heightSource.TryGetValue(albedo.name, out src)) return null;
+            string name = albedo.name + "_Mask";
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(Folder + "/Textures/" + name + ".asset");
+            if (existing != null) return existing;
+            int size = albedo.width;
+            if (src.Length != size * size) return null;
+            float lo = 1f, hi = 0f;
+            var h = new float[src.Length];
+            for (int i = 0; i < src.Length; i++)
+            {
+                h[i] = (src[i].r * 0.3f + src[i].g * 0.59f + src[i].b * 0.11f) / 255f;
+                lo = Mathf.Min(lo, h[i]);
+                hi = Mathf.Max(hi, h[i]);
+            }
+            float span = Mathf.Max(hi - lo, 1e-3f);
+            var px = new Color32[src.Length];
+            for (int i = 0; i < src.Length; i++)
+            {
+                float height = (h[i] - lo) / span;
+                float ao = 0.55f + 0.45f * Mathf.Sqrt(height);
+                float smooth = smoothness * (0.6f + 0.4f * (1f - height));   // damp hollows shine a little more
+                px[i] = new Color32(0, (byte)Mathf.RoundToInt(ao * 255f), (byte)Mathf.RoundToInt(height * 255f),
+                                    (byte)Mathf.RoundToInt(Mathf.Clamp01(smooth) * 255f));
+            }
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, true) { name = name };
+            tex.SetPixels32(px);
+            tex.Apply(true);
+            tex.wrapMode = TextureWrapMode.Repeat;
+            tex.filterMode = FilterMode.Trilinear;
+            tex.anisoLevel = 4;
+            try
+            {
+                EditorUtility.CompressTexture(tex, TextureFormat.DXT5, TextureCompressionQuality.Normal);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[Jagti] Texture compression skipped for " + name + ": " + e.Message);
+            }
+            EnsureFolder(Folder + "/Textures");
+            AssetDatabase.CreateAsset(tex, Folder + "/Textures/" + name + ".asset");
+            return tex;
         }
 
         // The pixels of each opaque texture saved during this build, so a normal map can be made
@@ -447,20 +659,41 @@ namespace Jagti.EditorTools
             EnsureFolder(Folder + "/Trees");
             return new[]
             {
-                SaveTree("Tree_Broadleaf", BuildBroadleaf(), bark, leavesBroad, 0.25f, 3.5f),
-                SaveTree("Tree_Eucalyptus", BuildEucalyptus(), paleBark, leavesEuca, 0.2f, 10f),
-                SaveTree("Tree_Pine", BuildPine(), bark, leavesPine, 0.22f, 11f),
-                SaveTree("Tree_Shrub", BuildShrub(), bark, leavesShrub, 0f, 0f),
+                SaveTree("Tree_Broadleaf", BuildBroadleaf(false), BuildBroadleaf(true), bark, leavesBroad, 0.25f, 3.5f, 0.22f, 0.012f),
+                SaveTree("Tree_Eucalyptus", BuildEucalyptus(false), BuildEucalyptus(true), paleBark, leavesEuca, 0.2f, 10f, 0.25f, 0.01f),
+                SaveTree("Tree_Pine", BuildPine(false), BuildPine(true), bark, leavesPine, 0.22f, 11f, 0.25f, 0.01f),
+                SaveTree("Tree_Shrub", BuildShrub(false), BuildShrub(true), bark, leavesShrub, 0f, 0f, 0.12f, 0.02f),
             };
         }
 
-        static GameObject SaveTree(string name, Mesh mesh, Material bark, Material leaves, float trunkRadius, float trunkHeight)
+        /// <summary>
+        /// A tree prefab with two levels of detail (the realistic-graphics video's LOD lesson): the
+        /// full mesh close up, a coarse one (about a third of the triangles) once the tree is under
+        /// `near` of the screen's height, and nothing under `cull`, so the thousands of scrub bushes
+        /// past ~100 m and far trees cost nothing. The quality tiers scale both through lodBias.
+        /// The LOD children sit at the root's origin, so the wind shader's pivot is unchanged.
+        /// </summary>
+        static GameObject SaveTree(string name, Mesh mesh, Mesh coarse, Material bark, Material leaves,
+                                   float trunkRadius, float trunkHeight, float near, float cull)
         {
             AssetDatabase.CreateAsset(mesh, Folder + "/Trees/" + name + "_Mesh.asset");
+            AssetDatabase.CreateAsset(coarse, Folder + "/Trees/" + name + "_Mesh_LOD1.asset");
             var go = new GameObject(name);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterials = new[] { bark, leaves };
+            var lods = new LOD[2];
+            var meshes = new[] { mesh, coarse };
+            for (int i = 0; i < 2; i++)
+            {
+                var child = new GameObject(name + "_LOD" + i);
+                child.transform.SetParent(go.transform, false);
+                child.AddComponent<MeshFilter>().sharedMesh = meshes[i];
+                var r = child.AddComponent<MeshRenderer>();
+                r.sharedMaterials = new[] { bark, leaves };
+                lods[i] = new LOD(i == 0 ? near : cull, new Renderer[] { r });
+            }
+            var group = go.AddComponent<LODGroup>();
+            group.fadeMode = LODFadeMode.None;
+            group.SetLODs(lods);
+            group.RecalculateBounds();
             if (trunkRadius > 0f)
             {
                 var capsule = go.AddComponent<CapsuleCollider>();
@@ -480,10 +713,12 @@ namespace Jagti.EditorTools
             public readonly List<int> bark = new List<int>();
             public readonly List<int> leaves = new List<int>();
             readonly System.Random random;
+            readonly bool coarse;   // LOD1: fewer sides and rings everywhere
 
-            public MeshBuilder(int seed)
+            public MeshBuilder(int seed, bool coarse = false)
             {
                 random = new System.Random(seed);
+                this.coarse = coarse;
             }
 
             float Rand(float min, float max)
@@ -493,6 +728,7 @@ namespace Jagti.EditorTools
 
             public void Trunk(Vector3 bottom, float r0, float r1, float height, int sides = 7)
             {
+                if (coarse) sides = Mathf.Max(4, sides / 2 + 1);
                 int start = vertices.Count;
                 for (int ring = 0; ring <= 1; ring++)
                 {
@@ -516,6 +752,11 @@ namespace Jagti.EditorTools
             /// <summary>A lumpy low-poly sphere of foliage.</summary>
             public void Blob(Vector3 centre, Vector3 radii, float jitter, int lat = 6, int lon = 9)
             {
+                if (coarse)
+                {
+                    lat = Mathf.Max(3, lat / 2 + 1);
+                    lon = Mathf.Max(5, lon / 2 + 1);
+                }
                 int start = vertices.Count;
                 for (int i = 0; i <= lat; i++)
                 {
@@ -586,48 +827,48 @@ namespace Jagti.EditorTools
         }
 
         // Neem / sheesham: short trunk, wide rounded crown, about 7.5 m.
-        static Mesh BuildBroadleaf()
+        static Mesh BuildBroadleaf(bool coarse)
         {
-            var b = new MeshBuilder(1);
+            var b = new MeshBuilder(1, coarse);
             b.Trunk(Vector3.zero, 0.26f, 0.15f, 4.2f);
             b.Blob(new Vector3(0f, 5.2f, 0f), new Vector3(3.0f, 2.2f, 3.0f), 0.18f);
             b.Blob(new Vector3(1.6f, 4.5f, 0.7f), new Vector3(2.0f, 1.6f, 2.0f), 0.2f, 5, 8);
             b.Blob(new Vector3(-1.4f, 4.7f, -0.9f), new Vector3(2.1f, 1.7f, 2.0f), 0.2f, 5, 8);
-            return b.ToMesh("Broadleaf");
+            return b.ToMesh(coarse ? "Broadleaf_LOD1" : "Broadleaf");
         }
 
         // Eucalyptus: tall pale trunk, thin high crown, about 14 m.
-        static Mesh BuildEucalyptus()
+        static Mesh BuildEucalyptus(bool coarse)
         {
-            var b = new MeshBuilder(2);
+            var b = new MeshBuilder(2, coarse);
             b.Trunk(Vector3.zero, 0.22f, 0.09f, 12f);
             b.Blob(new Vector3(0f, 11.5f, 0f), new Vector3(1.9f, 2.8f, 1.9f), 0.22f);
             b.Blob(new Vector3(0.8f, 9.2f, -0.4f), new Vector3(1.4f, 1.6f, 1.4f), 0.22f, 5, 8);
             b.Blob(new Vector3(-0.7f, 8.4f, 0.6f), new Vector3(1.1f, 1.3f, 1.1f), 0.22f, 5, 7);
-            return b.ToMesh("Eucalyptus");
+            return b.ToMesh(coarse ? "Eucalyptus_LOD1" : "Eucalyptus");
         }
 
         // Chir pine as it grows on the hills here: a tall straight trunk bare for most of its
         // height and an open, uneven crown of flat clumps near the top (not a cone), about 13 m.
-        static Mesh BuildPine()
+        static Mesh BuildPine(bool coarse)
         {
-            var b = new MeshBuilder(3);
+            var b = new MeshBuilder(3, coarse);
             b.Trunk(Vector3.zero, 0.24f, 0.08f, 11.5f);
             b.Blob(new Vector3(0f, 11.2f, 0f), new Vector3(1.7f, 1.0f, 1.6f), 0.25f, 5, 8);
             b.Blob(new Vector3(1.3f, 9.6f, 0.4f), new Vector3(1.5f, 0.75f, 1.2f), 0.25f, 4, 7);
             b.Blob(new Vector3(-1.1f, 8.8f, -0.6f), new Vector3(1.4f, 0.7f, 1.3f), 0.25f, 4, 7);
             b.Blob(new Vector3(0.3f, 7.6f, 1.2f), new Vector3(1.1f, 0.6f, 1.0f), 0.25f, 4, 7);
-            return b.ToMesh("Pine");
+            return b.ToMesh(coarse ? "Pine_LOD1" : "Pine");
         }
 
         // Lantana / scrub bush, about 1.8 m.
-        static Mesh BuildShrub()
+        static Mesh BuildShrub(bool coarse)
         {
-            var b = new MeshBuilder(4);
+            var b = new MeshBuilder(4, coarse);
             b.Trunk(Vector3.zero, 0.08f, 0.05f, 0.5f, 5);
             b.Blob(new Vector3(0f, 0.85f, 0f), new Vector3(1.3f, 0.95f, 1.3f), 0.25f, 5, 8);
             b.Blob(new Vector3(0.8f, 0.6f, 0.4f), new Vector3(0.8f, 0.65f, 0.8f), 0.25f, 4, 7);
-            return b.ToMesh("Shrub");
+            return b.ToMesh(coarse ? "Shrub_LOD1" : "Shrub");
         }
     }
 }
