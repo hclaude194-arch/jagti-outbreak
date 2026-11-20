@@ -172,7 +172,7 @@ namespace Jagti.Royale
             foreach (var key in new[] { "Sensitivity", "Fov", "Volume", "HudScale", "Crosshair", "DamageNumbers", "ShowFps", "BigMinimap",
                                         "InvertY", "ToggleAim", "ToggleSprint", "BackgroundPause", "AimSensitivity" })
                 PlayerPrefs.DeleteKey(Prefix + key);
-            Graphics = 1;
+            Graphics = 2;   // High is the default (VisualQuality)
             TimeOfDay = DayCycle.Names.Length - 1;
             Changed();
         }

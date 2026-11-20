@@ -7,9 +7,11 @@ namespace Jagti.World
     /// <summary>
     /// Graphics quality tiers for the look pass, picked in the settings menu and kept in PlayerPrefs.
     ///   Low:    70 % render scale, short shadows, no ambient occlusion or bloom, no falling leaves,
-    ///           thinner grass. For when Medium drops under 30 fps.
-    ///   Medium: the default for an Iris Xe laptop: 80 % scale, half-resolution SSAO, cheap bloom, FXAA.
-    ///   High:   full scale, longer shadows, SMAA, a touch of lens fringe, denser and further grass.
+    ///           thinner grass. A fallback for when Medium drops under 30 fps.
+    ///   Medium: 80 % scale, half-resolution SSAO, cheap bloom, FXAA, grass to 55 m. A fallback.
+    ///   High:   the default (the owner asked for quality over frame rate, 2026-11-20): full scale,
+    ///           long shadows, SMAA, a touch of lens fringe, full grass, flowers and clumps to 90 m,
+    ///           and trees keep their full detail further out.
     /// Tone mapping, colour grading and vignette stay on in every tier: they run in one pass that
     /// costs about the same with or without them.
     /// Also hands the impact materials to ImpactMarks when the scene loads.
@@ -22,7 +24,7 @@ namespace Jagti.World
         const string Key = "Jagti.Settings.Graphics";
 
         static bool loaded;
-        static Level current = Level.Medium;
+        static Level current = Level.High;
         static int version;
 
         /// <summary>The chosen tier; setting it saves and re-applies at once.</summary>
@@ -33,7 +35,7 @@ namespace Jagti.World
                 if (!loaded)
                 {
                     loaded = true;
-                    current = (Level)Mathf.Clamp(PlayerPrefs.GetInt(Key, (int)Level.Medium), 0, 2);
+                    current = (Level)Mathf.Clamp(PlayerPrefs.GetInt(Key, (int)Level.High), 0, 2);
                 }
                 return current;
             }
@@ -88,8 +90,8 @@ namespace Jagti.World
             if (pipeline != null)
             {
                 pipeline.renderScale = low ? 0.7f : high ? 1f : 0.8f;
-                pipeline.shadowDistance = low ? 45f : high ? 110f : 75f;
-                pipeline.shadowCascadeCount = low ? 1 : 2;
+                pipeline.shadowDistance = low ? 45f : high ? 140f : 75f;
+                pipeline.shadowCascadeCount = low ? 1 : high ? 4 : 2;
             }
             if (ambientOcclusion != null) ambientOcclusion.SetActive(!low);
 
@@ -113,10 +115,11 @@ namespace Jagti.World
 
             if (terrain != null)
             {
-                terrain.detailObjectDistance = low ? 30f : high ? 65f : 45f;
-                terrain.detailObjectDensity = low ? 0.5f : high ? 1f : 0.8f;
+                terrain.detailObjectDistance = low ? 30f : high ? 90f : 55f;
+                terrain.detailObjectDensity = low ? 0.4f : high ? 1f : 0.7f;
+                terrain.heightmapPixelError = high ? 1f : 2f;
             }
-            QualitySettings.lodBias = low ? 0.7f : high ? 1.5f : 1f;
+            QualitySettings.lodBias = low ? 0.7f : high ? 2f : 1f;   // tree LODs (ProceduralAssets.SaveTree)
             if (ambient != null) ambient.SetLevel((int)level);
         }
     }

@@ -22,7 +22,7 @@ namespace Jagti.EditorTools
         const string Folder = ProceduralAssets.Folder + "/Look";
 
         /// <summary>Raise when the look changes, so JagtiProjectSetup rebuilds the scene on pull.</summary>
-        public const int LookVersion = 2;
+        public const int LookVersion = 3;   // 3: terrain detail and mask maps, tree LODs (2026-11-20)
         public const string BuiltLookKey = "Jagti.BuiltLookVersion";
 
         // The sun: a clear Jammu afternoon, warm and fairly low, so walls and trees throw long
