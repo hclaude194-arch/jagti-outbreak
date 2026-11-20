@@ -168,14 +168,104 @@ def strip(name, pts, width, lift, mat, left=None, right=None):
     link(bpy.data.objects.new(name, me))
 
 
-asphalt = material("Road", (0.11, 0.11, 0.12), 0.9)
-paving = material("Paving", (0.62, 0.55, 0.45), 0.9)
+asphalt = material("Road", (0.46, 0.45, 0.42), 0.9)      # pale concrete slabs, as Unity draws them
+paving = material("Paving", (0.66, 0.60, 0.52), 0.9)   # cream pavers
 water = material("Water", (0.10, 0.22, 0.26), 0.05)
+kerb_mats = (material("Kerb_White", (0.80, 0.80, 0.78), 0.8), material("Kerb_Black", (0.03, 0.03, 0.03), 0.8))
+
+
+def road_line(r):
+    """Centre line, per-point half widths (left, right) as CampusGreyboxBuilder.Line."""
+    p = r["points"]
+    pts = [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
+    n = len(pts)
+    lw = r.get("left") or [r["width"] / 2] * n
+    rw = r.get("right") or [r["width"] / 2] * n
+    return pts, lw, rw
+
+
+def on_other_road(q, self_r):
+    """As CampusGreyboxBuilder.InsideOtherRoad: within 0.8 m of another road, flares included."""
+    for o in layout["roads"]:
+        if o is self_r:
+            continue
+        pts, lw, rw = LINES[o["name"]]
+        best, half = 1e9, 0.0
+        for i, (a, b) in enumerate(zip(pts, pts[1:])):
+            dx, dz = b[0] - a[0], b[1] - a[1]
+            L2 = dx * dx + dz * dz
+            t = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / L2))
+            qx, qz = a[0] + t * dx, a[1] + t * dz
+            d = math.hypot(q[0] - qx, q[1] - qz)
+            if d < best:
+                best = d
+                side = lw if dx * (q[1] - qz) - dz * (q[0] - qx) > 0 else rw
+                half = side[i] + (side[i + 1] - side[i]) * t
+        if best < half + 0.8:
+            return True
+    return False
+
+
+def kerbs(r, lift):
+    """Black-and-white kerbs along both edges, open where another road joins (as Unity)."""
+    pts, lw, rw = LINES[r["name"]]
+    dense, hl, hr = [], [], []
+    for i, (a, b) in enumerate(zip(pts, pts[1:])):
+        steps = max(1, int(math.dist(a, b) / 1.2))
+        for k in range(steps):
+            f = k / steps
+            dense.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+            hl.append(lw[i] + (lw[i + 1] - lw[i]) * f)
+            hr.append(rw[i] + (rw[i + 1] - rw[i]) * f)
+    dense.append(pts[-1]); hl.append(lw[-1]); hr.append(rw[-1])
+    closed = len(dense) > 3 and math.dist(dense[0], dense[-1]) < 0.05
+    bms = [bmesh.new(), bmesh.new()]
+    for side, hw in ((1, hl), (-1, hr)):
+        prev = None
+        for i, (x, z) in enumerate(dense):
+            q = dense[min(i + 1, len(dense) - 1)]
+            p_ = dense[max(i - 1, 0)]
+            if closed and i in (0, len(dense) - 1):
+                q, p_ = dense[1], dense[-2]
+            dx, dz = q[0] - p_[0], q[1] - p_[1]
+            L = math.hypot(dx, dz) or 1
+            ux, uz = -dz / L * side, dx / L * side
+            a_ = (x + ux * hw[i], z + uz * hw[i])
+            b_ = (x + ux * (hw[i] + 0.3), z + uz * (hw[i] + 0.3))
+            ok = not on_other_road(a_, r)
+            if prev is not None and ok and prev[2]:
+                bm = bms[i % 2]
+                h0 = ground(*prev[0]) + lift + 0.18
+                h1 = ground(*a_) + lift + 0.18
+                vs = [bm.verts.new((prev[0][0], prev[0][1], h0 - 0.18)), bm.verts.new((a_[0], a_[1], h1 - 0.18)),
+                      bm.verts.new((a_[0], a_[1], h1)), bm.verts.new((prev[0][0], prev[0][1], h0)),
+                      bm.verts.new((b_[0], b_[1], h1)), bm.verts.new((prev[1][0], prev[1][1], h0))]
+                bm.faces.new((vs[0], vs[1], vs[2], vs[3]))
+                bm.faces.new((vs[3], vs[2], vs[4], vs[5]))
+            prev = (a_, b_, ok)
+    for bm, m in zip(bms, kerb_mats):
+        me = bpy.data.meshes.new("Kerb")
+        bm.to_mesh(me)
+        me.materials.append(m)
+        link(bpy.data.objects.new("Kerb", me))
+
+
+LINES = {r["name"]: road_line(r) for r in layout["roads"]}
 for r in layout["roads"]:
     p = r["points"]
     pts = [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
     mat = paving if r["width"] < 4 or "path" in r.get("name", "").lower() or r.get("name", "").startswith("Paved") else asphalt
-    strip("Road", pts, r["width"], 0.12 + 0.02 * r.get("layer", 0), mat, r.get("left"), r.get("right"))
+    lift = 0.12 + 0.02 * r.get("layer", 0)
+    strip("Road", pts, r["width"], lift, mat, r.get("left"), r.get("right"))
+    if r["name"] != "Highway" and not r["name"].startswith("Plaza ") and r["width"] >= 4:
+        kerbs(r, lift)
+# Roundabout islands: raised green discs inside the rings' kerbs.
+island = material("Island", (0.16, 0.30, 0.10))
+for a in layout["areas"]:
+    if a["type"] == "roundabout":
+        bpy.ops.mesh.primitive_cylinder_add(radius=a["width"] / 2, depth=0.8, vertices=40,
+                                            location=(a["x"], a["z"], ground(a["x"], a["z"]) + 0.0))
+        bpy.context.active_object.data.materials.append(island)
 for w in layout.get("water", []):
     p = w["points"]
     strip("Water", [(p[i], p[i + 1]) for i in range(0, len(p), 2)], w["width"], 0.05, water)
@@ -486,6 +576,12 @@ VIEWS = {
     "courts_hill": (48, -250, 1.7, 0, -238, 6, 24),
     # 2026-11-19 fixes: the pill-shaped running track and a roof stair (Girls Hostel B).
     "track_aerial": (190, -190, 75, 103, -265, 0, 26),
+    # Road fixes (2026-11-20): the central roundabout from above, and the girls' hostel lane
+    # from its fork off the spine road (the owner's photo 6).
+    "roundabout_aerial": (38, -46, 30, 0, 0, 0, 26),
+    "girls_lane_fork": (13.6, -300, 1.7, 22, -235, 1.5, 26),
+    "girls_south_door": (52, -209, 1.7, 30, -199, 2.5, 24),
+    "girls_lane_aerial": (75, -330, 45, 25, -235, 0, 26),
     "roof_stair": (66, -62, 4, 52, -84, 10, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
@@ -496,6 +592,8 @@ PLANS = {
     "mess_plan": (-70, -95, 280, "-X"),
     "brahmaputra_plan": (-20, 190, 160, "-X"),
     "sindhu_plan": (50, -460, 220, "-X"),
+    "girls_lane_plan": (28, -250, 130, "+Z"),
+    "roundabout_plan": (0, 0, 70, "+Z"),
 }
 os.makedirs(OUT, exist_ok=True)
 only = [a for a in sys.argv[1:] if a in VIEWS or a in PLANS]

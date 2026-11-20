@@ -872,7 +872,10 @@ def girls_split():
         off = lane["width"] / 2 + gap / 2
         C = (P_[0] + n[0] * off, P_[1] + n[1] * off)
         yaw = yaw_to(t[0], t[1]) - 90.0                     # the bed's long side along the island
-        place("Kerbed_Bed", C[0], C[1], yaw)
+        # Set it at the lowest corner, so it beds into the bank rather than floating over it.
+        corners = [(C[0] + t[0] * a + n[0] * b, C[1] + t[1] * a + n[1] * b) for a in (-3.0, 3.0) for b in (-0.8, 0.8)]
+        low = min(corners, key=lambda q: ground(*q))
+        place("Kerbed_Bed", C[0], C[1], yaw, gx=low[0], gz=low[1])
         if k == 0:
             place("Young_Tree", C[0] + t[0] * 1.6, C[1] + t[1] * 1.6, 30.0)
             place("Feather_Flag_Yellow", C[0] - t[0] * 2.4, C[1] - t[1] * 2.4, yaw_to(-n[0], -n[1]))
