@@ -347,30 +347,53 @@ def p_kerbed_bed():
 
 
 # ------------------------------------------------------------------ street planting and banners
-# From the owner's ground photos of the mess forecourt, the road up to the mess, the split to the
-# girls' hostels and the courts (2026-11-19).
-FLAG_COLOURS = [("Pink", "Flag_Pink"), ("Yellow", "Paint_Yellow"), ("Purple", "Flag_Purple"), ("Red", "Red_Paint"),
-                ("Blue", "Fabric")]
+# Feather flags, from the owner's photos (ground shots 2026-11-19 and the porch sunset and dusk
+# shots 2026-11-20): tall narrow teardrop banners on thin steel poles, in many colours, lining the
+# roads and lawns. The sail is one sheet with the material slot Flag_Cloth; OutdoorBuilder gives
+# each Feather_Flag_<Colour> its colour and a waving cloth material (Jagti/Foliage with _Wave).
+# The sail's uv.x runs 0 at the pole to 1 at the free edge and uv.y is the height in metres, which
+# the wave uses, so keep that if the shape changes.
+FLAG_COLOURS = ["Yellow", "Red", "Purple", "Pink", "Orange", "Lilac", "Green", "White", "Blue"]
+FLAG_BOTTOM, FLAG_TOP, FLAG_WIDTH = 2.1, 6.0, 0.82
 
 
-def _banner(mat):
+def flag_width(t):
+    """Sail width at t (0 at the bottom point, 1 at the rounded top): narrow at the foot, widest
+    about two thirds up, rounding back to the pole at the top, like a feather."""
+    if t <= 0.0 or t >= 1.0:
+        return 0.0
+    return FLAG_WIDTH * math.sin(math.pi * t ** 1.55) ** 0.62
+
+
+def _feather(colour):
     def fn():
-        m = new("Banner_Flag_" + next(c for c, mm in FLAG_COLOURS if mm == mat))
-        cyl(m, 0, 0, 0.11, 0.0, 0.3, "Concrete", seg=8)
-        cyl(m, 0, 0, 0.045, 0.3, 7.0, "Steel", seg=8)
-        cyl(m, 0, 0, 0.07, 7.0, 7.12, "Steel", seg=8)
-        # A tall narrow banner on a short top arm, its free edge cut on a slant.
-        bx(m, 0.04, 0.85, -0.02, 0.02, 6.86, 6.9, "Steel")
-        for k in range(6):
-            y1 = 6.85 - k * 0.55
-            x1 = 0.82 - 0.04 * k
-            bx(m, 0.06, x1, -0.008, 0.008, y1 - 0.55, y1, mat)
+        m = new("Feather_Flag_" + colour)
+        cyl(m, 0, 0, 0.11, 0.0, 0.25, "Concrete", seg=8)
+        cyl(m, 0, 0, 0.032, 0.25, FLAG_TOP + 0.08, "Steel", seg=8)
+        cyl(m, 0, 0, 0.045, FLAG_TOP + 0.08, FLAG_TOP + 0.14, "Steel", seg=8)
+        # The sail: a grid in the prop's Z-Y plane, out from the pole along +Z.
+        cols, rows = 5, 12
+        grid = []
+        for j in range(rows + 1):
+            t = j / rows
+            y = FLAG_BOTTOM + (FLAG_TOP - FLAG_BOTTOM) * t
+            w = flag_width(t)
+            grid.append([(0.035 + w * i / cols, y, i / cols) for i in range(cols + 1)])
+        for j in range(rows):
+            for i in range(cols):
+                quad = [grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]]
+                pts_ = [(*m.b(0.0, Z), y) for Z, y, _ in quad]
+                uvs = [(u, y) for _, y, u in quad]
+                # Skip the zero-width slivers at the point and the top.
+                if math.dist(pts_[0], pts_[1]) < 1e-4 and math.dist(pts_[2], pts_[3]) < 1e-4:
+                    continue
+                m.quad(pts_, "Flag_Cloth", uvs)
         return m
     return fn
 
 
-for _c, _mat in FLAG_COLOURS:
-    oprop("Banner_Flag_" + _c, solid=False)(_banner(_mat))
+for _c in FLAG_COLOURS:
+    oprop("Feather_Flag_" + _c, solid=False)(_feather(_c))
 
 
 @oprop("Shrub_Border")
@@ -731,22 +754,34 @@ def shops_walk_furniture():
             place("Planter_Box", Q[0], Q[1], 90.0)
 
 
+# Roads lined on both sides (the owner's photos: the spine road, the porch drive and the gate
+# approach); every other drive gets a flag on alternate sides.
+FLAG_BOTH_SIDES = ("Spine Road", "Porch Drive", "Gate Approach", "Academic West Drive", "Paved Girls")
+
+
 def street_flags():
-    """Tall banner flags along the spine road, the paved lane and the Vipanan forecourt, in
-    turns of colour (owner's photos, 2026-11-19)."""
+    """Feather flags along the roads, in turns of colour, their sails out from the road so a
+    driver sees them face on down the road (owner's photos, 2026-11-19 and 2026-11-20)."""
+    rng = random.Random(23)
     k = 0
     for r in ROADS:
-        if not r["name"].startswith(("Spine Road", "Paved")):
+        if is_path(r) and not r["name"].startswith("Paved"):
             continue
+        both = r["name"].startswith(FLAG_BOTH_SIDES)
         poly = pts(r)
-        step = 22.0 if r["name"].startswith("Spine") else 14.0
-        for (P_, d) in along_poly(poly, step, step / 2):
-            for side in (-1, 1):
-                n = (-d[1] * side, d[0] * side)
-                Q = (P_[0] + n[0] * (r["width"] / 2 + 0.9), P_[1] + n[1] * (r["width"] / 2 + 0.9))
-                if clear(Q, pad=0.5, road_pad=0.3) and not taken(Q, 2.0):
-                    place("Banner_Flag_" + FLAG_COLOURS[k % len(FLAG_COLOURS)][0], Q[0], Q[1], yaw_to(d[0], d[1]))
+        step = 12.0 if both else 22.0
+        side = 1
+        for j, (P_, d) in enumerate(along_poly(poly, step, step / 2)):
+            for sd in ((-1, 1) if both else (side,)):
+                n = (-d[1] * sd, d[0] * sd)
+                off = r["width"] / 2 + 0.9
+                along = (step / 2) * (0.5 if both and sd > 0 else 0.0)   # stagger the two rows
+                Q = (P_[0] + n[0] * off + d[0] * along, P_[1] + n[1] * off + d[1] * along)
+                if clear(Q, pad=0.5, road_pad=0.3) and not taken(Q, 2.5):
+                    yaw = yaw_to(n[0], n[1]) + rng.uniform(-25.0, 25.0)
+                    place("Feather_Flag_" + FLAG_COLOURS[k % len(FLAG_COLOURS)], Q[0], Q[1], yaw % 360.0)
                     k += 1
+            side = -side
 
 
 def along_poly(poly, step, start):
@@ -788,7 +823,7 @@ def mess_island():
     for k, X in enumerate([x0 + 3.0 + i * (x1 - x0 - 6.0) / 3 for i in range(4)]):
         place("Young_Tree" if k % 2 == 0 else "Palm_Small", X, cz + (0.6 if k % 2 else -0.6), (k * 71.0) % 360.0)
     for k, X in enumerate([x0 + 1.5 + i * 5.0 for i in range(int((x1 - x0 - 1.0) / 5.0) + 1)]):
-        place("Banner_Flag_" + FLAG_COLOURS[k % len(FLAG_COLOURS)][0], X, z1 - 0.9, 90.0)
+        place("Feather_Flag_" + FLAG_COLOURS[(k * 4) % len(FLAG_COLOURS)], X, z1 - 0.9, 90.0 + (k * 37.0) % 50.0 - 25.0)
 
 
 def girls_split():
