@@ -163,59 +163,91 @@
   {
    "name": "Yamuna_Hostel",
    "fbx": "Assets/Models/Buildings/Yamuna_Hostel.fbx",
-   "pivotX": 83.0,
-   "pivotZ": -387.0,
+   "pivotX": 79.5,
+   "pivotZ": -381.0,
    "boundsMin": [
-    22.7,
-    -464.0
+    57.7,
+    -414.0
    ],
    "boundsMax": [
-    92.0,
+    98.0,
     -374.0
    ],
    "replaces": [
-    "Yamuna Hostel - North Block",
-    "Yamuna Hostel - Step Block",
-    "Yamuna Hostel - West Block",
-    "Yamuna Hostel - South Block"
+    "Yamuna Hostel - North Wing",
+    "Yamuna Hostel - West Wing"
    ]
   },
   {
    "name": "Sindhu_Hostel",
    "fbx": "Assets/Models/Buildings/Sindhu_Hostel.fbx",
-   "pivotX": 44.0,
-   "pivotZ": -481.0,
+   "pivotX": 41.5,
+   "pivotZ": -426.0,
    "boundsMin": [
-    26.0,
-    -539.3
+    22.7,
+    -460.0
+   ],
+   "boundsMax": [
+    57.0,
+    -419.0
+   ],
+   "replaces": [
+    "Sindhu Hostel - North Wing",
+    "Sindhu Hostel - West Wing"
+   ]
+  },
+  {
+   "name": "Boys_Hostel_3",
+   "fbx": "Assets/Models/Buildings/Boys_Hostel_3.fbx",
+   "pivotX": 35.0,
+   "pivotZ": -485.0,
+   "boundsMin": [
+    24.7,
+    -514.0
+   ],
+   "boundsMax": [
+    57.0,
+    -470.0
+   ],
+   "replaces": [
+    "Boys Hostel 3 - West Wing",
+    "Boys Hostel 3 - South Wing"
+   ]
+  },
+  {
+   "name": "Boys_Hostel_4",
+   "fbx": "Assets/Models/Buildings/Boys_Hostel_4.fbx",
+   "pivotX": 70.0,
+   "pivotZ": -515.5,
+   "boundsMin": [
+    59.7,
+    -540.0
    ],
    "boundsMax": [
     96.0,
-    -468.0
+    -505.0
    ],
    "replaces": [
-    "Sindhu Hostel - North Block",
-    "Sindhu Hostel - Step Block",
-    "Sindhu Hostel - South Block"
+    "Boys Hostel 4 - West Wing",
+    "Boys Hostel 4 - South Wing"
    ]
   },
   {
    "name": "Girls_Hostel_A",
    "fbx": "Assets/Models/Buildings/Girls_Hostel_A.fbx",
    "pivotX": 31.0,
-   "pivotZ": -121.0,
+   "pivotZ": -116.0,
    "boundsMin": [
-    18.0,
-    -202.0
+    14.7,
+    -148.0
    ],
    "boundsMax": [
-    51.3,
+    44.0,
     -108.0
    ],
    "replaces": [
     "Girls Hostel A - North Wing",
-    "Girls Hostel A - West Wing",
-    "Girls Hostel A - South Wing"
+    "Girls Hostel A - West Wing"
    ]
   },
   {
@@ -228,13 +260,48 @@
     -122.0
    ],
    "boundsMax": [
-    121.0,
+    83.0,
     -78.7
    ],
    "replaces": [
     "Girls Hostel B - West Wing",
-    "Girls Hostel B - North Wing",
-    "Girls Hostel B - East Wing"
+    "Girls Hostel B - North Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_C",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_C.fbx",
+   "pivotX": 97.0,
+   "pivotZ": -91.0,
+   "boundsMin": [
+    87.0,
+    -122.0
+   ],
+   "boundsMax": [
+    124.3,
+    -82.0
+   ],
+   "replaces": [
+    "Girls Hostel C - North Wing",
+    "Girls Hostel C - East Wing"
+   ]
+  },
+  {
+   "name": "Girls_Hostel_D",
+   "fbx": "Assets/Models/Buildings/Girls_Hostel_D.fbx",
+   "pivotX": 25.0,
+   "pivotZ": -163.0,
+   "boundsMin": [
+    18.0,
+    -202.0
+   ],
+   "boundsMax": [
+    51.3,
+    -152.0
+   ],
+   "replaces": [
+    "Girls Hostel D - West Wing",
+    "Girls Hostel D - South Wing"
    ]
   },
   {

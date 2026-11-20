@@ -39,8 +39,12 @@ HOSTELS = [
     ("Brahmaputra_Hostel", "Brahmaputra", B.BRAHMAPUTRA),
     ("Girls_Hostel_A", "Girls Hostel A", B.GIRLS_A),
     ("Girls_Hostel_B", "Girls Hostel B", B.GIRLS_B),
+    ("Girls_Hostel_C", "Girls Hostel C", B.GIRLS_C),
+    ("Girls_Hostel_D", "Girls Hostel D", B.GIRLS_D),
     ("Yamuna_Hostel", "Yamuna", B.YAMUNA),
     ("Sindhu_Hostel", "Sindhu", B.SINDHU),
+    ("Boys_Hostel_3", "Boys Hostel 3", B.BOYS_3),
+    ("Boys_Hostel_4", "Boys Hostel 4", B.BOYS_4),
 ]
 
 INWARD = {"S": (0.0, 1.0), "N": (0.0, -1.0), "W": (1.0, 0.0), "E": (-1.0, 0.0)}
@@ -83,15 +87,14 @@ def facade_sides(m, rects, k):
     others = rects[:k] + rects[k + 1:]
     sides = {s: Side(s) for s in "NSEW"}
     poly = B.rect_poly(m, X0, X1, Z0, Z1)
-    door_done = False
-    for run in B.outline_runs(m, poly):
-        for (s0, s1) in B.hidden_intervals(m, run, others):
-            sub = B.SubRun(run, s0, s1)
+    subs = [B.SubRun(run, s0, s1) for run in B.outline_runs(m, poly) for (s0, s1) in B.hidden_intervals(m, run, others)]
+    wing_doors = B.hostel_wing_doors(m, subs, rects)    # as detailed_model chooses them
+    for si, sub in enumerate(subs):
+        if True:
             L = sub.L
             slot_at = B.hostel_slots(L)
-            door = not door_done and B.hostel_door_bay(L, slot_at) is not None
-            door_done = door_done or door
-            door_bay = B.hostel_door_bay(L, slot_at) if door else None
+            door = wing_doors[si]
+            door_bay = door if isinstance(door, tuple) else (B.hostel_door_bay(L, slot_at) if door else None)
 
             def W(s):
                 p = sub.P(s, 0, 0)
