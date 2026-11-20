@@ -6,10 +6,12 @@ namespace Jagti.World
 {
     /// <summary>
     /// The breakable windows of one building mesh (made by GlassSplitter in the editor). All the
-    /// panes share one mesh and one two-sided mesh collider; breaking a pane hides its triangles,
-    /// rebuilds the collider without it (once a frame at most), throws a burst of shards from one
-    /// shared particle system and plays the smash. Cheap on purpose: no object per pane, and the
-    /// work happens only when something breaks.
+    /// panes share one mesh; each pane has its own thin box collider (made in the editor, so the
+    /// NavMesh bake sees the glass, under one unscaled holder per building). Breaking a pane hides
+    /// its triangles, switches its box off, throws a burst of shards from one shared particle
+    /// system and plays the smash. A window can have two layers of glass (the facade's pane and the
+    /// interior shell's pane behind it); breaking one breaks its twin too, on every machine, so a
+    /// window never leaves an invisible pane behind.
     /// Online, a local break is announced through Broken (NetMatch sends it to everyone).
     /// </summary>
     public class GlassPanes : MonoBehaviour
@@ -20,7 +22,7 @@ namespace Jagti.World
 
         /// <summary>The same on every machine (handed out in build order).</summary>
         public int id;
-        /// <summary>Collider thickness in this object's units.</summary>
+        /// <summary>Collider thickness in metres.</summary>
         public float thickness = 0.08f;
         // Per pane, in this object's space.
         public Vector3[] centres;
@@ -29,15 +31,27 @@ namespace Jagti.World
         public Vector2[] sizes;
         public int[] triStart;
         public int[] triCount;
+        /// <summary>One box per pane (made by MakeColliders; built at start if missing).</summary>
+        public BoxCollider[] colliders;
 
-        Mesh mesh, colliderMesh;
+        const float TwinGap = 0.9f;   // a window's two layers of glass are at most this far apart
+
+        Mesh mesh;
         int[] tris;
         bool[] broken;
-        MeshCollider meshCollider;
-        bool colliderDirty;
         Material glassMaterial;
+        // Per pane, in world space (the buildings never move).
+        Vector3[] wc, wn, wu;
+        Vector2[] ws;
+        Bounds worldBounds;
 
-        static readonly Dictionary<Collider, GlassPanes> lookup = new Dictionary<Collider, GlassPanes>();
+        struct PaneRef
+        {
+            public GlassPanes owner;
+            public int index;
+        }
+
+        static readonly Dictionary<Collider, PaneRef> lookup = new Dictionary<Collider, PaneRef>();
         static ParticleSystem shards;
 
         public int Count { get { return centres != null ? centres.Length : 0; } }
@@ -55,62 +69,94 @@ namespace Jagti.World
             filter.sharedMesh = mesh;
             tris = mesh.GetTriangles(0);
             broken = new bool[centres.Length];
-            // One collider for all the building's panes (both faces, so it stops you from inside too);
-            // it is rebuilt without the broken ones, at most once a frame.
-            var go = new GameObject("Glass Collider");
-            go.transform.SetParent(transform, false);
-            colliderMesh = new Mesh { name = "Glass Collider", indexFormat = mesh.indexFormat };
-            colliderMesh.vertices = mesh.vertices;
-            meshCollider = go.AddComponent<MeshCollider>();
-            RebuildCollider();
-            lookup[meshCollider] = this;
+            WorldPanes();
+            // A scene built before the boxes were made in the editor: make them now.
+            if (colliders == null || colliders.Length != centres.Length) MakeColliders(null);
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                if (colliders[i] == null) continue;
+                lookup[colliders[i]] = new PaneRef { owner = this, index = i };
+                colliders[i].enabled = true;
+            }
         }
 
         void OnDestroy()
         {
             All.Remove(this);
-            if (meshCollider != null) lookup.Remove(meshCollider);
+            if (colliders == null) return;
+            for (int i = 0; i < colliders.Length; i++)
+                if (colliders[i] != null) lookup.Remove(colliders[i]);
         }
 
-        void LateUpdate()
+        /// <summary>The panes' centres, axes and sizes in world space (and the bounds round them).</summary>
+        void WorldPanes()
         {
-            if (colliderDirty) RebuildCollider();
-        }
-
-        void RebuildCollider()
-        {
-            colliderDirty = false;
-            var list = new List<int>(tris.Length * 2);
-            for (int i = 0; i < centres.Length; i++)
+            int n = centres.Length;
+            wc = new Vector3[n];
+            wn = new Vector3[n];
+            wu = new Vector3[n];
+            ws = new Vector2[n];
+            float scale = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.x));
+            for (int i = 0; i < n; i++)
             {
-                if (broken[i]) continue;
-                int s = triStart[i], e = Mathf.Min(tris.Length, s + triCount[i]);
-                for (int k = s; k + 2 < e; k += 3)
-                {
-                    list.Add(tris[k]); list.Add(tris[k + 1]); list.Add(tris[k + 2]);
-                    list.Add(tris[k]); list.Add(tris[k + 2]); list.Add(tris[k + 1]);
-                }
+                wc[i] = transform.TransformPoint(centres[i]);
+                Vector3 nn = transform.TransformDirection(normals[i]).normalized;
+                Vector3 u = transform.TransformDirection(uAxes[i]);
+                u = (u - nn * Vector3.Dot(u, nn)).normalized;
+                if (u.sqrMagnitude < 0.5f) u = Vector3.Cross(Vector3.up, nn).sqrMagnitude > 1e-4f ? Vector3.Cross(Vector3.up, nn).normalized : Vector3.right;
+                wn[i] = nn;
+                wu[i] = u;
+                ws[i] = sizes[i] * scale;
+                if (i == 0) worldBounds = new Bounds(wc[i], Vector3.zero);
+                else worldBounds.Encapsulate(wc[i]);
             }
-            colliderMesh.SetTriangles(list, 0, true);
-            meshCollider.sharedMesh = null;
-            if (list.Count > 0) meshCollider.sharedMesh = colliderMesh;
-            else meshCollider.enabled = false;
+            worldBounds.Expand(4f);
         }
 
         /// <summary>
-        /// True if this collider is a building's glass and the point is on an unbroken pane (which one
-        /// is found from the point: nearest pane whose rectangle holds it).
+        /// Makes one thin box per pane, grouped by facing under an unscaled holder (boxes under a
+        /// scaled or mirrored model would be skewed). The editor calls this when it splits the glass,
+        /// so the boxes are saved with the scene and the NavMesh bake treats windows as walls.
         /// </summary>
+        public void MakeColliders(Transform parent)
+        {
+            if (centres == null) return;
+            if (wc == null || wc.Length != centres.Length) WorldPanes();
+            var holder = new GameObject("Glass Colliders " + id).transform;
+            if (parent != null) holder.SetParent(parent, false);
+            var groups = new Dictionary<long, Transform>();
+            colliders = new BoxCollider[centres.Length];
+            for (int i = 0; i < centres.Length; i++)
+            {
+                Vector3 v = Vector3.Cross(wn[i], wu[i]);
+                Quaternion rot = Quaternion.LookRotation(wn[i], v);
+                Vector3 e = rot.eulerAngles;
+                long key = (long)Mathf.RoundToInt(e.x * 2f) * 1000000L + (long)Mathf.RoundToInt(e.y * 2f) * 1000L + Mathf.RoundToInt(e.z * 2f);
+                Transform g;
+                if (!groups.TryGetValue(key, out g))
+                {
+                    g = new GameObject("Panes").transform;
+                    g.SetParent(holder, false);
+                    g.position = wc[i];
+                    g.rotation = rot;
+                    groups[key] = g;
+                }
+                var box = g.gameObject.AddComponent<BoxCollider>();
+                box.center = g.InverseTransformPoint(wc[i]);
+                box.size = new Vector3(Mathf.Max(0.02f, ws[i].x), Mathf.Max(0.02f, ws[i].y), thickness);
+                colliders[i] = box;
+            }
+        }
+
+        /// <summary>True if this collider is a building's glass and its pane is unbroken.</summary>
         public static bool TryGet(Collider c, Vector3 point, out GlassPanes panes, out int index)
         {
             panes = null;
             index = -1;
-            GlassPanes g;
-            if (c == null || !lookup.TryGetValue(c, out g) || g == null) return false;
-            int i = g.PaneAt(point);
-            if (i < 0) return false;
-            panes = g;
-            index = i;
+            PaneRef r;
+            if (c == null || !lookup.TryGetValue(c, out r) || r.owner == null || r.owner.IsBroken(r.index)) return false;
+            panes = r.owner;
+            index = r.index;
             return true;
         }
 
@@ -124,21 +170,17 @@ namespace Jagti.World
         public int PaneAt(Vector3 world)
         {
             if (broken == null) return -1;
-            Vector3 p = transform.InverseTransformPoint(world);
-            float scale = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.x));
-            float slack = 0.06f / scale;
             int best = -1;
             float bestD = float.MaxValue;
-            for (int i = 0; i < centres.Length; i++)
+            for (int i = 0; i < wc.Length; i++)
             {
                 if (broken[i]) continue;
-                Vector3 d = p - centres[i];
-                float off = Mathf.Abs(Vector3.Dot(d, normals[i]));
-                if (off > thickness + slack) continue;
-                float du = Mathf.Abs(Vector3.Dot(d, uAxes[i]));
-                Vector3 vAxis = Vector3.Cross(normals[i], uAxes[i]);
-                float dv = Mathf.Abs(Vector3.Dot(d, vAxis));
-                if (du > sizes[i].x * 0.5f + slack || dv > sizes[i].y * 0.5f + slack) continue;
+                Vector3 d = world - wc[i];
+                float off = Mathf.Abs(Vector3.Dot(d, wn[i]));
+                if (off > thickness + 0.06f) continue;
+                float du = Mathf.Abs(Vector3.Dot(d, wu[i]));
+                float dv = Mathf.Abs(Vector3.Dot(d, Vector3.Cross(wn[i], wu[i])));
+                if (du > ws[i].x * 0.5f + 0.06f || dv > ws[i].y * 0.5f + 0.06f) continue;
                 float score = off + du * 0.01f + dv * 0.01f;
                 if (score < bestD) { bestD = score; best = i; }
             }
@@ -156,35 +198,64 @@ namespace Jagti.World
             return broken == null || index < 0 || index >= broken.Length || broken[index];
         }
 
-        /// <summary>Smashes a pane: dir is the way the hit was going (shards fly that way).</summary>
+        /// <summary>Smashes a pane (and the other layer of the same window): dir is the way the hit was going.</summary>
         public void Break(int index, Vector3 dir, bool local)
         {
             if (IsBroken(index)) return;
+            Smash(index, dir);
+            BreakTwins(index, dir);
+            if (local && Broken != null) Broken(this, index);
+        }
+
+        void Smash(int index, Vector3 dir)
+        {
             broken[index] = true;
-            colliderDirty = true;
+            if (colliders != null && index < colliders.Length && colliders[index] != null) colliders[index].enabled = false;
             int s = triStart[index], e = s + triCount[index];
             if (e <= tris.Length)
             {
-                // Hidden by making its triangles degenerate (the shared triangle list is kept as it is).
-                var drawn = (int[])tris.Clone();
-                for (int i = 0; i < broken.Length; i++)
-                {
-                    if (!broken[i]) continue;
-                    int a = triStart[i], b = Mathf.Min(drawn.Length, a + triCount[i]);
-                    for (int k = a; k < b; k++) drawn[k] = drawn[a];
-                }
-                mesh.SetTriangles(drawn, 0, false);
+                // Hidden by making its triangles degenerate.
+                for (int k = s; k < e; k++) tris[k] = tris[s];
+                mesh.SetTriangles(tris, 0, false);
             }
-            Vector3 centre = transform.TransformPoint(centres[index]);
-            Vector3 n = transform.TransformDirection(normals[index]).normalized;
+            Vector3 centre = wc[index];
+            Vector3 n = wn[index];
             if (dir.sqrMagnitude < 1e-4f) dir = -n;
-            Vector3 u = transform.TransformDirection(uAxes[index]);
-            float scale = Mathf.Abs(transform.lossyScale.x);
-            Shards(centre, u.normalized, Vector3.Cross(n, u).normalized, sizes[index].x * scale, sizes[index].y * scale, dir.normalized);
+            Vector3 u = wu[index];
+            Shards(centre, u, Vector3.Cross(n, u), ws[index].x, ws[index].y, dir.normalized);
             var clip = SynthAudio.Get("glass_break");
             if (clip != null) AudioSource.PlayClipAtPoint(clip, centre, 0.9f);
             NoiseEvents.Emit(centre, 40f);
-            if (local && Broken != null) Broken(this, index);
+        }
+
+        /// <summary>
+        /// Breaks the panes of other glass that stand in the same window: parallel, within TwinGap
+        /// of this pane's plane, and overlapping it. Every machine does the same, so it isn't sent.
+        /// </summary>
+        void BreakTwins(int index, Vector3 dir)
+        {
+            Vector3 c = wc[index], n = wn[index];
+            Vector3 v = Vector3.Cross(n, wu[index]);
+            for (int g = 0; g < All.Count; g++)
+            {
+                var other = All[g];
+                if (other == null || other.broken == null) continue;
+                if (other.worldBounds.SqrDistance(c) > TwinGap * TwinGap) continue;
+                for (int j = 0; j < other.wc.Length; j++)
+                {
+                    if (other.broken[j] || (other == this && j == index)) continue;
+                    if (Mathf.Abs(Vector3.Dot(other.wn[j], n)) < 0.96f) continue;
+                    Vector3 d = other.wc[j] - c;
+                    if (Mathf.Abs(Vector3.Dot(d, n)) > TwinGap) continue;
+                    // The same plane (another pane of this window) is left alone; only a layer behind counts.
+                    if (Mathf.Abs(Vector3.Dot(d, n)) < 0.05f) continue;
+                    float du = Mathf.Abs(Vector3.Dot(d, wu[index])), dv = Mathf.Abs(Vector3.Dot(d, v));
+                    float otherU = Mathf.Abs(Vector3.Dot(other.wu[j], wu[index])) > 0.7f ? other.ws[j].x : other.ws[j].y;
+                    float otherV = Mathf.Abs(Vector3.Dot(other.wu[j], wu[index])) > 0.7f ? other.ws[j].y : other.ws[j].x;
+                    if (du > (ws[index].x + otherU) * 0.5f - 0.1f || dv > (ws[index].y + otherV) * 0.5f - 0.1f) continue;
+                    other.Smash(j, dir);
+                }
+            }
         }
 
         /// <summary>
@@ -199,15 +270,12 @@ namespace Jagti.World
             {
                 var panes = All[g];
                 if (panes == null || panes.broken == null || panes.mesh == null) continue;
-                // Skip whole buildings that are out of reach.
-                Bounds b = panes.GetComponent<Renderer>() != null ? panes.GetComponent<Renderer>().bounds : new Bounds(panes.transform.position, Vector3.one * 1e6f);
-                if (b.SqrDistance(point) > r2) continue;
-                for (int i = 0; i < panes.centres.Length; i++)
+                if (panes.worldBounds.SqrDistance(point) > r2) continue;   // the whole building is out of reach
+                for (int i = 0; i < panes.wc.Length; i++)
                 {
                     if (panes.broken[i]) continue;
-                    Vector3 c = panes.transform.TransformPoint(panes.centres[i]);
-                    if ((c - point).sqrMagnitude > r2) continue;
-                    panes.Break(i, c - point, false);
+                    if ((panes.wc[i] - point).sqrMagnitude > r2) continue;
+                    panes.Smash(i, panes.wc[i] - point);
                     count++;
                 }
             }

@@ -1948,10 +1948,13 @@ def shop_front(run, s0, s1, door, arcade=False):
     run.side(os0, z_lo, SHOP_TOP, 0, -t, "Stone", 1)
     run.side(os1, z_lo, SHOP_TOP, 0, -t, "Stone", -1)
     run.hband(os0, os1, SHOP_TOP, 0, -t, "Stone", up=False)
-    # Rolled-up shutter in its box under the head, guide channels down the jambs.
-    run.box(os0, os1, SHOP_TOP - 0.28, SHOP_TOP, -0.06, -0.3, "Metal", top=False)
+    # Rolled-up shutter in its box under the head, guide channels down the jambs. Over a doorway
+    # the box is slimmer, so the opening keeps 2 m of headroom above the floor (the player's head
+    # caught on the deeper box).
+    box_lo = SHOP_TOP - (0.14 if door else 0.28)
+    run.box(os0, os1, box_lo, SHOP_TOP, -0.06, -0.3, "Metal", top=False)
     for a, b_ in ((os0, os0 + 0.06), (os1 - 0.06, os1)):
-        run.box(a, b_, z_lo, SHOP_TOP - 0.28, -0.06, -0.12, "Metal", top=False, bottom=False)
+        run.box(a, b_, z_lo, box_lo, -0.06, -0.12, "Metal", top=False, bottom=False)
     if door:
         run.hband(os0, os1, 0.6, 0.18, -t, "Concrete", up=True)
         if arcade:

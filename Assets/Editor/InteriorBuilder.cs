@@ -136,6 +136,9 @@ namespace Jagti.EditorTools
                     var shell = BuildingModels.PlaceOne(info, root.transform, ground, materials);
                     if (shell != null)
                     {
+                        // The clear glass behind the facade's windows breaks too (with the facade pane).
+                        Material clear;
+                        if (materials.TryGetValue("Glass_Clear", out clear)) GlassSplitter.Split(shell, clear);
                         // Furniture was modelled the same way as the shell, so it takes the same correction.
                         turn = shell.transform.rotation;
                         scale = shell.transform.localScale;
