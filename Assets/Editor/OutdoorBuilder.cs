@@ -66,8 +66,7 @@ namespace Jagti.EditorTools
             { "Badminton_Net", 120f }, { "Garden_Lamp", 140f }, { "Palm_Small", 140f }, { "Tennis_Net", 160f },
             { "Railing_Segment", 180f }, { "Fence_Panel", 200f }, { "Name_Board", 200f }, { "Basketball_Hoop", 200f },
             { "Lamp_Post", 260f },
-            { "Banner_Flag_Pink", 170f }, { "Banner_Flag_Yellow", 170f }, { "Banner_Flag_Purple", 170f },
-            { "Banner_Flag_Red", 170f }, { "Banner_Flag_Blue", 170f }, { "Shrub_Border", 110f }, { "Young_Tree", 140f },
+            { "Shrub_Border", 110f }, { "Young_Tree", 140f },
             { "Map_Board", 160f }, { "Stone_Wall", 220f }, { "Stone_Wall_High", 260f }, { "Flood_Mast", 400f },
         };
         /// <summary>A box collider round the part of a prop the player can walk into: the
@@ -107,6 +106,94 @@ namespace Jagti.EditorTools
         }
 
         const float DefaultCull = 180f;
+        const float FlagCull = 190f;
+
+        /// <summary>Feather flags (owner's photos, 2026-11-20): the colour of each Feather_Flag_* prop's
+        /// sail. The FBX gives every sail the one slot Flag_Cloth; here it gets a waving cloth
+        /// material of its own colour (Jagti/Foliage with _Wave on).</summary>
+        public static readonly Dictionary<string, Color> FlagColours = new Dictionary<string, Color>
+        {
+            { "Yellow", new Color(0.93f, 0.76f, 0.10f) }, { "Red", new Color(0.78f, 0.12f, 0.13f) },
+            { "Purple", new Color(0.42f, 0.20f, 0.62f) }, { "Pink", new Color(0.88f, 0.26f, 0.58f) },
+            { "Orange", new Color(0.95f, 0.47f, 0.10f) }, { "Lilac", new Color(0.72f, 0.60f, 0.86f) },
+            { "Green", new Color(0.45f, 0.72f, 0.20f) }, { "White", new Color(0.92f, 0.92f, 0.90f) },
+            { "Blue", new Color(0.16f, 0.40f, 0.80f) },
+        };
+        static Dictionary<string, Material> flagMaterials;
+        static Texture2D flagWeave;
+        static Material streetGlow;
+
+        static Material FlagMaterial(string colour)
+        {
+            if (flagMaterials == null) flagMaterials = new Dictionary<string, Material>();
+            Material m;
+            if (flagMaterials.TryGetValue(colour, out m) && m != null) return m;
+            Color c;
+            if (!FlagColours.TryGetValue(colour, out c)) c = Color.white;
+            if (flagWeave == null)
+                flagWeave = ProceduralAssets.GroundTexture("Flag_Weave", new Color(0.86f, 0.86f, 0.86f), new Color(0.95f, 0.95f, 0.95f), Color.white, 16, 0.25f, 91, true);
+            m = ProceduralAssets.FoliageMaterial("Flag_" + colour, c, flagWeave, 0f, 0f);
+            if (m.HasProperty("_Wave"))
+            {
+                m.SetFloat("_Wave", 1f);
+                m.SetFloat("_Cull", 0f);              // one sheet, seen from both sides
+                m.SetFloat("_Translucency", 0.55f);   // the sun glows through the cloth
+            }
+            else if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
+            EditorUtility.SetDirty(m);
+            flagMaterials[colour] = m;
+            return m;
+        }
+
+        /// <summary>The outdoor lamps' heads: their own emissive material, which StreetLights turns up at night
+        /// (the interiors keep Lamp_Glow).</summary>
+        static Material StreetGlow()
+        {
+            if (streetGlow != null) return streetGlow;
+            streetGlow = AssetDatabase.LoadAssetAtPath<Material>(ProceduralAssets.Folder + "/Materials/Street_Lamp_Glow.mat");
+            if (streetGlow != null) return streetGlow;
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+            streetGlow = new Material(shader) { name = "Street_Lamp_Glow", enableInstancing = true };
+            var c = new Color(0.96f, 0.96f, 0.94f);
+            if (streetGlow.HasProperty("_BaseColor")) streetGlow.SetColor("_BaseColor", c);
+            if (streetGlow.HasProperty("_Smoothness")) streetGlow.SetFloat("_Smoothness", 0.6f);
+            streetGlow.EnableKeyword("_EMISSION");
+            if (streetGlow.HasProperty("_EmissionColor")) streetGlow.SetColor("_EmissionColor", c * 0.6f);
+            streetGlow.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            ProceduralAssets.EnsureFolder(ProceduralAssets.Folder + "/Materials");
+            AssetDatabase.CreateAsset(streetGlow, ProceduralAssets.Folder + "/Materials/Street_Lamp_Glow.mat");
+            return streetGlow;
+        }
+
+        static int LampKind(string prop)
+        {
+            switch (prop)
+            {
+                case "Lamp_Post": return (int)StreetLights.Kind.Street;
+                case "Garden_Lamp": return (int)StreetLights.Kind.Garden;
+                case "Bollard_Light": return (int)StreetLights.Kind.Bollard;
+                case "Flood_Mast": return (int)StreetLights.Kind.Flood;
+            }
+            return -1;
+        }
+
+        /// <summary>World centre of the parts of a renderer that use the given material, or false.</summary>
+        static bool SubmeshCentre(MeshRenderer r, Material mat, out Vector3 centre)
+        {
+            centre = Vector3.zero;
+            var filter = r.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null) return false;
+            var mesh = filter.sharedMesh;
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length && i < mesh.subMeshCount; i++)
+            {
+                if (mats[i] != mat) continue;
+                centre = r.transform.TransformPoint(mesh.GetSubMesh(i).bounds.center);
+                return true;
+            }
+            return false;
+        }
         const float CoverCull = 450f;
         const float SignTextCull = 60f;
 
@@ -120,6 +207,11 @@ namespace Jagti.EditorTools
         {
             var cullRenderers = new List<Renderer>();
             var cullDistances = new List<float>();
+            // Flag and lamp materials are made once per campus build and shared by both lists (a
+            // rebuild deletes Assets/Generated, which turns the cached ones into null).
+            var lampHeads = new List<Vector3>();
+            var lampFeet = new List<Vector3>();
+            var lampKinds = new List<int>();
             var json = AssetDatabase.LoadAssetAtPath<TextAsset>(listPath);
             if (json == null) return;
             var list = JsonUtility.FromJson<OutdoorList>(json.text);
@@ -168,8 +260,39 @@ namespace Jagti.EditorTools
                     go.transform.rotation = Quaternion.Euler(0f, p.yaw, 0f) * turn;
                     go.transform.localScale = scale;
                     BuildingModels.ApplyMaterials(go, materials, false);
+                    bool flag = p.prop.StartsWith("Feather_Flag_");
+                    int lampKind = LampKind(p.prop);
+                    if (flag || lampKind >= 0)
+                    {
+                        foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                        {
+                            var slots = r.sharedMaterials;
+                            for (int i = 0; i < slots.Length; i++)
+                            {
+                                if (slots[i] == null) continue;
+                                string key = slots[i].name.Replace(" (Instance)", "");
+                                if (flag && key == "Flag_Cloth") slots[i] = FlagMaterial(p.prop.Substring("Feather_Flag_".Length));
+                                else if (lampKind >= 0 && (key == "Lamp_Glow" || key.EndsWith("Lamp_Glow"))) slots[i] = StreetGlow();
+                            }
+                            r.sharedMaterials = slots;
+                        }
+                    }
+                    if (lampKind >= 0)
+                    {
+                        // Where the light comes from: the middle of the glowing parts (a floodlight's
+                        // ring of lamps gives one point at the ring's centre).
+                        foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                        {
+                            Vector3 head;
+                            if (!SubmeshCentre(r, StreetGlow(), out head)) continue;
+                            lampHeads.Add(head);
+                            lampFeet.Add(new Vector3(head.x, ground(head.x, head.z) + 0.3f, head.z));
+                            lampKinds.Add(lampKind);
+                            break;
+                        }
+                    }
                     float cull;
-                    if (!CullDistance.TryGetValue(p.prop, out cull)) cull = p.prop.StartsWith("Cover_") ? CoverCull : DefaultCull;
+                    if (!CullDistance.TryGetValue(p.prop, out cull)) cull = p.prop.StartsWith("Cover_") ? CoverCull : flag ? FlagCull : DefaultCull;
                     foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
                     {
                         cullRenderers.Add(r);
@@ -217,13 +340,23 @@ namespace Jagti.EditorTools
                     signs++;
                 }
             }
+            if (lampHeads.Count > 0)
+            {
+                var lights = parent.gameObject.AddComponent<StreetLights>();
+                lights.heads = lampHeads.ToArray();
+                lights.feet = lampFeet.ToArray();
+                lights.kinds = lampKinds.ToArray();
+                lights.glow = StreetGlow();
+                lights.halo = AtmosphereBuilder.LampHaloMaterial();
+                lights.pool = AtmosphereBuilder.LampPoolMaterial();
+            }
             if (cullRenderers.Count > 0)
             {
                 var culler = parent.gameObject.AddComponent<PropCuller>();
                 culler.renderers = cullRenderers.ToArray();
                 culler.distances = cullDistances.ToArray();
             }
-            Debug.Log("[Jagti] " + listPath + ": " + placed + " props, " + signs + " signs.");
+            Debug.Log("[Jagti] " + listPath + ": " + placed + " props, " + signs + " signs, " + lampHeads.Count + " lamps.");
         }
     }
 }

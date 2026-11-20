@@ -11,6 +11,8 @@ namespace Jagti.EditorTools
     /// volume (filmic tone mapping, colour grading, bloom, vignette); screen-space ambient occlusion
     /// on the renderer; a reflection probe; wind for the trees; drifting dust and leaves around the
     /// camera; and the materials for bullet marks, sparks and kicked-up dirt.
+    /// Look pass 2 (2026-11-20) adds the painted sky (Jagti/Sky) and the time of day (DayCycle, with
+    /// StreetLights for the lamps at night), from the owner's sunset and dusk photos.
     /// The runtime side is VisualQuality (Low / Medium / High, picked in the settings menu), which
     /// switches the costlier parts on and off and sets render scale and shadow distance.
     /// Called from CampusGreyboxBuilder while the scene is built.
@@ -20,7 +22,7 @@ namespace Jagti.EditorTools
         const string Folder = ProceduralAssets.Folder + "/Look";
 
         /// <summary>Raise when the look changes, so JagtiProjectSetup rebuilds the scene on pull.</summary>
-        public const int LookVersion = 1;
+        public const int LookVersion = 2;
         public const string BuiltLookKey = "Jagti.BuiltLookVersion";
 
         // The sun: a clear Jammu afternoon, warm and fairly low, so walls and trees throw long
@@ -49,7 +51,16 @@ namespace Jagti.EditorTools
             volume.priority = 0f;
             volume.sharedProfile = MakeProfile();
 
-            ReflectionProbeAt(root.transform, terrain);
+            var probe = ReflectionProbeAt(root.transform, terrain);
+
+            // Time of day (Day / Sunset / Night / Changing, from the settings menu): DayCycle
+            // drives the sun, ambient light, fog, the sky material and the street lamps.
+            var cycle = root.AddComponent<DayCycle>();
+            cycle.sun = sun;
+            cycle.sky = RenderSettings.skybox != null && RenderSettings.skybox.shader != null
+                        && RenderSettings.skybox.shader.name == "Jagti/Sky" ? RenderSettings.skybox : null;
+            cycle.volume = volume;
+            cycle.probe = probe;
 
             var windGo = new GameObject("Wind");
             windGo.transform.SetParent(root.transform, false);
@@ -131,19 +142,50 @@ namespace Jagti.EditorTools
             RenderSettings.fogDensity = 0.0009f;
             RenderSettings.fogColor = HazeColour;
 
-            var skyShader = Shader.Find("Skybox/Procedural");
-            if (skyShader != null)
+            // The painted sky (Assets/Shaders/JagtiSky.shader), coloured by DayCycle at run time; the
+            // values set here are the sunset, which the scene shows in the editor. Unity's own
+            // procedural sky stays as the fallback if the shader did not compile.
+            var jagtiSky = Shader.Find("Jagti/Sky");
+            if (jagtiSky != null && jagtiSky.isSupported && !ShaderUtil.ShaderHasError(jagtiSky))
             {
-                var sky = new Material(skyShader) { name = "Jagti_Sky" };
-                sky.SetFloat("_SunDisk", 2f);               // high quality sun disc
-                sky.SetFloat("_SunSize", 0.035f);
-                sky.SetFloat("_SunSizeConvergence", 6f);
-                sky.SetFloat("_AtmosphereThickness", 0.95f);
-                sky.SetColor("_SkyTint", new Color(0.46f, 0.55f, 0.68f));
-                sky.SetColor("_GroundColor", new Color(0.52f, 0.52f, 0.48f));
-                sky.SetFloat("_Exposure", 1.1f);
+                var sky = new Material(jagtiSky) { name = "Jagti_Sky" };
+                sky.SetTexture("_CloudTex", CloudTexture());
+                sky.SetTexture("_StarTex", StarTexture());
+                var look = DayCycle.SunsetLook(7f);
+                Vector3 toSun = Quaternion.Euler(look.skySun.x, look.skySun.y, 0f) * Vector3.back;
+                sky.SetVector("_SunDir", new Vector4(toSun.x, toSun.y, toSun.z, 0f));
+                sky.SetColor("_ZenithColor", look.zenith);
+                sky.SetColor("_HorizonColor", look.horizon);
+                sky.SetColor("_GroundColor", look.below);
+                sky.SetColor("_SunGlowColor", look.sunGlow);
+                sky.SetColor("_SunColor", look.sunDisc);
+                sky.SetColor("_CloudLit", look.cloudLit);
+                sky.SetColor("_CloudShade", look.cloudShade);
+                sky.SetColor("_HillColor", look.hills);
+                sky.SetFloat("_Gradient", look.gradient);
+                sky.SetFloat("_GlowHeight", look.glowHeight);
+                sky.SetFloat("_CloudCover", look.cloudCover);
+                sky.SetFloat("_CloudOpacity", look.cloudOpacity);
                 AssetDatabase.CreateAsset(sky, Folder + "/Jagti_Sky.mat");
                 RenderSettings.skybox = sky;
+            }
+            else
+            {
+                if (jagtiSky != null) Debug.LogWarning("[Jagti] Jagti/Sky shader did not compile; using Unity's procedural sky.");
+                var skyShader = Shader.Find("Skybox/Procedural");
+                if (skyShader != null)
+                {
+                    var sky = new Material(skyShader) { name = "Jagti_Sky" };
+                    sky.SetFloat("_SunDisk", 2f);               // high quality sun disc
+                    sky.SetFloat("_SunSize", 0.035f);
+                    sky.SetFloat("_SunSizeConvergence", 6f);
+                    sky.SetFloat("_AtmosphereThickness", 0.95f);
+                    sky.SetColor("_SkyTint", new Color(0.46f, 0.55f, 0.68f));
+                    sky.SetColor("_GroundColor", new Color(0.52f, 0.52f, 0.48f));
+                    sky.SetFloat("_Exposure", 1.1f);
+                    AssetDatabase.CreateAsset(sky, Folder + "/Jagti_Sky.mat");
+                    RenderSettings.skybox = sky;
+                }
             }
             RenderSettings.sun = sun;
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
@@ -329,7 +371,7 @@ namespace Jagti.EditorTools
         /// One reflection probe over the whole campus, drawn once when the match loads, so glass,
         /// water and polished floors reflect the real sky and hills rather than nothing.
         /// </summary>
-        static void ReflectionProbeAt(Transform parent, Terrain terrain)
+        static ReflectionProbe ReflectionProbeAt(Transform parent, Terrain terrain)
         {
             var go = new GameObject("Sky Reflections");
             go.transform.SetParent(parent, false);
@@ -337,7 +379,7 @@ namespace Jagti.EditorTools
             go.transform.position = new Vector3(0f, y, 0f);
             var probe = go.AddComponent<ReflectionProbe>();
             probe.mode = ReflectionProbeMode.Realtime;
-            probe.refreshMode = ReflectionProbeRefreshMode.OnAwake;
+            probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;   // DayCycle redraws it as the sky changes
             probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.IndividualFaces;
             probe.resolution = 128;
             probe.size = new Vector3(3000f, 800f, 3000f);
@@ -347,12 +389,124 @@ namespace Jagti.EditorTools
             probe.shadowDistance = 0f;
             probe.farClipPlane = 2000f;
             probe.clearFlags = ReflectionProbeClearFlags.Skybox;
+            return probe;
         }
 
         // ------------------------------------------------------------------ materials and textures
 
+        /// <summary>The street lamps' halo round the head and pool of light on the ground (additive soft
+        /// dots, drawn by StreetLights at night). The halo is bright enough to bloom.</summary>
+        public static Material LampHaloMaterial()
+        {
+            var m = AssetDatabase.LoadAssetAtPath<Material>(Folder + "/Lamp_Halo.mat");
+            if (m != null) return m;
+            m = ParticleMaterial("Lamp_Halo", LampDot("Tex_Lamp_Halo", 2.2f), true);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", new Color(2.6f, 2.6f, 2.5f, 1f));
+            return m;
+        }
+
+        public static Material LampPoolMaterial()
+        {
+            var m = AssetDatabase.LoadAssetAtPath<Material>(Folder + "/Lamp_Pool.mat");
+            if (m != null) return m;
+            m = ParticleMaterial("Lamp_Pool", LampDot("Tex_Lamp_Pool", 1.4f), true);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", new Color(1f, 1f, 1f, 1f));
+            return m;
+        }
+
+        /// <summary>A round glow that falls off like light from a lamp: bright core, long soft tail.</summary>
+        static Texture2D LampDot(string name, float falloff)
+        {
+            const int size = 64;
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float d = new Vector2(x + 0.5f - size / 2f, y + 0.5f - size / 2f).magnitude / (size / 2f);
+                    float a = Mathf.Clamp01(1f - d);
+                    a = Mathf.Pow(a, falloff);
+                    px[y * size + x] = new Color(a, a, a, a);
+                }
+            return ProceduralAssets.SaveTexture(name, size, px, true);
+        }
+
+        /// <summary>
+        /// Cloud shapes for the sky, tiling: R holds long thin cirrus streaks (noise stretched 8:1, as in
+        /// the owner's sunset photo), G broken patches that thin the streaks out in places.
+        /// </summary>
+        static Texture2D CloudTexture()
+        {
+            const int size = 256;
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size, v = y / (float)size;
+                    float streak = 0f, amp = 1f, norm = 0f;
+                    int px0 = 2, py0 = 16;
+                    for (int o = 0; o < 5; o++)
+                    {
+                        // Each streak wanders a little across its length.
+                        float wob = 0.04f * Mathf.Sin(u * 6.2831f * 2f + o);
+                        streak += amp * ProceduralAssets.Noise(u * px0, (v + wob) * py0, px0, py0, 300 + o * 17);
+                        norm += amp;
+                        amp *= 0.55f;
+                        px0 *= 2;
+                        py0 *= 2;
+                    }
+                    streak /= norm;
+                    float patch = ProceduralAssets.Fbm(u, v, 3, 4, 320);
+                    streak = Mathf.Clamp01((streak - 0.3f) * 1.7f);
+                    patch = Mathf.Clamp01((patch - 0.25f) * 1.8f);
+                    px[y * size + x] = new Color(streak, patch, 0f, 1f);
+                }
+            return SaveLinear("Tex_Sky_Clouds", size, px);
+        }
+
+        /// <summary>Sparse stars of different brightness, a few faintly warm or blue.</summary>
+        static Texture2D StarTexture()
+        {
+            const int size = 512;
+            var px = new Color32[size * size];
+            for (int i = 0; i < px.Length; i++) px[i] = new Color32(0, 0, 0, 255);
+            var rng = new System.Random(77);
+            for (int k = 0; k < 900; k++)
+            {
+                int x = rng.Next(size), y = rng.Next(size);
+                float b = (float)rng.NextDouble();
+                b = 0.25f + 0.75f * b * b * b;
+                float tint = (float)rng.NextDouble();
+                var c = tint < 0.15f ? new Color(1f, 0.85f, 0.7f) : tint > 0.85f ? new Color(0.75f, 0.85f, 1f) : Color.white;
+                c *= b;
+                c.a = 1f;
+                px[y * size + x] = c;
+                if (b > 0.7f)   // the brightest get a little cross of light
+                {
+                    var h = c * 0.35f;
+                    h.a = 1f;
+                    px[y * size + (x + 1) % size] = h;
+                    px[((y + 1) % size) * size + x] = h;
+                }
+            }
+            return SaveLinear("Tex_Sky_Stars", size, px);
+        }
+
+        static Texture2D SaveLinear(string name, int size, Color32[] px)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, true) { name = name };
+            tex.SetPixels32(px);
+            tex.Apply(true);
+            tex.wrapMode = TextureWrapMode.Repeat;
+            tex.filterMode = FilterMode.Trilinear;
+            tex.anisoLevel = 2;
+            ProceduralAssets.EnsureFolder(Folder);
+            AssetDatabase.CreateAsset(tex, Folder + "/" + name + ".asset");
+            return tex;
+        }
+
         static Material ParticleMaterial(string name, Texture2D tex, bool additive)
         {
+            ProceduralAssets.EnsureFolder(Folder);
             var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
             if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
             var m = new Material(shader) { name = name, enableInstancing = true };

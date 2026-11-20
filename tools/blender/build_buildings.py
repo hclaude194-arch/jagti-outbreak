@@ -96,6 +96,8 @@ MATERIALS = {
     # Street planting and banners (owner's photos, 2026-11-19).
     "Flag_Pink": (1.0, 1.0, (0.86, 0.22, 0.58)),
     "Flag_Purple": (1.0, 1.0, (0.52, 0.30, 0.78)),
+    # Feather flag sails (2026-11-20): one slot, coloured per flag in OutdoorBuilder.
+    "Flag_Cloth": (1.0, 1.0, (0.88, 0.70, 0.20)),
     "Shrub_Red": (0.5, 0.5, (0.48, 0.20, 0.13)),
     "Rubble_Stone": (1.5, 1.5, (0.55, 0.52, 0.46)),
 }

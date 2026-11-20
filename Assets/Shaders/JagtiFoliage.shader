@@ -8,6 +8,9 @@
 // The wind comes from the global _JagtiWind (x, z = direction, y = strength, w = gust), which
 // WindDriver sets every frame; without it nothing moves. Each tree gets its own phase from its
 // position, so a row of trees doesn't sway in step.
+// Banner flags use the same shader with _Wave on: the sail ripples along its normal, more towards
+// its free edge (uv.x runs 0 at the pole to 1 at the free edge), with no pivot needed, so static
+// batching can't break it. _Cull is Off for them, since the sail is a single sheet.
 // CampusTerrainBuilder only uses this shader when it compiled without errors, so a problem here
 // leaves the trees on URP/Lit (still, but drawn) rather than pink.
 Shader "Jagti/Foliage"
@@ -19,6 +22,8 @@ Shader "Jagti/Foliage"
         _Flutter ("Leaf flutter", Range(0, 1)) = 1
         _Bend ("Bend", Range(0, 3)) = 1
         _Translucency ("Light through leaves", Range(0, 1)) = 0.35
+        _Wave ("Flag ripple", Range(0, 2)) = 0
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
 
     SubShader
@@ -34,6 +39,8 @@ Shader "Jagti/Foliage"
             half _Flutter;
             half _Bend;
             half _Translucency;
+            half _Wave;
+            half _Cull;
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);
@@ -63,12 +70,27 @@ Shader "Jagti/Foliage"
             moved += float3(0.6, 0.35, 0.5) * f * 0.035 * _Flutter * strength * saturate(height * 0.5);
             return moved;
         }
+
+        // A flag's sail ripples along its normal: a travelling wave from the pole to the free
+        // edge, bigger in a strong wind. Does nothing when _Wave is 0 (trees).
+        float3 FlagWave(float3 positionWS, float3 normalWS, float2 uv)
+        {
+            if (_Wave <= 0.0) return positionWS;
+            float strength = 0.35 + _JagtiWind.y * (0.7 + 0.6 * _JagtiWind.w);
+            float along = saturate(uv.x);
+            float t = _Time.y;
+            float phase = dot(positionWS.xz, float2(0.31, 0.23));
+            float w = sin(t * 4.1 - along * 5.5 + uv.y * 1.1 + phase) * 0.65
+                    + sin(t * 7.3 - along * 9.0 + uv.y * 2.3 + phase * 1.7) * 0.25;
+            return positionWS + normalize(normalWS) * w * along * 0.17 * _Wave * strength;
+        }
         ENDHLSL
 
         Pass
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            Cull [_Cull]
 
             HLSLPROGRAM
             #pragma target 3.0
@@ -107,10 +129,10 @@ Shader "Jagti/Foliage"
                 Varyings o = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_TRANSFER_INSTANCE_ID(v, o);
-                float3 positionWS = Sway(TransformObjectToWorld(v.positionOS.xyz));
+                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                float3 positionWS = FlagWave(Sway(TransformObjectToWorld(v.positionOS.xyz)), o.normalWS, v.uv);
                 o.positionWS = positionWS;
                 o.positionCS = TransformWorldToHClip(positionWS);
-                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
                 o.fogFactor = ComputeFogFactor(o.positionCS.z);
 
@@ -132,11 +154,12 @@ Shader "Jagti/Foliage"
                 return o;
             }
 
-            half4 Frag(Varyings i) : SV_Target
+            half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 half4 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
                 half3 n = normalize(i.normalWS);
+                n = IS_FRONT_VFACE(face, true, false) ? n : -n;   // the back of a flag's sail
 
                 float4 shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 Light sun = GetMainLight(shadowCoord);
@@ -163,7 +186,7 @@ Shader "Jagti/Foliage"
             ZWrite On
             ZTest LEqual
             ColorMask 0
-            Cull Back
+            Cull [_Cull]
 
             HLSLPROGRAM
             #pragma target 3.0
@@ -181,6 +204,7 @@ Shader "Jagti/Foliage"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -193,8 +217,8 @@ Shader "Jagti/Foliage"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                float3 positionWS = Sway(TransformObjectToWorld(v.positionOS.xyz));
                 float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+                float3 positionWS = FlagWave(Sway(TransformObjectToWorld(v.positionOS.xyz)), normalWS, v.uv);
                 #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
                     float3 lightDir = normalize(_LightPosition - positionWS);
                 #else
@@ -222,6 +246,7 @@ Shader "Jagti/Foliage"
             Name "DepthOnly"
             Tags { "LightMode" = "DepthOnly" }
             ZWrite On
+            Cull [_Cull]
             ColorMask R
 
             HLSLPROGRAM
@@ -233,6 +258,8 @@ Shader "Jagti/Foliage"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -245,7 +272,8 @@ Shader "Jagti/Foliage"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                o.positionCS = TransformWorldToHClip(Sway(TransformObjectToWorld(v.positionOS.xyz)));
+                float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+                o.positionCS = TransformWorldToHClip(FlagWave(Sway(TransformObjectToWorld(v.positionOS.xyz)), normalWS, v.uv));
                 return o;
             }
 

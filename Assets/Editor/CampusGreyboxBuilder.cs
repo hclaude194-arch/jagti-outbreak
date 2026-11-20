@@ -435,23 +435,35 @@ namespace Jagti.EditorTools
             return name == "Academic Ring" || name == "Clock Tower Walkway" || name.StartsWith("Courtyard ") || name.StartsWith("Plaza ") || name.StartsWith("Paved ");
         }
 
-        // Grey asphalt elsewhere (campus model); two-lane roads (6 m and wider) get a dashed white centre line.
+        // Pale concrete slabs elsewhere (owner's photos; the material names still say asphalt); two-lane roads (6 m and wider) get a dashed white centre line.
         static Material RoadMaterial(RoadData road, bool paved)
         {
             if (paved)
             {
                 if (pavedRoad == null)
+                {
                     pavedRoad = ProceduralAssets.LitMaterial("Road_Paving", Color.white, ProceduralAssets.PavingTexture(), 0.12f);
+                    ProceduralAssets.AddRelief(pavedRoad, 4f);
+                    ProceduralAssets.AddMacroVariation(pavedRoad, 0.21f);
+                }
                 return pavedRoad;
             }
             if (road.width >= 6f)
             {
                 if (asphaltLined == null)
+                {
                     asphaltLined = ProceduralAssets.LitMaterial("Road_Asphalt_Lined", Color.white, ProceduralAssets.AsphaltTexture(true), 0.15f);
+                    ProceduralAssets.AddRelief(asphaltLined, 2.5f);
+                    ProceduralAssets.AddMacroVariation(asphaltLined, 0.17f);
+                }
                 return asphaltLined;
             }
             if (asphaltRoad == null)
+            {
                 asphaltRoad = ProceduralAssets.LitMaterial("Road_Asphalt", Color.white, ProceduralAssets.AsphaltTexture(false), 0.15f);
+                ProceduralAssets.AddRelief(asphaltRoad, 2.5f);
+                ProceduralAssets.AddMacroVariation(asphaltRoad, 0.17f);
+            }
             return asphaltRoad;
         }
 
@@ -541,11 +553,14 @@ namespace Jagti.EditorTools
             MarkStatic(go);
         }
 
-        // Light stone kerbs along both edges, left open where another road joins.
+        // Kerbs painted in black and white blocks along both edges (owner's photos), left open where another road joins.
         static void MakeKerbs(RoadData road, float[] points, RoadData[] allRoads, Transform parent)
         {
             if (kerbMaterial == null)
+            {
                 kerbMaterial = ProceduralAssets.LitMaterial("Road_Kerb", Color.white, ProceduralAssets.KerbTexture(), 0.1f);
+                ProceduralAssets.AddRelief(kerbMaterial, 2f, 0.6f);
+            }
             const float kerbWidth = 0.3f, kerbHeight = 0.18f;
             float top = RoadTop + RoadLift(road, allRoads);
             int count = points.Length / 2;

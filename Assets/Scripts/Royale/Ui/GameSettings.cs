@@ -5,8 +5,8 @@ namespace Jagti.Royale
 {
     /// <summary>
     /// Player settings kept in PlayerPrefs: mouse sensitivity, field of view, volume, HUD scale,
-    /// crosshair colour, damage numbers, minimap size, the frame-time readout and the graphics tier
-    /// (kept by VisualQuality, which applies it itself). The menus change
+    /// crosshair colour, damage numbers, minimap size, the frame-time readout, the graphics tier
+    /// (kept by VisualQuality, which applies it itself) and the time of day (kept by DayCycle). The menus change
     /// them through the setters, which save at once and bump Version; RoyaleHud applies them to the
     /// walker, the camera and the audio listener whenever Version moves.
     /// </summary>
@@ -99,6 +99,15 @@ namespace Jagti.Royale
         {
             get { return (int)VisualQuality.Current; }
             set { value = Mathf.Clamp(value, 0, 2); if (value == (int)VisualQuality.Current) return; VisualQuality.Current = (VisualQuality.Level)value; Changed(); }
+        }
+
+        public static readonly string[] TimeOfDayNames = DayCycle.Names;
+
+        /// <summary>Time of day: 0 Afternoon, 1 Sunset, 2 Night, 3 Sunset to night (kept by DayCycle).</summary>
+        public static int TimeOfDay
+        {
+            get { return (int)DayCycle.Current; }
+            set { value = Mathf.Clamp(value, 0, DayCycle.Names.Length - 1); if (value == (int)DayCycle.Current) return; DayCycle.Current = (DayCycle.Mood)value; Changed(); }
         }
 
         public static bool BigMinimap
