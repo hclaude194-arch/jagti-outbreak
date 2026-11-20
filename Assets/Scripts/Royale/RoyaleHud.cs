@@ -40,6 +40,10 @@ namespace Jagti.Royale
         bool fullMap;
         bool paused;
         bool results;
+        bool spectating;            // following someone after the player is out (SpectatorCam)
+        bool focused = true;        // the game window has the keyboard
+        int hazeTick = -1;          // last whole second ticked in the haze countdown
+        float pingTime = -10f;      // a marker was just dropped where the player looked
         float fps, fpsAcc;
         int fpsFrames;
         float damageFlash;
@@ -143,6 +147,7 @@ namespace Jagti.Royale
         public void ShowResults()
         {
             results = true;
+            spectating = false;
             paused = false;
             fullMap = false;
             GameState.MapOpen = false;
@@ -165,6 +170,12 @@ namespace Jagti.Royale
             if (Input.GetKeyDown(KeyCode.F3)) GameSettings.ShowFps = !GameSettings.ShowFps;
             if (director != null && !director.Begun) return;   // the front menu is up
 
+            if (spectating)
+            {
+                // Enter or Esc goes back to the results; the spectator camera reads the mouse itself.
+                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Escape)) SetSpectating(false);
+                return;
+            }
             if (results)
             {
                 // Online the host's Enter would end the match for everyone still playing; only when it's over.
@@ -174,6 +185,10 @@ namespace Jagti.Royale
             }
             if (Input.GetKeyDown(KeyCode.M)) SetMap(!fullMap);
             TrackArea();
+            HazeCountdown();
+            if (!paused && !fullMap && player != null && player.Alive && Cursor.lockState == CursorLockMode.Locked &&
+                (Input.GetKeyDown(KeyCode.T) || Input.GetMouseButtonDown(2)))
+                PingWhereLooking();
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 if (fullMap) SetMap(false);
@@ -211,10 +226,82 @@ namespace Jagti.Royale
         void ApplySettings()
         {
             appliedSettings = GameSettings.Version;
-            if (fpc != null) fpc.mouseSensitivity = GameSettings.Sensitivity;
+            if (fpc != null)
+            {
+                fpc.mouseSensitivity = GameSettings.Sensitivity;
+                fpc.invertY = GameSettings.InvertY;
+                fpc.toggleSprint = GameSettings.ToggleSprint;
+            }
             if (arsenal != null) arsenal.SetBaseFov(GameSettings.Fov);
             else if (Camera.main != null) Camera.main.fieldOfView = GameSettings.Fov;
-            AudioListener.volume = GameSettings.Volume;
+            AudioListener.volume = focused || !GameSettings.BackgroundPause ? GameSettings.Volume : 0f;
+        }
+
+        /// <summary>Clicking away from the game: open the menu (offline the match stops) and go quiet.</summary>
+        void OnApplicationFocus(bool hasFocus)
+        {
+            focused = hasFocus;
+            ApplySettings();
+            if (hasFocus || !GameSettings.BackgroundPause) return;
+            if (director == null || !director.Begun || results || spectating || paused || player == null || !player.Alive) return;
+            if (fullMap) SetMap(false);
+            SetPaused(true);
+        }
+
+        /// <summary>Drops the marker on whatever the crosshair is on (up to 800 m); doing it again on the marker clears it.</summary>
+        void PingWhereLooking()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            var ray = new Ray(cam.transform.position, cam.transform.forward);
+            var hits = Physics.RaycastAll(ray, 800f, ~0, QueryTriggerInteraction.Ignore);
+            float best = float.MaxValue;
+            Vector3 at = Vector3.zero;
+            foreach (var hit in hits)
+            {
+                if (hit.distance >= best || hit.collider.transform.IsChildOf(player.transform)) continue;
+                best = hit.distance;
+                at = hit.point;
+            }
+            if (best == float.MaxValue) return;
+            if (hasWaypoint && (waypoint - at).sqrMagnitude < 8f * 8f)
+            {
+                hasWaypoint = false;
+                SynthAudio.Play2D("clink", 0.35f);
+                return;
+            }
+            waypoint = at;
+            hasWaypoint = true;
+            pingTime = Time.time;
+            SynthAudio.Play2D("equip", 0.45f);
+        }
+
+        /// <summary>Ticks for the last five seconds before the haze moves, and a warning as it starts.</summary>
+        void HazeCountdown()
+        {
+            if (haze == null || !haze.Running || haze.RoundIndex >= haze.rounds.Length || player == null || !player.Alive)
+            {
+                hazeTick = -1;
+                return;
+            }
+            int sec = haze.Closing ? -1 : Mathf.CeilToInt(haze.TimeLeft);
+            if (sec == hazeTick) return;
+            if (sec >= 1 && sec <= 5) SynthAudio.Play2D("clink", sec <= 3 ? 0.5f : 0.35f);
+            else if (sec < 0 && hazeTick >= 0 && hazeTick <= 2) SynthAudio.Play2D("alert", 0.45f);
+            hazeTick = sec;
+        }
+
+        /// <summary>The results screen's Spectate button, and back again.</summary>
+        void SetSpectating(bool on)
+        {
+            var spec = SpectatorCam.Instance;
+            if (on && (spec == null || !SpectatorCam.AnyoneToWatch())) return;
+            spectating = on;
+            results = !on;
+            fullMap = false;
+            if (on) spec.StartSpectating();
+            else if (spec != null) spec.StopSpectating();
+            GameState.SetCursorLocked(on);
         }
 
         void SetMap(bool on)
@@ -284,7 +371,16 @@ namespace Jagti.Royale
                 HudKit.EdgeVignette(new Color(0.55f, 0f, 0f, (0.3f - player.Health.Fraction) * 2.4f * (0.75f + 0.25f * Mathf.Sin(Time.time * 7f))));
             if (arsenal != null && arsenal.Scoped) DrawScope(w, h);
 
+            if (spectating) { DrawSpectating(w, h); return; }
             if (results) { DrawResults(w, h); return; }
+            if (!player.Alive && SpectatorCam.Instance != null)
+            {
+                DrawDeathCam(w, h);
+                DrawKillFeed();
+                DrawMatchInfo(w, false);
+                if (paused) DrawPause(w, h);
+                return;
+            }
 
             bool dropping = diver != null && diver.Current != SkyDiver.State.Landed;
             DrawCompass(w);
@@ -502,6 +598,14 @@ namespace Jagti.Royale
             Vector3 sp = cam.WorldToScreenPoint(waypoint + Vector3.up * 2f);
             if (sp.z <= 0f) return;
             float x = sp.x / HudKit.S, y = (Screen.height - sp.y) / HudKit.S;
+            float pa = Time.time - pingTime;
+            if (pa < 0.7f)
+            {
+                // A ripple where the marker landed.
+                HudKit.Alpha = 1f - pa / 0.7f;
+                HudKit.Ring(x, y - 12f, 14f + pa * 70f, 2.5f, 0f, 1f, HudKit.Marker);
+                HudKit.Alpha = 1f;
+            }
             HudKit.IconAt("pin", x, y - 12f, 24f, HudKit.Marker);
             float dist = new Vector2(waypoint.x - player.transform.position.x, waypoint.z - player.transform.position.z).magnitude;
             HudKit.Label(x - 40f, y + 2f, 80f, 18f, Mathf.RoundToInt(dist) + " M", 14f, HudKit.Text, TextAnchor.MiddleCenter, true);

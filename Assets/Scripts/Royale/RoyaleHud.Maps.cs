@@ -61,11 +61,11 @@ namespace Jagti.Royale
         }
 
         /// <summary>Under the minimap: players left and eliminations, then the haze round and its timer.</summary>
-        void DrawMatchInfo(float w)
+        void DrawMatchInfo(float w, bool underMinimap = true)
         {
             if (director == null) return;
             float size = MinimapSize;
-            float x = w - M - size - 4f, y = M + size + 12f, bw = size + 8f;
+            float x = w - M - size - 4f, y = underMinimap ? M + size + 12f : M, bw = size + 8f;
             float half = (bw - 6f) / 2f;
 
             HudKit.Panel(x, y, half, 38f, HudKit.Ink, 6f);
