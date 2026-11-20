@@ -49,6 +49,13 @@ namespace Jagti.Royale
 
         // Riding: the view's offset from the vehicle's heading (mouse look), kept level.
         float rideLook, rideSetYaw, rideIdle;
+        // The chase view's own heading and height: they trail the vehicle's, so steering, leaning
+        // and bumps don't throw the camera about.
+        float rideHeading, rideHeadingVel, rideY, rideYVel;
+        /// <summary>How long the chase view takes to come round after the vehicle turns (seconds).</summary>
+        public float rideTurnLag = 0.32f;
+        /// <summary>How long it takes to follow the vehicle up and down over bumps (seconds).</summary>
+        public float rideBumpLag = 0.12f;
 
         float splashT;
         float fallFrom = float.NaN;   // height let go of a zip line at, for landing damage
@@ -330,6 +337,10 @@ namespace Jagti.Royale
             rideLook = 0f;
             rideIdle = 0f;
             rideSetYaw = transform.eulerAngles.y;
+            rideHeading = v.Heading;
+            rideHeadingVel = 0f;
+            rideY = LevelSeat(v).y;
+            rideYVel = 0f;
             if (riderHitbox != null) riderHitbox.enabled = true;
             v.Enter(me);
             ShowBody(HumanBody.Pose.Seat, 0f);
@@ -345,10 +356,20 @@ namespace Jagti.Royale
             if (Input.GetKeyDown(KeyCode.E) && Riding.CanExit) GetOff();
         }
 
+        /// <summary>The seat's position as if the vehicle stood level (no lean, no pitch).</summary>
+        static Vector3 LevelSeat(Vehicle v)
+        {
+            Vector3 local = v.transform.InverseTransformPoint(v.Seat != null ? v.Seat.position : v.transform.position);
+            return v.transform.position + Quaternion.Euler(0f, v.Heading, 0f) * local;
+        }
+
         /// <summary>
         /// After the vehicle has moved this frame: the view follows the vehicle's heading plus whatever the
         /// mouse added, stays level (no rolling with the scooter's lean or pitching on bumps) and swings
         /// back behind the vehicle a moment after the mouse is left alone. The body faces the bars.
+        /// The view's heading trails the vehicle's by a fraction of a second and its pivot is the level
+        /// seat, smoothed up and down, so steering wobbles, the scooter's lean and kerbs barely move it;
+        /// the mouse still turns it at once.
         /// </summary>
         void LateUpdate()
         {
@@ -360,13 +381,27 @@ namespace Jagti.Royale
             else rideIdle += dt;
             if (rideIdle > 1.2f && Mathf.Abs(Riding.Speed) > 2f)
                 rideLook = Mathf.MoveTowardsAngle(rideLook, 0f, (40f + Mathf.Abs(rideLook) * 2f) * dt);
-            transform.rotation = Quaternion.Euler(0f, Riding.Heading + rideLook, 0f);
+            if (dt > 0f)
+            {
+                rideHeading = Mathf.SmoothDampAngle(rideHeading, Riding.Heading, ref rideHeadingVel, rideTurnLag, 400f, dt);
+                // Never let it fall far behind in a tight spin.
+                float behind = Mathf.DeltaAngle(rideHeading, Riding.Heading);
+                if (Mathf.Abs(behind) > 50f) rideHeading = Riding.Heading - Mathf.Sign(behind) * 50f;
+            }
+            transform.rotation = Quaternion.Euler(0f, rideHeading + rideLook, 0f);
             rideSetYaw = transform.eulerAngles.y;
+            // The pivot: the level seat, with bumps smoothed (the helicopter is followed directly).
+            Vector3 seat = LevelSeat(Riding);
+            if (Riding.kind == Vehicle.Kind.Heli || dt <= 0f || Mathf.Abs(seat.y - rideY) > 3f) { rideY = seat.y; rideYVel = 0f; }
+            else rideY = Mathf.SmoothDamp(rideY, seat.y, ref rideYVel, rideBumpLag, 30f, dt);
+            transform.position = new Vector3(seat.x, rideY, seat.z);
 
             var body = diver != null ? diver.body : null;
             if (body != null)
             {
                 body.pose = HumanBody.Pose.Seat;
+                // The body sits on the real (leaning) seat, wherever the view's pivot is.
+                if (Riding.Seat != null) body.transform.position = Riding.Seat.position;
                 body.transform.rotation = Riding.transform.rotation;
                 body.handTargetL = Riding.transform.TransformPoint(Riding.handL);
                 body.handTargetR = Riding.transform.TransformPoint(Riding.handR);
@@ -418,6 +453,7 @@ namespace Jagti.Royale
             var body = diver != null ? diver.body : null;
             if (body != null)
             {
+                body.transform.localPosition = Vector3.zero;
                 body.transform.localRotation = Quaternion.identity;
                 body.pose = HumanBody.Pose.Stand;
             }

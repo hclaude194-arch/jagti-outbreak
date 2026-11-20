@@ -1202,7 +1202,7 @@ def curved_door_side(outline, k):
 
 # ------------------------------------------------------------------ tiered case rooms
 TIER_W = 1.75      # depth of one row (desk + chair)
-TIER_H = 0.22      # rise per row
+TIER_H = 0.12      # rise per row (the back row keeps 1.9 m of headroom under the 2.5 m ceiling)
 TIER_R0 = 4.2      # radius of the first row from the lecturer's spot
 
 
