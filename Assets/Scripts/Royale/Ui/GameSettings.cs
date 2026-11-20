@@ -5,7 +5,8 @@ namespace Jagti.Royale
 {
     /// <summary>
     /// Player settings kept in PlayerPrefs: mouse sensitivity, field of view, volume, HUD scale,
-    /// crosshair colour, damage numbers, minimap size, the frame-time readout, the graphics tier
+    /// crosshair colour, damage numbers, minimap size, the frame-time readout, look inversion, aim
+    /// sensitivity, hold-or-toggle aim and sprint, pausing in the background, the graphics tier
     /// (kept by VisualQuality, which applies it itself) and the time of day (kept by DayCycle). The menus change
     /// them through the setters, which save at once and bump Version; RoyaleHud applies them to the
     /// walker, the camera and the audio listener whenever Version moves.
@@ -18,6 +19,8 @@ namespace Jagti.Royale
         static float sensitivity = 2f, fov = 70f, volume = 0.85f, hudScale = 1f;
         static int crosshair;
         static bool damageNumbers = true, showFps, bigMinimap;
+        static bool invertY, toggleAim, toggleSprint, backgroundPause = true;
+        static float aimSensitivity = 1f;
 
         /// <summary>Goes up by one on every change.</summary>
         public static int Version { get; private set; }
@@ -40,6 +43,11 @@ namespace Jagti.Royale
             damageNumbers = PlayerPrefs.GetInt(Prefix + "DamageNumbers", 1) == 1;
             showFps = PlayerPrefs.GetInt(Prefix + "ShowFps", 0) == 1;
             bigMinimap = PlayerPrefs.GetInt(Prefix + "BigMinimap", 0) == 1;
+            invertY = PlayerPrefs.GetInt(Prefix + "InvertY", 0) == 1;
+            toggleAim = PlayerPrefs.GetInt(Prefix + "ToggleAim", 0) == 1;
+            toggleSprint = PlayerPrefs.GetInt(Prefix + "ToggleSprint", 0) == 1;
+            backgroundPause = PlayerPrefs.GetInt(Prefix + "BackgroundPause", 1) == 1;
+            aimSensitivity = PlayerPrefs.GetFloat(Prefix + "AimSensitivity", aimSensitivity);
         }
 
         static void Changed()
@@ -114,6 +122,59 @@ namespace Jagti.Royale
         {
             get { Load(); return bigMinimap; }
             set { Load(); if (value == bigMinimap) return; bigMinimap = value; PlayerPrefs.SetInt(Prefix + "BigMinimap", value ? 1 : 0); Changed(); }
+        }
+    
+        /// <summary>Mouse up looks down.</summary>
+        public static bool InvertY
+        {
+            get { Load(); return invertY; }
+            set { Load(); if (value == invertY) return; invertY = value; PlayerPrefs.SetInt(Prefix + "InvertY", value ? 1 : 0); Changed(); }
+        }
+
+        /// <summary>
+        /// Mouse speed while aiming, on top of the zoom: at 1 the view turns as far per inch of mouse
+        /// on screen at every zoom (the turn is scaled by the zoom), lower is slower.
+        /// </summary>
+        public static float AimSensitivity
+        {
+            get { Load(); return aimSensitivity; }
+            set { Load(); value = Mathf.Clamp(Mathf.Round(value * 20f) / 20f, 0.3f, 1.5f); if (value == aimSensitivity) return; aimSensitivity = value; PlayerPrefs.SetFloat(Prefix + "AimSensitivity", value); Changed(); }
+        }
+
+        /// <summary>Right mouse toggles aiming instead of holding it.</summary>
+        public static bool ToggleAim
+        {
+            get { Load(); return toggleAim; }
+            set { Load(); if (value == toggleAim) return; toggleAim = value; PlayerPrefs.SetInt(Prefix + "ToggleAim", value ? 1 : 0); Changed(); }
+        }
+
+        /// <summary>Shift starts a sprint that lasts until you stop moving forward.</summary>
+        public static bool ToggleSprint
+        {
+            get { Load(); return toggleSprint; }
+            set { Load(); if (value == toggleSprint) return; toggleSprint = value; PlayerPrefs.SetInt(Prefix + "ToggleSprint", value ? 1 : 0); Changed(); }
+        }
+
+        /// <summary>Clicking away from the game window opens the menu (offline, the match stops) and mutes it.</summary>
+        public static bool BackgroundPause
+        {
+            get { Load(); return backgroundPause; }
+            set { Load(); if (value == backgroundPause) return; backgroundPause = value; PlayerPrefs.SetInt(Prefix + "BackgroundPause", value ? 1 : 0); Changed(); }
+        }
+
+        /// <summary>Everything on the settings pages back to how it ships (graphics and time of day included).</summary>
+        public static void ResetDefaults()
+        {
+            Load();
+            sensitivity = 2f; fov = 70f; volume = 0.85f; hudScale = 1f; crosshair = 0;
+            damageNumbers = true; showFps = false; bigMinimap = false;
+            invertY = false; toggleAim = false; toggleSprint = false; backgroundPause = true; aimSensitivity = 1f;
+            foreach (var key in new[] { "Sensitivity", "Fov", "Volume", "HudScale", "Crosshair", "DamageNumbers", "ShowFps", "BigMinimap",
+                                        "InvertY", "ToggleAim", "ToggleSprint", "BackgroundPause", "AimSensitivity" })
+                PlayerPrefs.DeleteKey(Prefix + key);
+            Graphics = 1;
+            TimeOfDay = DayCycle.Names.Length - 1;
+            Changed();
         }
     }
 }

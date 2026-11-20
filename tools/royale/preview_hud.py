@@ -6,7 +6,8 @@ fonts from Assets/Resources/Fonts and reads the icon shapes straight from HudIco
 state shown is made up. Unity is the real check: this is for judging the look without it.
 
 Run: python tools/royale/preview_hud.py BACKGROUND.png [MAP.png]
-Writes tools/royale/preview/hud_match.png, hud_menu.png and hud_results.png.
+Writes tools/royale/preview/hud_match.png, hud_menu.png, hud_results.png, hud_deathcam.png,
+hud_spectate.png and hud_settings_game.png.
 """
 import math
 import os
@@ -467,7 +468,12 @@ def minimap(k, mapimg, place, alive, kills, haze):
     k.panel(rx + size / 2 - 11, ry - 9, 22, 18, INK_DEEP, 4)
     k.label(rx + size / 2 - 11, ry - 9, 22, 18, "N", 14, ACCENT, "C", True, False)
 
-    x, y, bw = k.W - M - size - 4, M + size + 12, size + 8
+    match_info(k, alive, kills, haze, True)
+
+
+def match_info(k, alive, kills, haze, under_minimap=True):
+    size = 232
+    x, y, bw = k.W - M - size - 4, (M + size + 12) if under_minimap else M, size + 8
     half = (bw - 6) / 2
     k.panel(x, y, half, 38, INK, 6)
     k.icon_at("person", x + 20, y + 19, 20, TEXT_DIM)
@@ -675,30 +681,44 @@ def match_shot(bg, mapimg, path):
 
 # ---------------------------------------------------------------------------- the front menu (NetLobbyMenu.cs)
 
-def settings_page(k, x, y, w):
+def settings_page(k, x, y, w, page=1):
+    """MenuPanels.Settings: tabs and reset along the top, then the game page (0) or screen and sound (1)."""
     def heading(yy, t):
         k.label(x, yy, w, 26, t, 15, ACCENT, "L", True, False)
         tw = k.text_width(t, 15, True)
         k.fill(x + tw + 12, yy + 13, w - tw - 12, 1, LINE)
     row = 44
-    heading(y, "CONTROLS"); y += 30
+    k.button(x, y, 150, 36, "GAME", "tabon" if page == 0 else "tab")
+    k.button(x + 158, y, 150, 36, "SCREEN AND SOUND", "tabon" if page == 1 else "tab")
+    k.button(x + w - 120, y, 120, 36, "RESET ALL", "quiet")
+    y += 54
+    if page == 1:
+        heading(y, "SCREEN"); y += 30
+        k.choice(x, y, w, "Graphics", ["Low", "Medium", "High"], 1); y += row
+        k.choice(x, y, w, "Time of day", ["Day", "Sunset", "Night", "Changing"], 3); y += row
+        k.slider(x, y, w, "Field of view", (70 - 50) / 40, "70°"); y += row
+        k.slider(x, y, w, "HUD size", (1 - 0.75) / 0.55, "100%"); y += row
+        k.choice(x, y, w, "Crosshair", ["White", "Green", "Yellow", "Cyan"], 0); y += row
+        k.switch(x, y, w, "Damage numbers", True); y += row
+        k.switch(x, y, w, "Large minimap", False); y += row
+        k.switch(x, y, w, "Frame time (F3)", False); y += row + 8
+        heading(y, "SOUND"); y += 30
+        k.slider(x, y, w, "Volume", 0.85, "85%"); y += row
+        k.switch(x, y, w, "Pause and mute in background", True); y += row
+        return
+    heading(y, "MOUSE"); y += 30
     k.slider(x, y, w, "Mouse sensitivity", (2 - 0.3) / 7.7, "2.0"); y += row
-    k.slider(x, y, w, "Field of view", (70 - 50) / 40, "70°"); y += row + 8
-    heading(y, "SOUND AND SCREEN"); y += 30
-    k.choice(x, y, w, "Graphics", ["Low", "Medium", "High"], 1); y += row
-    k.choice(x, y, w, "Time of day", ["Day", "Sunset", "Night", "Changing"], 3); y += row
-    k.slider(x, y, w, "Volume", 0.85, "85%"); y += row
-    k.slider(x, y, w, "HUD size", (1 - 0.75) / 0.55, "100%"); y += row
-    k.choice(x, y, w, "Crosshair", ["White", "Green", "Yellow", "Cyan"], 0); y += row
-    k.switch(x, y, w, "Damage numbers", True); y += row
-    k.switch(x, y, w, "Large minimap", False); y += row
-    k.switch(x, y, w, "Frame time (F3)", False); y += row + 8
+    k.slider(x, y, w, "Aim sensitivity", (1 - 0.3) / 1.2, "100%"); y += row
+    k.switch(x, y, w, "Invert look", False); y += row + 8
+    heading(y, "KEYS"); y += 30
+    k.switch(x, y, w, "Toggle aim (right mouse)", True); y += row
+    k.switch(x, y, w, "Toggle sprint (Shift)", False); y += row + 8
     heading(y, "BOTS"); y += 30
     k.choice(x, y, w, "Difficulty", ["Recruit", "Regular", "Veteran"], 1); y += row
     k.paragraph(x + w * 0.42, y - 4, w * 0.58, 44, "Bots aim and react like average players.", 15, TEXT_DIM)
 
 
-def menu_shot(bg, path):
+def menu_shot(bg, path, page=1):
     S = 2
     img = bg.convert("RGBA").resize((1920 * S, 1080 * S), Image.LANCZOS)
     k = Kit(img, S)
@@ -742,11 +762,11 @@ def menu_shot(bg, path):
     px = x + pw + 80
     pwid = min(640, W - px - 60)
     py = 80
-    ph = min(H - py - 120, 720)
+    ph = min(H - py - 120, 580 if page == 0 else 680)  # MenuPanels.SettingsPanelHeight
     k.panel(px, py, pwid, ph, (0.06, 0.07, 0.09, 0.9), 10)
     k.outline(px, py, pwid, ph, LINE, 1, 10)
     k.label(px + 32, py + 20, pwid - 64, 40, "SETTINGS", 30, TEXT, "L", True)
-    settings_page(k, px + 32, py + 76, pwid - 64)
+    settings_page(k, px + 32, py + 76, pwid - 64, page)
     img.resize((1920, 1080), Image.LANCZOS).convert("RGB").save(path)
 
 
@@ -790,6 +810,50 @@ def results_shot(bg, path):
     img.resize((1920, 1080), Image.LANCZOS).convert("RGB").save(path)
 
 
+# ---------------------------------------------------------------------------- after the player is out (RoyaleHud.Menus.cs)
+
+def death_shot(bg, path):
+    """DrawDeathCam about 2.5 s in: letterbox, who did it, with what, from how far."""
+    S = 2
+    img = bg.convert("RGBA").resize((1920 * S, 1080 * S), Image.LANCZOS)
+    k = Kit(img, S)
+    W, H = k.W, k.H
+    k.edge_vignette((0, 0, 0, 0.6))
+    k.fill(0, 0, W, 70, (0, 0, 0, 1))
+    k.fill(0, H - 70, W, 70, (0, 0, 0, 1))
+    kill_feed(k, [("Meera", "Tawi AR", True, "Honey", True, False, True),
+                  ("Kabir", "Banihal 12", False, "Ishaan", False, False, False)])
+    match_info(k, 11, 3, (False, 4, 6, 37, 0.6), False)
+    y = H - 250
+    k.label(0, y, W, 24, "TAKEN OUT BY", 18, DANGER, "C", True)
+    k.label(0, y + 20, W, 60, "MEERA_TAWI42", 52, TEXT, "C", True)
+    k.label(0, y + 80, W, 24, "TAWI AR   ·   38 M AWAY   ·   64 HEALTH LEFT", 17, TEXT_DIM, "C", True)
+    k.label(0, y + 112, W, 26, "PLACED #12 OF 30", 20, ACCENT, "C", True)
+    img.resize((1920, 1080), Image.LANCZOS).convert("RGB").save(path)
+
+
+def spectate_shot(bg, path):
+    """DrawSpectating: kill feed, match panel, the watched fighter's bar and the keys."""
+    S = 2
+    img = bg.convert("RGBA").resize((1920 * S, 1080 * S), Image.LANCZOS)
+    k = Kit(img, S)
+    W, H = k.W, k.H
+    kill_feed(k, [("Meera", "Tawi AR", False, "Rohan", False, False, False),
+                  ("Zoya", "Grenade", False, "Arjun", False, False, False)])
+    match_info(k, 6, 3, (True, 5, 6, 21, 0.3), False)
+    pw = 460
+    x, y = W / 2 - pw / 2, H - M - 150
+    k.panel(x, y, pw, 92, INK, 8)
+    k.label(x + 18, y + 8, 200, 20, "SPECTATING", 14, ACCENT, "L", True)
+    k.label(x + 18, y + 26, pw - 140, 36, "MEERA_TAWI42", 30, TEXT, "L", True)
+    k.icon_at("target", x + pw - 90, y + 32, 20, ACCENT)
+    k.label(x + pw - 76, y + 16, 60, 32, "5", 26, TEXT, "L", True)
+    k.bar(x + 18, y + 68, pw - 36, 10, 0.64, HEALTH, 4, 2)
+    k.bar(x + 18, y + 62, pw - 36, 4, 0.7, SHIELD, 0, 2)
+    k.hints(W / 2, H - M - 30, 26, "LMB", "Next", "RMB", "Previous", "MOUSE", "Look around", "ENTER", "Results")
+    img.resize((1920, 1080), Image.LANCZOS).convert("RGB").save(path)
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -799,4 +863,7 @@ if __name__ == "__main__":
     match_shot(bg, mapimg, os.path.join(OUT, "hud_match.png"))
     menu_shot(bg, os.path.join(OUT, "hud_menu.png"))
     results_shot(bg, os.path.join(OUT, "hud_results.png"))
+    death_shot(bg, os.path.join(OUT, "hud_deathcam.png"))
+    spectate_shot(bg, os.path.join(OUT, "hud_spectate.png"))
+    menu_shot(bg, os.path.join(OUT, "hud_settings_game.png"), 0)
     print("wrote", OUT)

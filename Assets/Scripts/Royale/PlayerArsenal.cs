@@ -54,6 +54,7 @@ namespace Jagti.Royale
         float nextShot;
         float reloadLeft, reloadTime;
         float aimBlend;
+        bool aimLatched;           // toggle aim: right mouse flips this
         float kick;
         float switchT;
         float bob;
@@ -135,10 +136,20 @@ namespace Jagti.Royale
                 Prompt = null;
                 Target = null;
                 StashTarget = null;
+                aimLatched = false;
                 SetAim(false);
                 ShowView(-1);
                 if (!combatant.Alive && diver != null && diver.body != null && diver.Current == SkyDiver.State.Landed)
-                    diver.body.gameObject.SetActive(false);
+                {
+                    // The death camera pulls out of the head, so leave the body lying where it fell.
+                    var body = diver.body;
+                    if (!body.gameObject.activeSelf)
+                    {
+                        body.gameObject.SetActive(true);
+                        body.ShowGear(combatant.loadout.vest, combatant.loadout.helmet, combatant.loadout.backpack);
+                    }
+                    if (body.pose != HumanBody.Pose.Dead) body.Die(combatant.LastHitFrom);
+                }
                 return;
             }
             var l = combatant.loadout;
@@ -155,7 +166,15 @@ namespace Jagti.Royale
             switchT -= Time.deltaTime;
 
             var gun = l.Current;
-            SetAim(locked && gun != null && Input.GetMouseButton(1) && !Reloading);
+            bool aimHeld;
+            if (GameSettings.ToggleAim)
+            {
+                if (Input.GetMouseButtonDown(1) && locked) aimLatched = !aimLatched;
+                if (gun == null) aimLatched = false;
+                aimHeld = aimLatched;
+            }
+            else aimHeld = Input.GetMouseButton(1);
+            SetAim(locked && gun != null && aimHeld && !Reloading);
 
             // Reloading.
             if (reloadLeft > 0f)
@@ -387,7 +406,11 @@ namespace Jagti.Royale
                 var g = cur;
                 float zoom = g != null ? g.AimFov : baseFov;
                 cam.fieldOfView = Mathf.Lerp(baseFov, zoom, aimBlend);
+                // Zoomed in, the same mouse movement turns the view less, so a scope doesn't swing wildly.
+                float zoomRatio = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Tan(Mathf.Max(10f, baseFov) * 0.5f * Mathf.Deg2Rad);
+                fpc.lookScale = Mathf.Lerp(1f, zoomRatio * GameSettings.AimSensitivity, aimBlend);
             }
+            else fpc.lookScale = 1f;
         }
 
         // ------------------------------------------------------------------ items
