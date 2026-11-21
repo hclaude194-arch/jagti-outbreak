@@ -267,13 +267,13 @@ namespace Jagti.Royale
             if (hasWaypoint && (waypoint - at).sqrMagnitude < 8f * 8f)
             {
                 hasWaypoint = false;
-                SynthAudio.Play2D("clink", 0.35f);
+                SynthAudio.Play2D("marker_clear", 0.5f);
                 return;
             }
             waypoint = at;
             hasWaypoint = true;
             pingTime = Time.time;
-            SynthAudio.Play2D("equip", 0.45f);
+            SynthAudio.Play2D("marker_place", 0.55f);
         }
 
         /// <summary>Ticks for the last five seconds before the haze moves, and a warning as it starts.</summary>
@@ -286,8 +286,9 @@ namespace Jagti.Royale
             }
             int sec = haze.Closing ? -1 : Mathf.CeilToInt(haze.TimeLeft);
             if (sec == hazeTick) return;
-            if (sec >= 1 && sec <= 5) SynthAudio.Play2D("clink", sec <= 3 ? 0.5f : 0.35f);
-            else if (sec < 0 && hazeTick >= 0 && hazeTick <= 2) SynthAudio.Play2D("alert", 0.45f);
+            if (sec >= 1 && sec <= 5) SynthAudio.Play2D(sec == 1 ? "countdown_last" : "countdown", sec <= 3 ? 0.6f : 0.45f);
+            // The haze's own surge plays as it moves (HazeAudio); without the sound library, an alert.
+            else if (sec < 0 && hazeTick >= 0 && hazeTick <= 2 && Jagti.Audio.SoundSystem.Instance == null) SynthAudio.Play2D("alert", 0.45f);
             hazeTick = sec;
         }
 
@@ -306,6 +307,7 @@ namespace Jagti.Royale
 
         void SetMap(bool on)
         {
+            if (on != fullMap) Jagti.Audio.SoundSystem.Play2D(on ? "map_open" : "map_close", 0.6f);
             fullMap = on;
             GameState.MapOpen = on;
             if (!paused && !results) GameState.SetCursorLocked(!on);

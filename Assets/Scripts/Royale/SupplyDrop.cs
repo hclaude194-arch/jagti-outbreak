@@ -124,7 +124,9 @@ namespace Jagti.Royale
             Landed = true;
             transform.position = landing;
             if (chute != null) Destroy(chute.gameObject);
-            Ballistics.SoundAt(landing, "land", 1f);
+            if (Jagti.Audio.SoundSystem.Play("drop_land", landing, 1f) == null && Jagti.Audio.SoundSystem.Instance == null)
+                Ballistics.SoundAt(landing, "land", 1f);
+            Jagti.Audio.SoundSystem.PlayLater("drop_flare", 0.4f, landing + Vector3.up * 0.5f, 0.9f);
             var loot = LootDirector.Instance;
             if (loot == null) return;
             var rng = new System.Random(seed);

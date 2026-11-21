@@ -682,16 +682,26 @@ def match_shot(bg, mapimg, path):
 # ---------------------------------------------------------------------------- the front menu (NetLobbyMenu.cs)
 
 def settings_page(k, x, y, w, page=1):
-    """MenuPanels.Settings: tabs and reset along the top, then the game page (0) or screen and sound (1)."""
+    """MenuPanels.Settings: tabs and reset along the top, then the game (0), screen (1) or sound (2) page."""
     def heading(yy, t):
         k.label(x, yy, w, 26, t, 15, ACCENT, "L", True, False)
         tw = k.text_width(t, 15, True)
         k.fill(x + tw + 12, yy + 13, w - tw - 12, 1, LINE)
     row = 44
-    k.button(x, y, 150, 36, "GAME", "tabon" if page == 0 else "tab")
-    k.button(x + 158, y, 150, 36, "SCREEN AND SOUND", "tabon" if page == 1 else "tab")
+    k.button(x, y, 120, 36, "GAME", "tabon" if page == 0 else "tab")
+    k.button(x + 128, y, 120, 36, "SCREEN", "tabon" if page == 1 else "tab")
+    k.button(x + 256, y, 120, 36, "SOUND", "tabon" if page == 2 else "tab")
     k.button(x + w - 120, y, 120, 36, "RESET ALL", "quiet")
     y += 54
+    if page == 2:
+        heading(y, "VOLUME"); y += 30
+        k.slider(x, y, w, "Master", 0.85, "85%"); y += row
+        for name, v in (("Music", 0.6), ("Effects", 0.9), ("Ambience", 0.8), ("Interface", 0.8), ("Announcer", 0.9)):
+            k.slider(x, y, w, name, v, "%d%%" % round(v * 100)); y += row
+        y += 8
+        heading(y, "WINDOW"); y += 30
+        k.switch(x, y, w, "Pause and mute in background", True); y += row
+        return
     if page == 1:
         heading(y, "SCREEN"); y += 30
         k.choice(x, y, w, "Graphics", ["Low", "Medium", "High"], 1); y += row
@@ -701,10 +711,7 @@ def settings_page(k, x, y, w, page=1):
         k.choice(x, y, w, "Crosshair", ["White", "Green", "Yellow", "Cyan"], 0); y += row
         k.switch(x, y, w, "Damage numbers", True); y += row
         k.switch(x, y, w, "Large minimap", False); y += row
-        k.switch(x, y, w, "Frame time (F3)", False); y += row + 8
-        heading(y, "SOUND"); y += 30
-        k.slider(x, y, w, "Volume", 0.85, "85%"); y += row
-        k.switch(x, y, w, "Pause and mute in background", True); y += row
+        k.switch(x, y, w, "Frame time (F3)", False); y += row
         return
     heading(y, "MOUSE"); y += 30
     k.slider(x, y, w, "Mouse sensitivity", (2 - 0.3) / 7.7, "2.0"); y += row
@@ -762,7 +769,7 @@ def menu_shot(bg, path, page=1):
     px = x + pw + 80
     pwid = min(640, W - px - 60)
     py = 80
-    ph = min(H - py - 120, 580 if page == 0 else 680)  # MenuPanels.SettingsPanelHeight
+    ph = min(H - py - 120, 580 if page == 0 else 560)  # MenuPanels.SettingsPanelHeight
     k.panel(px, py, pwid, ph, (0.06, 0.07, 0.09, 0.9), 10)
     k.outline(px, py, pwid, ph, LINE, 1, 10)
     k.label(px + 32, py + 20, pwid - 64, 40, "SETTINGS", 30, TEXT, "L", True)
@@ -866,4 +873,5 @@ if __name__ == "__main__":
     death_shot(bg, os.path.join(OUT, "hud_deathcam.png"))
     spectate_shot(bg, os.path.join(OUT, "hud_spectate.png"))
     menu_shot(bg, os.path.join(OUT, "hud_settings_game.png"), 0)
+    menu_shot(bg, os.path.join(OUT, "hud_settings_sound.png"), 2)
     print("wrote", OUT)

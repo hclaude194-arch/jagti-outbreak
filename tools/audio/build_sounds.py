@@ -1,0 +1,159 @@
+"""
+Builds every game sound and the music from code (no recordings; see LICENSES.md).
+
+    pip install numpy scipy          (ffmpeg with libvorbis on the PATH encodes the OGG files)
+    python tools/audio/build_sounds.py                 render what changed
+    python tools/audio/build_sounds.py --force         render everything again
+    python tools/audio/build_sounds.py --only weapons  only events whose folder starts with this
+    python tools/audio/build_sounds.py --reel          also write a listening reel to tools/audio/preview/
+    python tools/audio/build_sounds.py --list          print the event table
+
+Writes Assets/Resources/Audio/<folder>/<event>_<n>.ogg, the event table
+Assets/Resources/Audio/sound_bank.json (read by Jagti.Audio.SoundBank), the audio mixer
+Assets/Resources/Audio/JagtiMixer.mixer (mixer.py) and the ambient emitter list
+Assets/Resources/Audio/ambient_emitters.json (emitters.py, from the campus layout).
+"""
+import argparse
+import hashlib
+import inspect
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import zlib
+from concurrent.futures import ProcessPoolExecutor
+
+import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+OUT = os.path.join(ROOT, "Assets", "Resources", "Audio")
+BANK = os.path.join(OUT, "sound_bank.json")
+
+import dsp  # noqa: E402
+from bank import EVENTS  # noqa: E402
+import weapons, foley, vehicles, ambience, ui, music  # noqa: E402,F401
+
+
+def write_wav(path, x):
+    import wave
+    x = np.clip(x, -1, 1)
+    pcm = (x * 32767).astype("<i2")
+    ch = 2 if x.ndim == 2 else 1
+    with wave.open(path, "wb") as w:
+        w.setnchannels(ch)
+        w.setsampwidth(2)
+        w.setframerate(dsp.SR)
+        w.writeframes(pcm.tobytes())
+
+
+def encode(wav, ogg, quality):
+    q = max(0.0, min(10.0, quality * 10))
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav, "-c:a", "libvorbis", "-q:a", "%.1f" % q, ogg], check=True)
+
+
+def event_hash(e):
+    src = inspect.getsource(e["fn"])
+    keys = {k: v for k, v in e.items() if k != "fn"}
+    return hashlib.sha1((src + json.dumps(keys, sort_keys=True)).encode()).hexdigest()[:12]
+
+
+def files_for(e):
+    base = e["name"]
+    if e["variants"] == 1:
+        return [e["cat"] + "/" + base]
+    return ["%s/%s_%d" % (e["cat"], base, i + 1) for i in range(e["variants"])]
+
+
+def render_one(name, v):
+    e = EVENTS[name]
+    r = np.random.default_rng(zlib.crc32(name.encode()) * 97 + v * 7919)
+    try:
+        x = np.asarray(e["fn"](r, v), dtype=float)
+    except Exception as ex:
+        raise RuntimeError("%s take %d: %r" % (name, v + 1, ex)) from ex
+    if e["stereo"]:
+        x = dsp.to_stereo(x)
+    else:
+        x = dsp.to_mono(x)
+    x = np.nan_to_num(x)
+    if not e["loop"]:
+        x = dsp.fade(x, 0.0, min(0.01, len(x) / dsp.SR / 4))
+    x = dsp.loud_norm(x, e["level"], -1.0)
+    rel = files_for(e)[v]
+    path = os.path.join(OUT, rel + ".ogg")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        tmp = f.name
+    try:
+        write_wav(tmp, x)
+        encode(tmp, path, e["quality"])
+    finally:
+        os.remove(tmp)
+    return name, v, len(x) / dsp.SR
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--only", default="")
+    ap.add_argument("--reel", action="store_true")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
+    a = ap.parse_args()
+
+    old = {}
+    if os.path.exists(BANK):
+        for e in json.load(open(BANK))["events"]:
+            old[e["name"]] = e
+
+    if a.list:
+        for n, e in sorted(EVENTS.items()):
+            print("%-24s %-22s %-9s x%d" % (n, e["cat"], e["bus"], e["variants"]))
+        return
+
+    todo = []
+    for n, e in EVENTS.items():
+        if a.only and not e["cat"].startswith(a.only):
+            continue
+        h = event_hash(e)
+        e["hash"] = h
+        have = all(os.path.exists(os.path.join(OUT, f + ".ogg")) for f in files_for(e))
+        if a.force or not have or old.get(n, {}).get("hash") != h:
+            todo += [(n, v) for v in range(e["variants"])]
+    print("[audio] %d events, rendering %d takes" % (len(EVENTS), len(todo)))
+    lengths = {}
+    with ProcessPoolExecutor(max_workers=a.jobs) as pool:
+        for name, v, secs in pool.map(render_one, [t[0] for t in todo], [t[1] for t in todo], chunksize=1):
+            lengths[(name, v)] = secs
+    for n, e in EVENTS.items():
+        if "hash" not in e:
+            e["hash"] = old.get(n, {}).get("hash", event_hash(e))
+
+    table = []
+    for n in sorted(EVENTS):
+        e = EVENTS[n]
+        row = {k: v for k, v in e.items() if k not in ("fn", "cat", "quality")}
+        row["files"] = ["Audio/" + f for f in files_for(e)]
+        table.append(row)
+    json.dump({"info": "Generated by tools/audio/build_sounds.py; read by Jagti.Audio.SoundBank.", "events": table},
+              open(BANK, "w"), indent=0)
+
+    import mixer, emitters
+    mixer.write(OUT)
+    emitters.write(OUT, ROOT)
+
+    total = 0
+    for dp, dn, fn in os.walk(OUT):
+        total += sum(os.path.getsize(os.path.join(dp, f)) for f in fn if f.endswith(".ogg"))
+    print("[audio] done: %.1f MB of OGG in %s" % (total / 1e6, os.path.relpath(OUT, ROOT)))
+
+    if a.reel:
+        import reel
+        reel.write(OUT, os.path.join(HERE, "preview"))
+
+
+if __name__ == "__main__":
+    main()

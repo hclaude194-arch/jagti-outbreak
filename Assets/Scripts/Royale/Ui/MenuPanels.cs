@@ -16,11 +16,11 @@ namespace Jagti.Royale
             HudKit.Fill(x + HudKit.TextWidth(text, 15f, true) + 12f, y + 13f, w - HudKit.TextWidth(text, 15f, true) - 12f, 1f, HudKit.Line);
         }
 
-        /// <summary>Which settings page is open: 0 game (controls, aim, bots), 1 screen and sound.</summary>
+        /// <summary>Which settings page is open: 0 game (controls, aim, bots), 1 screen, 2 sound.</summary>
         public static int SettingsPage;
 
         /// <summary>The height of the panel the settings page sits in (title included), for the page now open.</summary>
-        public static float SettingsPanelHeight { get { return SettingsPage == 0 ? 580f : 680f; } }
+        public static float SettingsPanelHeight { get { return SettingsPage == 0 ? 580f : 560f; } }
 
         /// <summary>
         /// Settings, in two pages picked by tabs at the top, with a reset button; returns its height.
@@ -30,11 +30,32 @@ namespace Jagti.Royale
         {
             float y0 = y;
             const float row = 44f;
-            float tw = 150f;
+            float tw = 120f;
             if (HudKit.Button(x, y, tw, 36f, "GAME", SettingsPage == 0 ? HudKit.ButtonKind.TabOn : HudKit.ButtonKind.Tab)) SettingsPage = 0;
-            if (HudKit.Button(x + tw + 8f, y, tw, 36f, "SCREEN AND SOUND", SettingsPage == 1 ? HudKit.ButtonKind.TabOn : HudKit.ButtonKind.Tab)) SettingsPage = 1;
+            if (HudKit.Button(x + tw + 8f, y, tw, 36f, "SCREEN", SettingsPage == 1 ? HudKit.ButtonKind.TabOn : HudKit.ButtonKind.Tab)) SettingsPage = 1;
+            if (HudKit.Button(x + 2f * (tw + 8f), y, tw, 36f, "SOUND", SettingsPage == 2 ? HudKit.ButtonKind.TabOn : HudKit.ButtonKind.Tab)) SettingsPage = 2;
             if (HudKit.Button(x + w - 120f, y, 120f, 36f, "RESET ALL", HudKit.ButtonKind.Quiet)) GameSettings.ResetDefaults();
             y += 54f;
+
+            if (SettingsPage == 2)
+            {
+                Heading(x, y, w, "VOLUME");
+                y += 30f;
+                GameSettings.Volume = HudKit.Slider(3, x, y, w, "Master", GameSettings.Volume, 0f, 1f, Mathf.RoundToInt(GameSettings.Volume * 100f) + "%");
+                y += row;
+                for (int i = 0; i < GameSettings.SoundChannels.Length; i++)
+                {
+                    float v = GameSettings.Channel(i);
+                    GameSettings.SetChannel(i, HudKit.Slider(10 + i, x, y, w, GameSettings.SoundChannelNames[i], v, 0f, 1f, Mathf.RoundToInt(v * 100f) + "%"));
+                    y += row;
+                }
+                y += 8f;
+                Heading(x, y, w, "WINDOW");
+                y += 30f;
+                GameSettings.BackgroundPause = HudKit.Switch(x, y, w, "Pause and mute in background", GameSettings.BackgroundPause);
+                y += row;
+                return y - y0;
+            }
 
             if (SettingsPage == 1)
             {
@@ -55,13 +76,6 @@ namespace Jagti.Royale
                 GameSettings.BigMinimap = HudKit.Switch(x, y, w, "Large minimap", GameSettings.BigMinimap);
                 y += row;
                 GameSettings.ShowFps = HudKit.Switch(x, y, w, "Frame time (F3)", GameSettings.ShowFps);
-                y += row + 8f;
-
-                Heading(x, y, w, "SOUND");
-                y += 30f;
-                GameSettings.Volume = HudKit.Slider(3, x, y, w, "Volume", GameSettings.Volume, 0f, 1f, Mathf.RoundToInt(GameSettings.Volume * 100f) + "%");
-                y += row;
-                GameSettings.BackgroundPause = HudKit.Switch(x, y, w, "Pause and mute in background", GameSettings.BackgroundPause);
                 y += row;
                 return y - y0;
             }

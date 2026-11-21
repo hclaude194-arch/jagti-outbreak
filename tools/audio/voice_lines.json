@@ -1,0 +1,17 @@
+{
+  "provider": "Speko text-to-speech (routed to Azure, model MAI-Voice-2.1, voice en-IN-Dhruv, Indian English male), 2026-11-21",
+  "processing": "ffmpeg: high-pass 90 Hz, silence trimmed, light compression, loudness -16 LUFS, 44.1 kHz Vorbis q5",
+  "folder": "Assets/Resources/Audio/voice",
+  "lines": {
+    "bus_takeoff": "The bus is in the air. Pick your spot and jump!",
+    "haze_next": "The haze is closing in. Head for the safe zone.",
+    "haze_moving": "The haze is moving. Get inside the circle, now!",
+    "haze_final": "Final circle! This is it.",
+    "supply_drop": "Supply drop incoming. Look for the red smoke.",
+    "players_10": "Ten players left.",
+    "players_5": "Five players left.",
+    "players_2": "Two left. One more fight.",
+    "victory": "Top of the hill! You are the last one standing.",
+    "eliminated": "You're out. Better luck on the next drop."
+  }
+}

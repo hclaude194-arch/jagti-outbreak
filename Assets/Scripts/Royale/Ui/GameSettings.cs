@@ -22,6 +22,15 @@ namespace Jagti.Royale
         static bool invertY, toggleAim, toggleSprint, backgroundPause = true;
         static float aimSensitivity = 1f;
 
+        /// <summary>The sound channels with their own slider (the main Volume is the master, on the listener).</summary>
+        public static readonly Jagti.Audio.Bus[] SoundChannels =
+        {
+            Jagti.Audio.Bus.Music, Jagti.Audio.Bus.Effects, Jagti.Audio.Bus.Ambience, Jagti.Audio.Bus.Interface, Jagti.Audio.Bus.Voice,
+        };
+        public static readonly string[] SoundChannelNames = { "Music", "Effects", "Ambience", "Interface", "Announcer" };
+        static readonly float[] channelDefaults = { 0.6f, 0.9f, 0.8f, 0.8f, 0.9f };
+        static readonly float[] channels = { 0.6f, 0.9f, 0.8f, 0.8f, 0.9f };
+
         /// <summary>Goes up by one on every change.</summary>
         public static int Version { get; private set; }
 
@@ -48,6 +57,35 @@ namespace Jagti.Royale
             toggleSprint = PlayerPrefs.GetInt(Prefix + "ToggleSprint", 0) == 1;
             backgroundPause = PlayerPrefs.GetInt(Prefix + "BackgroundPause", 1) == 1;
             aimSensitivity = PlayerPrefs.GetFloat(Prefix + "AimSensitivity", aimSensitivity);
+            for (int i = 0; i < channels.Length; i++)
+                channels[i] = PlayerPrefs.GetFloat(Prefix + "Sound" + SoundChannelNames[i], channelDefaults[i]);
+            ApplySound();
+        }
+
+        /// <summary>A sound channel's slider (index into SoundChannels).</summary>
+        public static float Channel(int i)
+        {
+            Load();
+            return channels[i];
+        }
+
+        public static void SetChannel(int i, float value)
+        {
+            Load();
+            value = Mathf.Clamp01(Mathf.Round(value * 100f) / 100f);
+            if (value == channels[i]) return;
+            channels[i] = value;
+            PlayerPrefs.SetFloat(Prefix + "Sound" + SoundChannelNames[i], value);
+            ApplySound();
+            Changed();
+        }
+
+        /// <summary>Puts the channel sliders on the sound mixer (the master stays on the listener).</summary>
+        public static void ApplySound()
+        {
+            Load();
+            Jagti.Audio.AudioBuses.Set(Jagti.Audio.Bus.Master, 1f);
+            for (int i = 0; i < channels.Length; i++) Jagti.Audio.AudioBuses.Set(SoundChannels[i], channels[i]);
         }
 
         static void Changed()
@@ -172,6 +210,12 @@ namespace Jagti.Royale
             foreach (var key in new[] { "Sensitivity", "Fov", "Volume", "HudScale", "Crosshair", "DamageNumbers", "ShowFps", "BigMinimap",
                                         "InvertY", "ToggleAim", "ToggleSprint", "BackgroundPause", "AimSensitivity" })
                 PlayerPrefs.DeleteKey(Prefix + key);
+            for (int i = 0; i < channels.Length; i++)
+            {
+                channels[i] = channelDefaults[i];
+                PlayerPrefs.DeleteKey(Prefix + "Sound" + SoundChannelNames[i]);
+            }
+            ApplySound();
             Graphics = 1;
             TimeOfDay = DayCycle.Names.Length - 1;
             Changed();

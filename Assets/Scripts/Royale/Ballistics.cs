@@ -30,6 +30,7 @@ namespace Jagti.Royale
         public static System.Action<Combatant, GunItem, Vector3, List<Vector3>, int> Fired;
 
         static readonly List<Vector3> shotEnds = new List<Vector3>();
+        static bool supersonic;      // the shot being worked out is a rifle round (cracks as it passes)
         static readonly RaycastHit[] hitBuffer = new RaycastHit[24];
         static readonly Dictionary<Combatant, float> totals = new Dictionary<Combatant, float>();
         static readonly HashSet<Combatant> heads = new HashSet<Combatant>();
@@ -49,6 +50,7 @@ namespace Jagti.Royale
             bool anyHit = false;
             shotEnds.Clear();
             int worldMask = 0;
+            supersonic = GunAudio.Supersonic(def);
             for (int p = 0; p < def.pellets; p++)
             {
                 Vector3 d = Spread(dir, spreadDegrees);
@@ -77,6 +79,7 @@ namespace Jagti.Royale
                     {
                         Puff(end, d);
                         ImpactMarks.At(end, d);
+                        if (p < 3) Jagti.Audio.SoundSystem.Impact(end, d);
                         if (p < 16) worldMask |= 1 << p;
                     }
                 }
@@ -94,7 +97,7 @@ namespace Jagti.Royale
             }
 
             NoiseEvents.Emit(origin, gun.Noise);
-            if (shooter != null && !shooter.isPlayer) SoundAt(origin, gun.Suppressed ? "suppressed" : def.sound, 1f);
+            if (shooter != null && !shooter.isPlayer) GunAudio.Shot(def, gun.Suppressed, origin, false);
             if (Fired != null && shooter != null && shooter.owned) Fired(shooter, gun, origin, shotEnds, worldMask);
             return anyHit;
         }
@@ -108,6 +111,7 @@ namespace Jagti.Royale
         {
             if (gunId < 0 || gunId >= RoyaleItems.Guns.Length) return;
             var def = RoyaleItems.Guns[gunId];
+            supersonic = GunAudio.Supersonic(def);
             for (int p = 0; p < ends.Count; p++)
             {
                 Vector3 d = ends[p] - origin;
@@ -117,12 +121,13 @@ namespace Jagti.Royale
                 {
                     Puff(ends[p], dir);
                     ImpactMarks.At(ends[p], dir);
+                    if (p < 3) Jagti.Audio.SoundSystem.Impact(ends[p], dir);
                 }
                 if ((p == 0 || p % 3 == 0) && !(suppressed && Random.value < 0.7f)) Tracer(origin + dir * 0.6f, ends[p]);
                 NearMiss(shooter, origin, ends[p]);
             }
             NoiseEvents.Emit(origin, suppressed ? def.noise * 0.35f : def.noise);
-            SoundAt(origin, suppressed ? "suppressed" : def.sound, 1f);
+            GunAudio.Shot(def, suppressed, origin, false);
         }
 
         static Vector3 Spread(Vector3 dir, float degrees)
@@ -225,7 +230,12 @@ namespace Jagti.Royale
             if (d < 2.5f && d > 0.3f)
             {
                 PlayerNearMiss(a);
-                SynthAudio.Play2D("whiz", Mathf.Lerp(0.6f, 0.15f, d / 2.5f));
+                // Rifle rounds crack past (supersonic); pistol and buckshot whizz.
+                string pass = supersonic ? "crack" : "whiz";
+                if (Jagti.Audio.SoundSystem.Instance != null && Jagti.Audio.SoundBank.Has(pass))
+                    Jagti.Audio.SoundSystem.Play2D(pass, Mathf.Lerp(1f, 0.35f, d / 2.5f), Random.Range(0.92f, 1.08f));
+                else SynthAudio.Play2D("whiz", Mathf.Lerp(0.6f, 0.15f, d / 2.5f));
+                Jagti.Audio.SoundSystem.AddHeat(0.3f);
             }
         }
 
@@ -337,6 +347,12 @@ namespace Jagti.Royale
         /// <summary>A positional one-shot from a small pool of 3D voices (gunshots of other players, explosions).</summary>
         public static void SoundAt(Vector3 at, string clip, float volume)
         {
+            // The sound bank's version when there is one (distance, walls, delay, the distant take).
+            if (Jagti.Audio.SoundSystem.Instance != null && Jagti.Audio.SoundBank.Has(clip))
+            {
+                Jagti.Audio.SoundSystem.Play(clip, at, volume);
+                return;
+            }
             var cam = Camera.main;
             if (cam != null && (cam.transform.position - at).sqrMagnitude > 700f * 700f) return;
             AudioSource src;

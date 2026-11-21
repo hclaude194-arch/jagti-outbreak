@@ -59,7 +59,11 @@ namespace Jagti.Royale
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.sortMode = ParticleSystemSortMode.Distance;
             ps.Play();
+            hiss = Jagti.Audio.SoundLoop.Create(gameObject, "smoke_hiss");
+            if (hiss != null) hiss.VolumeEase = 0.5f;
         }
+
+        Jagti.Audio.SoundLoop hiss;
 
         void Update()
         {
@@ -67,6 +71,8 @@ namespace Jagti.Royale
             float grow = Mathf.Clamp01(t / 3f);
             float fade = Mathf.Clamp01((life - t) / 4f);
             Radius = maxRadius * Mathf.Sqrt(grow) * fade;
+            // The canister hisses hard at first, then dies away as the cloud stops growing.
+            if (hiss != null) hiss.Volume = t < 0.3f ? 1f : Mathf.Clamp01(1f - (t - 2f) / 10f);
             if (ps != null)
             {
                 var shape = ps.shape;

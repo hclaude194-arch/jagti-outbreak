@@ -223,8 +223,11 @@ namespace Jagti.World
             if (dir.sqrMagnitude < 1e-4f) dir = -n;
             Vector3 u = wu[index];
             Shards(centre, u, Vector3.Cross(n, u), ws[index].x, ws[index].y, dir.normalized);
-            var clip = SynthAudio.Get("glass_break");
-            if (clip != null) AudioSource.PlayClipAtPoint(clip, centre, 0.9f);
+            if (Jagti.Audio.SoundSystem.Play("glass_break", centre, 0.9f) == null && Jagti.Audio.SoundSystem.Instance == null)
+            {
+                var clip = SynthAudio.Get("glass_break");
+                if (clip != null) AudioSource.PlayClipAtPoint(clip, centre, 0.9f);
+            }
             NoiseEvents.Emit(centre, 40f);
         }
 

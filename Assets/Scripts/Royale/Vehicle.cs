@@ -51,6 +51,8 @@ namespace Jagti.Royale
         public float Boost { get; private set; }
         public bool Boosting { get; private set; }
         public float Speed { get; private set; }
+        /// <summary>The driver's throttle this frame (-1 reverse .. 1 full), for the engine sound.</summary>
+        public float Throttle { get; private set; }
         public bool Wrecked { get; private set; }
         public Combatant Driver { get; private set; }
         public string DisplayName
@@ -92,7 +94,6 @@ namespace Jagti.Royale
         // Helicopter state.
         Vector3 vel;
         float spool, groundBelow, ceiling;
-        AudioSource engine;
         BoxCollider box;
         NavMeshObstacle obstacle;
         readonly RaycastHit[] hits = new RaycastHit[16];
@@ -155,15 +156,8 @@ namespace Jagti.Royale
             seat.localPosition = seatLocal - new Vector3(0f, 0.8f, 0f);
             Seat = seat;
 
-            engine = gameObject.AddComponent<AudioSource>();
-            engine.clip = SynthAudio.Get(kind == Kind.Scooter ? "engine_scooter" : kind == Kind.Auto ? "engine_auto" : kind == Kind.Jeep ? "engine_jeep" : kind == Kind.Heli ? "rotor" : "engine_cart");
-            engine.loop = true;
-            engine.spatialBlend = 1f;
-            engine.minDistance = kind == Kind.Heli ? 10f : 4f;
-            engine.maxDistance = kind == Kind.Heli ? 260f : 90f;
-            engine.rolloffMode = AudioRolloffMode.Linear;
-            engine.volume = 0f;
-            engine.playOnAwake = false;
+            // Engine, tyres, rotor: VehicleAudio (the sound bank's layered loops).
+            gameObject.AddComponent<VehicleAudio>().vehicle = this;
             heading = transform.eulerAngles.y;
             SettleOnGround();
             // The helicopter's ceiling: well above the highest roofs, below the sky bus.
@@ -178,8 +172,6 @@ namespace Jagti.Royale
         {
             Driver = who;
             obstacle.enabled = false;
-            engine.Play();
-            Ballistics.SoundAt(transform.position, "equip", 0.6f);
         }
 
         public void Exit()
@@ -221,7 +213,6 @@ namespace Jagti.Royale
             Wrecked = true;
             Health = 0f;
             Speed = 0f;
-            engine.Stop();
             Vector3 p = transform.position + Vector3.up * 0.6f;
             Ballistics.SoundAt(p, "explosion", 1f);
             NoiseEvents.Emit(p, 160f);
@@ -307,7 +298,7 @@ namespace Jagti.Royale
                 if (Input.GetKeyDown(KeyCode.H) && hornT <= 0f)
                 {
                     hornT = 0.5f;
-                    Ballistics.SoundAt(transform.position + transform.forward * bodyHalf.z, kind == Kind.Jeep || kind == Kind.Cart ? "horn_low" : "horn_high", 1f);
+                    Ballistics.SoundAt(transform.position + transform.forward * bodyHalf.z, kind == Kind.Jeep || kind == Kind.Cart ? "horn_low" : kind == Kind.Auto ? "horn_bulb" : "horn_high", 1f);
                     NoiseEvents.Emit(transform.position, 120f);
                 }
             }
@@ -320,14 +311,13 @@ namespace Jagti.Royale
                 if (Boost <= 0f) boostLocked = true;
             }
             else Boost = Mathf.Min(1f, Boost + dt / 9f);
-            if (Driver == null && Mathf.Abs(Speed) < 0.05f && !airborne) { engine.volume = 0f; return; }
+            Throttle = throttle;
+            if (Driver == null && Mathf.Abs(Speed) < 0.05f && !airborne) return;
             if (Driver != null && !Driver.Alive) Exit();
             Drive(throttle, steerIn, brake, dt);
 
             // Engine note and the noise bots hear.
             float s = Mathf.Abs(Speed) / maxSpeed;
-            engine.pitch = 0.75f + s * 1.1f + Mathf.Abs(throttle) * 0.1f + (Boosting ? 0.15f : 0f);
-            engine.volume = Driver != null ? 0.35f + s * 0.45f : Mathf.MoveTowards(engine.volume, 0f, dt);
             noiseT -= dt;
             if (Driver != null && noiseT <= 0f)
             {
@@ -468,13 +458,9 @@ namespace Jagti.Royale
             }
             else Boost = Mathf.Min(1f, Boost + dt / 8f);
             // Parked with the rotor stopped: nothing to do.
-            if (Driver == null && spool <= 0f && Altitude <= 0.01f) { engine.volume = 0f; return; }
+            if (Driver == null && spool <= 0f && Altitude <= 0.01f) return;
             Fly(fwd, turn, climb, dt);
 
-            engine.pitch = 0.55f + spool * 0.5f + (Boosting ? 0.12f : 0f) + Mathf.Abs(climb) * 0.04f;
-            engine.volume = spool * 0.85f;
-            if (spool > 0.02f && !engine.isPlaying) engine.Play();
-            if (spool <= 0f && engine.isPlaying) engine.Stop();
             noiseT -= dt;
             if (spool > 0.2f && noiseT <= 0f)
             {

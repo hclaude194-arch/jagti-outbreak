@@ -147,9 +147,13 @@ namespace Jagti.Royale
                     float wx = mapWorld.x + u * mapWorld.width, wz = mapWorld.y + v * mapWorld.height;
                     waypoint = new Vector3(wx, HazeZone.GroundY(wx, wz), wz);
                     hasWaypoint = true;
-                    SynthAudio.Play2D("equip", 0.4f);
+                    SynthAudio.Play2D("marker_place", 0.5f);
                 }
-                else hasWaypoint = false;
+                else
+                {
+                    if (hasWaypoint) SynthAudio.Play2D("marker_clear", 0.45f);
+                    hasWaypoint = false;
+                }
                 ev.Use();
             }
 

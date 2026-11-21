@@ -44,6 +44,7 @@ namespace Jagti.Royale
             roar.maxDistance = 1500f;
             roar.rolloffMode = AudioRolloffMode.Linear;
             roar.dopplerLevel = 0f;
+            Jagti.Audio.AudioBuses.Route(roar, Jagti.Audio.Bus.Vehicles);
             gameObject.SetActive(false);
         }
 
@@ -57,8 +58,9 @@ namespace Jagti.Royale
             a.maxDistance = 1500f;
             a.rolloffMode = AudioRolloffMode.Linear;
             a.dopplerLevel = 0f;
-            a.volume = volume;
+            a.volume = volume * Jagti.Audio.AudioBuses.Gain(Jagti.Audio.Bus.Vehicles);
             a.pitch = pitch;
+            Jagti.Audio.AudioBuses.Route(a, Jagti.Audio.Bus.Vehicles);
             return a;
         }
 
@@ -143,7 +145,9 @@ namespace Jagti.Royale
             {
                 burnLeft = Random.Range(1.2f, 2.2f);
                 nextBurn = burnLeft + Random.Range(3f, 7f);
-                if (roar != null) roar.PlayOneShot(SynthAudio.Get("burner"), 0.9f);
+                if (roar != null) roar.PlayOneShot(SynthAudio.Get("burner"), 0.9f * Jagti.Audio.AudioBuses.Gain(Jagti.Audio.Bus.Vehicles));
+                // The basket and ropes groan now and then under the load.
+                if (Random.value < 0.45f) Jagti.Audio.SoundSystem.PlayOn("balloon_creak", transform, 0.8f, Random.Range(0.9f, 1.1f));
             }
             bool on = burnLeft > 0f;
             burnLeft -= dt;

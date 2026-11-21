@@ -470,6 +470,7 @@ namespace Jagti.Royale
             bool hover = enabled && new Rect(x, y, w, h).Contains(Mouse);
             if (Repaint)
             {
+                if (hover) HoverTick(text, x, y);
                 float a = enabled ? 1f : 0.45f;
                 Color back, edge, text1;
                 switch (kind)
@@ -515,10 +516,25 @@ namespace Jagti.Royale
             if (enabled && ev.type == EventType.MouseDown && ev.button == 0 && hover)
             {
                 ev.Use();
-                SynthAudio.Play2D("equip", 0.35f);
+                bool tab = kind == ButtonKind.Tab || kind == ButtonKind.TabOn;
+                SynthAudio.Play2D(tab ? "ui_tab" : kind == ButtonKind.Primary ? "ui_start" : kind == ButtonKind.Quiet ? "ui_back" : "ui_click", 0.6f);
                 return true;
             }
             return false;
+        }
+
+        static int hoverKey, hoverFrame = -10;
+
+        /// <summary>A soft tick when the mouse moves onto a button (not again while it stays there).</summary>
+        static void HoverTick(string text, float x, float y)
+        {
+            int key = (text ?? "").GetHashCode() ^ Mathf.RoundToInt(x) * 73856093 ^ Mathf.RoundToInt(y) * 19349663;
+            if (key != hoverKey || Time.frameCount - hoverFrame > 2)
+            {
+                if (Jagti.Audio.SoundSystem.Instance != null) Jagti.Audio.SoundSystem.Play2D("ui_hover", 0.35f);
+            }
+            hoverKey = key;
+            hoverFrame = Time.frameCount;
         }
 
         /// <summary>A labelled slider; id must be unique among the sliders on screen.</summary>
@@ -540,7 +556,10 @@ namespace Jagti.Royale
             {
                 if (ev.type == EventType.MouseDown || ev.type == EventType.MouseDrag)
                 {
+                    float before = Mathf.InverseLerp(min, max, value);
                     value = Mathf.Lerp(min, max, Mathf.Clamp01((Mouse.x - tx) / tw));
+                    if (Mathf.FloorToInt(before * 20f) != Mathf.FloorToInt(Mathf.InverseLerp(min, max, value) * 20f) && Jagti.Audio.SoundSystem.Instance != null)
+                        Jagti.Audio.SoundSystem.Play2D("ui_slider", 0.3f, 0.8f + 0.5f * Mathf.InverseLerp(min, max, value));
                     ev.Use();
                 }
                 else if (ev.type == EventType.MouseUp || ev.rawType == EventType.MouseUp)
@@ -564,7 +583,7 @@ namespace Jagti.Royale
             if (ev.type == EventType.MouseDown && ev.button == 0 && new Rect(x, y, w, h).Contains(Mouse))
             {
                 ev.Use();
-                SynthAudio.Play2D("equip", 0.3f);
+                SynthAudio.Play2D(on ? "ui_toggle_off" : "ui_toggle_on", 0.55f);
                 return !on;
             }
             return on;
@@ -596,7 +615,7 @@ namespace Jagti.Royale
             if (hover && ev.type == EventType.MouseDown && ev.button == 0)
             {
                 ev.Use();
-                SynthAudio.Play2D("equip", 0.3f);
+                SynthAudio.Play2D(on ? "ui_deny" : "ui_click", on ? 0.25f : 0.5f);
                 return true;
             }
             return false;
