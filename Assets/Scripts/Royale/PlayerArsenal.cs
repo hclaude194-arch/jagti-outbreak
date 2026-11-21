@@ -264,10 +264,12 @@ namespace Jagti.Royale
             var l = combatant.loadout;
             if (slot < 0 || slot >= Loadout.Slots || l.guns[slot] == null || slot == l.selected) return;
             l.selected = slot;
+            if (reloadLeft > 0f) Jagti.Audio.SoundSystem.CancelLater(GetInstanceID());
             reloadLeft = 0f;
             switchT = 0.35f;
             combatant.CancelHeal();
-            SynthAudio.Play2D("equip", 0.5f);
+            SynthAudio.Play2D("holster", 0.45f);
+            Jagti.Audio.SoundSystem.PlayLater("equip", 0.14f, null, 0.55f);
         }
 
         void Cycle(int dir)
@@ -291,7 +293,7 @@ namespace Jagti.Royale
                 return;
             }
             reloadTime = reloadLeft = gun.def.reloadTime;
-            SynthAudio.Play2D("reload", 0.7f);
+            GunAudio.Reload(gun.def, reloadTime, gun.Magazine - gun.loaded, null, GetInstanceID(), 0.85f);
         }
 
         void Fire(GunItem gun)
@@ -335,8 +337,7 @@ namespace Jagti.Royale
             float side = up * def.recoilSide * (wander + def.recoilBias);
             fpc.AddRecoil(up, side);
             fpc.Shake(def.gunClass == GunClass.Shotgun ? 0.35f : def.bolt ? 0.3f : 0.12f);
-            bool loud = def.gunClass == GunClass.Marksman || def.gunClass == GunClass.Shotgun;
-            SynthAudio.Play2D(gun.Suppressed ? "suppressed" : def.sound, loud ? 1f : 0.8f);
+            GunAudio.Shot(def, gun.Suppressed, eye.position, true);
             if (def.bolt) Invoke("BoltSound", 0.45f);
             if (flash != null && !gun.Suppressed)
             {
@@ -395,6 +396,7 @@ namespace Jagti.Royale
 
         void SetAim(bool on)
         {
+            if (on != Aiming && combatant.loadout.Current != null) SynthAudio.Play2D(on ? "aim_in" : "aim_out", 0.5f);
             Aiming = on;
             float target = on ? 1f : 0f;
             var cur = combatant.loadout.Current;
@@ -423,8 +425,7 @@ namespace Jagti.Royale
             if (combatant.IsHealing) { Say("Already healing"); return; }
             if (bandage ? combatant.StartHeal(ItemKind.Bandage) : combatant.StartHeal(ItemKind.Medkit))
             {
-                SynthAudio.Play2D("bandage", 0.6f);
-                return;
+                return;   // the sound is Combatant.StartHeal's
             }
             if (h.current >= h.max - 1f) Say("Health is full");
             else if (l.bandages == 0 && l.medkits == 0) Say("No bandages or medkits");
@@ -440,8 +441,9 @@ namespace Jagti.Royale
             if (smoke) l.smokes--; else l.grenades--;
             Transform eye = fpc.cameraPivot;
             Vector3 from = InThirdPerson ? fpc.HeadPosition + eye.forward * 0.5f : eye.position + eye.forward * 0.6f;
+            SynthAudio.Play2D("pin_pull", 0.6f);
             Grenade.Launch(template, from, eye.forward * 17f + Vector3.up * 3.5f, combatant);
-            SynthAudio.Play2D("swing", 0.5f);
+            SynthAudio.Play2D("throw", 0.6f);
         }
 
         void DropCurrent()
@@ -536,7 +538,22 @@ namespace Jagti.Royale
             if (oldLevel > 0) loot.DropReplaced(transform.position, d.kind, oldLevel);
             if (d.kind == ItemKind.Gun) switchT = 0.35f;
             Say("+ " + label);
-            SynthAudio.Play2D(d.kind == ItemKind.Gun ? "equip" : "pickup", 0.5f);
+            SynthAudio.Play2D(PickupSound(d.kind), 0.6f);
+        }
+
+        static string PickupSound(ItemKind kind)
+        {
+            switch (kind)
+            {
+                case ItemKind.Gun: return "pickup_gun";
+                case ItemKind.Ammo: return "pickup_ammo";
+                case ItemKind.Vest: return "pickup_armour";
+                case ItemKind.Helmet: return "pickup_helmet";
+                case ItemKind.Backpack: return "pickup_pack";
+                case ItemKind.Bandage: case ItemKind.Medkit: case ItemKind.ChaiFlask: return "pickup_heal";
+                case ItemKind.Grenade: case ItemKind.Smoke: return "pickup_grenade";
+                default: return "pickup";
+            }
         }
 
         void AutoPickup()

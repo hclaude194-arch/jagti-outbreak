@@ -34,3 +34,5 @@ Assets/Models/Buildings/*.fbx -filter -diff -merge binary
 Assets/Models/Props/*.fbx -filter -diff -merge binary
 # The two small HUD fonts stay in plain Git too.
 Assets/Resources/Fonts/*.ttf -filter -diff -merge binary
+# The sound library (tools/audio/build_sounds.py) and the announcer lines stay in plain Git too.
+Assets/Resources/Audio/**/*.ogg -filter -diff -merge binary

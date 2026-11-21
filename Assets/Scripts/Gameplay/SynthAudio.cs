@@ -13,8 +13,28 @@ namespace Jagti.Gameplay
         static readonly Dictionary<string, AudioClip> cache = new Dictionary<string, AudioClip>();
         static AudioSource source2D;
 
+        /// <summary>
+        /// The recorded sound library (Assets/Resources/Audio, tools/audio) replaces these placeholders
+        /// wherever it has the same sound: names that differ are mapped here.
+        /// </summary>
+        static string BankName(string name, bool flat)
+        {
+            switch (name)
+            {
+                case "empty": return "dry_fire";
+                case "hit_flesh": return flat ? "hit_flesh_ui" : "hit_flesh";
+                default: return name;
+            }
+        }
+
         public static AudioClip Get(string name)
         {
+            var def = Jagti.Audio.SoundBank.Find(BankName(name, false));
+            if (def != null)
+            {
+                var banked = Jagti.Audio.SoundBank.First(def);
+                if (banked != null) return banked;
+            }
             AudioClip clip;
             if (cache.TryGetValue(name, out clip) && clip != null) return clip;
             clip = Make(name);
@@ -25,6 +45,7 @@ namespace Jagti.Gameplay
         /// <summary>Plays a non-positional sound (player's own gun, hurt, pickups).</summary>
         public static void Play2D(string name, float volume = 1f)
         {
+            if (Jagti.Audio.SoundSystem.Instance != null && Jagti.Audio.SoundSystem.Play2D(BankName(name, true), volume) != null) return;
             if (source2D == null)
             {
                 var go = new GameObject("Audio 2D");
@@ -40,6 +61,11 @@ namespace Jagti.Gameplay
         public static void Play3D(AudioSource source, string name, float volume = 1f)
         {
             if (source == null) return;
+            if (Jagti.Audio.SoundSystem.Instance != null && Jagti.Audio.SoundBank.Has(BankName(name, false)))
+            {
+                Jagti.Audio.SoundSystem.PlayOn(BankName(name, false), source.transform, volume);
+                return;
+            }
             source.pitch = Random.Range(0.9f, 1.1f);
             source.PlayOneShot(Get(name), volume);
         }

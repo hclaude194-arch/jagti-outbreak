@@ -204,6 +204,9 @@ namespace Jagti.Royale
             }
             HealingKind = kind;
             healT = 0f;
+            string sound = kind == ItemKind.Bandage ? "bandage" : kind == ItemKind.Medkit ? "medkit" : "chai";
+            if (isPlayer) Jagti.Audio.SoundSystem.Play2D(sound, 0.6f);
+            else Jagti.Audio.SoundSystem.Play(sound, transform.position + Vector3.up, 0.8f);
             return true;
         }
 
@@ -236,6 +239,7 @@ namespace Jagti.Royale
         void FinishHeal()
         {
             var h = Health;
+            if (isPlayer) Jagti.Audio.SoundSystem.Play2D("heal_done", 0.5f);
             switch (HealingKind)
             {
                 case ItemKind.Bandage:

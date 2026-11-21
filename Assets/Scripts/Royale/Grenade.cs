@@ -104,6 +104,7 @@ namespace Jagti.Royale
             Jagti.World.GlassPanes.BreakAround(p, radius * 1.2f);
             NoiseEvents.Emit(p, 140f);
             Ballistics.SoundAt(p, "explosion", 1f);
+            Jagti.Audio.SoundSystem.Deafen(p, radius);
             Blast(p);
 
             var cam = Camera.main;

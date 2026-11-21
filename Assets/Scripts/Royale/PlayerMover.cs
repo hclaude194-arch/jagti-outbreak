@@ -73,6 +73,7 @@ namespace Jagti.Royale
             zipSound.loop = true;
             zipSound.spatialBlend = 0f;
             zipSound.playOnAwake = false;
+            Jagti.Audio.AudioBuses.Route(zipSound, Jagti.Audio.Bus.World);
             if (riderHitbox != null) riderHitbox.enabled = false;
         }
 
@@ -500,7 +501,7 @@ namespace Jagti.Royale
             fpc.thirdPersonDistance = 3.6f;
             if (riderHitbox != null) riderHitbox.enabled = true;
             zipSound.Play();
-            SynthAudio.Play2D("clink", 0.6f);
+            SynthAudio.Play2D("zip_attach", 0.7f);
             ShowBody(HumanBody.Pose.Hang, 0f);
         }
 

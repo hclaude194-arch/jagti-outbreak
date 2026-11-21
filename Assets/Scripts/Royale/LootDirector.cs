@@ -128,6 +128,7 @@ namespace Jagti.Royale
             hum.rolloffMode = AudioRolloffMode.Linear;
             hum.minDistance = 1.5f;
             hum.maxDistance = 13f;
+            Jagti.Audio.AudioBuses.Route(hum, Jagti.Audio.Bus.World);
             hum.volume = 0.35f;
             hum.playOnAwake = false;
         }
@@ -296,8 +297,11 @@ namespace Jagti.Royale
             s.open = true;
             s.openedAt = Time.time;
             refreshTimer = 0f;
-            var clip = SynthAudio.Get("stash_open");
-            if (clip != null) AudioSource.PlayClipAtPoint(clip, s.position + Vector3.up * 0.4f, 0.9f);
+            if (Jagti.Audio.SoundSystem.Play("stash_open", s.position + Vector3.up * 0.4f, 0.9f) == null)
+            {
+                var clip = SynthAudio.Get("stash_open");
+                if (clip != null && Jagti.Audio.SoundSystem.Instance == null) AudioSource.PlayClipAtPoint(clip, s.position + Vector3.up * 0.4f, 0.9f);
+            }
             if (!quiet && StashOpened != null) StashOpened(s);
         }
 

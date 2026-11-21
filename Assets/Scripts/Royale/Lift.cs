@@ -105,7 +105,8 @@ namespace Jagti.Royale
             hum.loop = true;
             hum.spatialBlend = 0f;
             hum.playOnAwake = false;
-            hum.volume = 0.5f;
+            hum.volume = 0.5f * Jagti.Audio.AudioBuses.Gain(Jagti.Audio.Bus.World);
+            Jagti.Audio.AudioBuses.Route(hum, Jagti.Audio.Bus.World);
         }
 
         /// <summary>A lift whose doors are within reach of p, and whether the ride from there goes up.</summary>
@@ -151,6 +152,7 @@ namespace Jagti.Royale
             RideProgress = 0f;
             FloorLabel = up ? "G" : "R";
             SynthAudio.Play2D("lift_ding", 0.7f);
+            Jagti.Audio.SoundSystem.PlayLater("lift_door", 0.25f, null, 0.7f);
         }
 
         void LateUpdate()
@@ -235,6 +237,7 @@ namespace Jagti.Royale
                 }
                 hum.pitch = 0.8f;
                 hum.Play();
+                Jagti.Audio.SoundSystem.Play2D("lift_start", 0.6f);
             }
             if (next == Phase.Rise && car != null) car.transform.position = from;
             if (next == Phase.Return)
@@ -249,6 +252,7 @@ namespace Jagti.Royale
                 FloorLabel = up ? "R" : "G";
                 RideProgress = 1f;
                 SynthAudio.Play2D("lift_ding", 0.7f);
+                Jagti.Audio.SoundSystem.PlayLater("lift_door", 0.3f, null, 0.7f);
             }
             phase = next;
             t = 0f;
@@ -308,7 +312,7 @@ namespace Jagti.Royale
             if (hot == hotLevel || levelRenderers == null) return;
             if (hotLevel >= 0 && hotLevel < levelRenderers.Length) levelRenderers[hotLevel].sharedMaterials = new[] { glow, ghost };
             if (hot >= 0) levelRenderers[hot].sharedMaterials = new[] { glowHot, ghost };
-            if (hot >= 0) SynthAudio.Play2D("clink", 0.15f);
+            if (hot >= 0) SynthAudio.Play2D("ui_hover", 0.4f);
             hotLevel = hot;
         }
 

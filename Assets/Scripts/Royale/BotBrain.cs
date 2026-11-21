@@ -83,6 +83,7 @@ namespace Jagti.Royale
             voice.maxDistance = 60f;
             voice.rolloffMode = AudioRolloffMode.Linear;
             voice.playOnAwake = false;
+            Jagti.Audio.AudioBuses.Route(voice, Jagti.Audio.Bus.World);
             bodyBox = GetComponent<BoxCollider>();
             headBox = transform.Find("Head Hitbox");
         }
@@ -169,6 +170,7 @@ namespace Jagti.Royale
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
             if (LootDirector.Instance != null) LootDirector.Instance.DropLoadout(me.loadout, transform.position);
             SynthAudio.Play3D(voice, "death_grunt", 0.8f);
+            Jagti.Audio.SoundSystem.CancelLater(GetInstanceID());
         }
 
         void Update()
@@ -607,7 +609,7 @@ namespace Jagti.Royale
             var g = me.loadout.Current;
             if (g == null || reloadLeft > 0f || me.loadout.CountFor(g) <= 0) return;
             reloadLeft = g.def.reloadTime * Random.Range(1f, 1.3f);
-            SynthAudio.Play3D(voice, "reload", 0.5f);
+            GunAudio.Reload(g.def, reloadLeft, g.Magazine - g.loaded, transform.position + Vector3.up * 1.2f, GetInstanceID(), 0.8f);
         }
 
         void Fight(float dt)

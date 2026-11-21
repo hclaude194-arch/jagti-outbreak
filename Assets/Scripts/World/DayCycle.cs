@@ -209,6 +209,11 @@ namespace Jagti.World
             return Look.Lerp(SunsetLook(2f), NightLook(), k);
         }
 
+        /// <summary>How far into night the look is (the street lamps' level), 0 day .. 1 night; the ambience reads it.</summary>
+        public static float NightAmount { get; private set; }
+        /// <summary>The sun's height in degrees (low means evening light); the ambience reads it.</summary>
+        public static float SunElevation { get; private set; } = 50f;
+
         public Light sun;
         public Material sky;
         public Volume volume;
@@ -238,6 +243,8 @@ namespace Jagti.World
 
         void Apply(Look l)
         {
+            NightAmount = Mathf.Clamp01(l.lamps);
+            SunElevation = l.light.x;
             if (sun != null)
             {
                 sun.transform.rotation = Quaternion.Euler(l.light.x, l.light.y, 0f);

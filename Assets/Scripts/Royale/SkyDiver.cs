@@ -63,7 +63,17 @@ namespace Jagti.Royale
             wind.spatialBlend = 0f;
             wind.volume = 0f;
             wind.playOnAwake = false;
+            Jagti.Audio.AudioBuses.Route(wind, Jagti.Audio.Bus.World);
+            windGain = Jagti.Audio.AudioBuses.Gain(Jagti.Audio.Bus.World);
+            // The canopy's flutter while gliding, and the gale at the open door while aboard.
+            glide = Jagti.Audio.SoundLoop.Create(gameObject, "glide", false);
+            doorWind = Jagti.Audio.SoundLoop.Create(gameObject, "bus_door_wind", false);
+            if (glide != null) glide.VolumeEase = 1.5f;
+            if (doorWind != null) doorWind.VolumeEase = 0.8f;
         }
+
+        Jagti.Audio.SoundLoop glide, doorWind;
+        float windGain = 1f;
 
         void Start()
         {
@@ -86,6 +96,7 @@ namespace Jagti.Royale
             // Everyone rides inside the bus: no body standing in the air behind it.
             ShowBody(false, HumanBody.Pose.Stand);
             FollowBus();
+            Jagti.Audio.Announcer.Say("bus_takeoff");
         }
 
         /// <summary>
@@ -134,7 +145,10 @@ namespace Jagti.Royale
             fpc.thirdPersonDistance = 0f;
             ShowBody(false, HumanBody.Pose.Stand);
             wind.Stop();
-            SynthAudio.Play2D("land", 0.8f);
+            bool found;
+            var ground = Jagti.Audio.AcousticSpace.Under(transform.position + Vector3.up * 0.5f, out found);
+            string thud = "land_" + Jagti.Audio.AcousticSpace.SurfaceNames[(int)ground];
+            if (!found || Jagti.Audio.SoundSystem.Play2D(thud, 0.9f) == null) SynthAudio.Play2D("land", 0.8f);
             if (combatant != null) combatant.Landed = true;
         }
 
@@ -173,8 +187,10 @@ namespace Jagti.Royale
             if (Current == State.FreeFall || Current == State.Glide)
             {
                 float target = Current == State.FreeFall ? 0.55f : 0.22f;
-                wind.volume = Mathf.MoveTowards(wind.volume, target, dt);
+                wind.volume = Mathf.MoveTowards(wind.volume, target * windGain, dt);
             }
+            if (glide != null) glide.Volume = Current == State.Glide ? 0.8f : 0f;
+            if (doorWind != null) doorWind.Volume = Current == State.Aboard ? 0.5f : 0f;
         }
 
         bool live = true;

@@ -395,6 +395,7 @@ namespace Jagti.Royale
             supplyDrops.Add(at);
             Announce("Supply drop incoming. Watch for red smoke.");
             SynthAudio.Play2D("alert", 0.7f);
+            Jagti.Audio.Announcer.Say("supply_drop");
         }
 
         public void Announce(string text)
@@ -431,6 +432,13 @@ namespace Jagti.Royale
             });
             if (feed.Count > 30) feed.RemoveAt(0);
             if (killer != null && killer.isPlayer) GameState.Kills = killer.Kills;
+            if (killer != null && killer.isPlayer && killer != victim) Jagti.Audio.SoundSystem.PlayLater("feed_kill", 0.25f, null, 0.5f);
+            if (player != null && player.Alive && !victim.isPlayer)
+            {
+                if (alive == 10) Jagti.Audio.Announcer.Say("players_10");
+                else if (alive == 5) Jagti.Audio.Announcer.Say("players_5");
+                else if (alive == 2) Jagti.Audio.Announcer.Say("players_2");
+            }
 
             if (victim.isPlayer)
             {
@@ -463,8 +471,11 @@ namespace Jagti.Royale
             if (won)
             {
                 Announce("Top of the hill!");
-                SynthAudio.Play2D("victory", 0.9f);
+                // MusicDirector plays the victory sting; without the sound library, the old one.
+                if (Jagti.Audio.SoundSystem.Instance == null) SynthAudio.Play2D("victory", 0.9f);
+                Jagti.Audio.Announcer.Say("victory", true);
             }
+            else Jagti.Audio.Announcer.Say("eliminated", true);
         }
 
         void ShowResults()
