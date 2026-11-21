@@ -11,6 +11,9 @@
 // Banner flags use the same shader with _Wave on: the sail ripples along its normal, more towards
 // its free edge (uv.x runs 0 at the pole to 1 at the free edge), with no pivot needed, so static
 // batching can't break it. _Cull is Off for them, since the sail is a single sheet.
+// Leaf cards (Vegetation.cs, 2026-11-21): _Cutoff > 0 cuts the texture's alpha in every pass
+// (so shadows have leaf holes too), and _BackFlip 0 keeps a card's normal on its back face, since
+// the cards carry normals bent out from the crown's centre (the crown shades as one mass).
 // CampusTerrainBuilder only uses this shader when it compiled without errors, so a problem here
 // leaves the trees on URP/Lit (still, but drawn) rather than pink.
 Shader "Jagti/Foliage"
@@ -24,6 +27,8 @@ Shader "Jagti/Foliage"
         _Translucency ("Light through leaves", Range(0, 1)) = 0.35
         _Wave ("Flag ripple", Range(0, 2)) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
+        _Cutoff ("Alpha cutoff", Range(0, 1)) = 0
+        _BackFlip ("Flip normals on back faces", Range(0, 1)) = 1
     }
 
     SubShader
@@ -41,6 +46,8 @@ Shader "Jagti/Foliage"
             half _Translucency;
             half _Wave;
             half _Cull;
+            half _Cutoff;
+            half _BackFlip;
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);
@@ -158,8 +165,9 @@ Shader "Jagti/Foliage"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 half4 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
+                clip(albedo.a - _Cutoff);
                 half3 n = normalize(i.normalWS);
-                n = IS_FRONT_VFACE(face, true, false) ? n : -n;   // the back of a flag's sail
+                n = (IS_FRONT_VFACE(face, true, false) || _BackFlip < 0.5) ? n : -n;   // the back of a flag's sail
 
                 float4 shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 Light sun = GetMainLight(shadowCoord);
@@ -211,12 +219,14 @@ Shader "Jagti/Foliage"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
             };
 
             Varyings Vert(Attributes v)
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
+                o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
                 float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
                 float3 positionWS = FlagWave(Sway(TransformObjectToWorld(v.positionOS.xyz)), normalWS, v.uv);
                 #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
@@ -236,6 +246,7 @@ Shader "Jagti/Foliage"
 
             half4 Frag(Varyings i) : SV_Target
             {
+                clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).a * _BaseColor.a - _Cutoff);
                 return 0;
             }
             ENDHLSL
@@ -266,12 +277,14 @@ Shader "Jagti/Foliage"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
             };
 
             Varyings Vert(Attributes v)
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
+                o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
                 float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
                 o.positionCS = TransformWorldToHClip(FlagWave(Sway(TransformObjectToWorld(v.positionOS.xyz)), normalWS, v.uv));
                 return o;
@@ -279,6 +292,7 @@ Shader "Jagti/Foliage"
 
             half Frag(Varyings i) : SV_Target
             {
+                clip(SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).a * _BaseColor.a - _Cutoff);
                 return i.positionCS.z;
             }
             ENDHLSL

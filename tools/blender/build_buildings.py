@@ -20,6 +20,7 @@ corrects the turn if this ever comes out differently.
 import json
 import math
 import os
+import random
 import sys
 
 import bpy  # must come first: it makes bmesh and mathutils importable
@@ -100,6 +101,15 @@ MATERIALS = {
     "Flag_Cloth": (1.0, 1.0, (0.88, 0.70, 0.20)),
     "Shrub_Red": (0.5, 0.5, (0.48, 0.20, 0.13)),
     "Rubble_Stone": (1.5, 1.5, (0.55, 0.52, 0.46)),
+    # Leaf cards (2026-11-21): alpha-cut leaf atlases painted by Vegetation.cs in Unity
+    # (tools/blender/plants.py here); UVs come from plants.atlas_uv, so the tile size is unused.
+    "Leaf_Broad": (1.0, 1.0, (0.20, 0.34, 0.12)),
+    "Leaf_Shrub": (1.0, 1.0, (0.24, 0.37, 0.13)),
+    "Leaf_Red": (1.0, 1.0, (0.50, 0.18, 0.12)),
+    "Leaf_Flower": (1.0, 1.0, (0.39, 0.33, 0.22)),
+    "Palm_Frond": (1.0, 1.0, (0.26, 0.42, 0.16)),
+    "Leaf_Hedge": (1.0, 1.0, (0.22, 0.40, 0.14)),
+    "Leaf_Grass": (1.0, 1.0, (0.54, 0.57, 0.39)),
 }
 FACADES = {"Facade_Academic", "Facade_Hostel", "Facade_Ground", "Glass"}  # whole bays per wall
 
@@ -1121,9 +1131,14 @@ def academic_block():
     m.box(gx - 2.05, gx + 2.05, gz - 4.65, gz + 4.65, -0.3, 0.38, "Water", "Water")
     HW = 0.35   # half the hedge width
 
+    hedge_rnd = random.Random(61)
+
     def hedge(X0, X1, Z0, Z1):
+        # A dark core (the inside of the hedge) clothed in leaf cards (plants.hedge_cards).
         if X1 - X0 > 0.3 and Z1 - Z0 > 0.3:
-            m.box(X0, X1, Z0, Z1, -0.2, 0.65, "Foliage", "Foliage")
+            m.box(X0 + 0.05, X1 - 0.05, Z0 + 0.05, Z1 - 0.05, -0.2, 0.6, "Foliage", "Foliage")
+            import plants
+            plants.prop_cards(m, plants.hedge_cards(hedge_rnd, X0, X1, Z0, Z1, 0.0, 0.68), "Leaf_Hedge")
 
     def wx(mx):
         return mx - 414.0

@@ -107,6 +107,7 @@ namespace Jagti.EditorTools
 
         const float DefaultCull = 180f;
         const float FlagCull = 190f;
+        const float RetainingCull = 900f;
 
         /// <summary>Feather flags (owner's photos, 2026-11-20): the colour of each Feather_Flag_* prop's
         /// sail. The FBX gives every sail the one slot Flag_Cloth; here it gets a waving cloth
@@ -292,12 +293,22 @@ namespace Jagti.EditorTools
                         }
                     }
                     float cull;
-                    if (!CullDistance.TryGetValue(p.prop, out cull)) cull = p.prop.StartsWith("Cover_") ? CoverCull : flag ? FlagCull : DefaultCull;
+                    // The stone retaining walls along the drop by the track and the girls' hostels
+                    // (2026-11-21) are long and stepped: they get mesh colliders (a box round one
+                    // would block the low ground) and stay drawn as far as the fog lets you see.
+                    bool retaining = p.prop.StartsWith("Retaining_Wall_");
+                    if (!CullDistance.TryGetValue(p.prop, out cull))
+                        cull = retaining ? RetainingCull : p.prop.StartsWith("Cover_") ? CoverCull : flag ? FlagCull : DefaultCull;
                     foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
                     {
                         cullRenderers.Add(r);
                         cullDistances.Add(cull);
-                        if (model.solid) FitBaseCollider(r);
+                        if (retaining)
+                        {
+                            var mc = r.gameObject.AddComponent<MeshCollider>();
+                            mc.sharedMesh = r.GetComponent<MeshFilter>().sharedMesh;
+                        }
+                        else if (model.solid) FitBaseCollider(r);
                         r.shadowCastingMode = model.shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
                         GameObjectUtility.SetStaticEditorFlags(r.gameObject,
                             StaticEditorFlags.BatchingStatic | StaticEditorFlags.ContributeGI | StaticEditorFlags.OccludeeStatic);

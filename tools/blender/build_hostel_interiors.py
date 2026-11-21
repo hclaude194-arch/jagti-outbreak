@@ -269,7 +269,48 @@ def segments(band, cuts, fixed, first_min=None, last_max=None):
                 del segs[b_]
                 changed = True
                 break
-    return segs
+    return big_rooms(segs)
+
+
+ROOM_MAX = 11.0   # widest hostel room along the facade (owner 2026-11-21: few, big rooms)
+
+
+def big_rooms(segs):
+    """Joins runs of plain bays (not stairs, slots, passages or the lobby) into rooms up to
+    ROOM_MAX wide, cutting each run into equal-ish rooms at bay boundaries. The owner said the
+    buildings had far too many small rooms (2026-11-21): a hostel floor now reads as a few big
+    dorms, common rooms and washrooms off the corridor instead of a row of 3 m cells."""
+    out, run = [], []
+
+    def flush():
+        if not run:
+            return
+        total = run[-1].a1 - run[0].a0
+        n = max(1, math.ceil(total / ROOM_MAX - 1e-6))
+        edges = [s_.a1 for s_ in run[:-1]]
+        cuts = []
+        for i in range(1, n):
+            want = run[0].a0 + total * i / n
+            c = min(edges, key=lambda e: abs(e - want)) if edges else None
+            if c is not None and c not in cuts:
+                cuts.append(c)
+        cuts.sort()
+        start = run[0].a0
+        for c in cuts + [run[-1].a1]:
+            s_ = Seg(run[0].band, start, c)
+            s_.fixed = None
+            out.append(s_)
+            start = c
+        run.clear()
+
+    for s_ in segs:
+        if s_.fixed is None:
+            run.append(s_)
+        else:
+            flush()
+            out.append(s_)
+    flush()
+    return out
 
 
 def plan_wing(hostel, k, name, rect, sides, shared):
@@ -454,7 +495,7 @@ def finish_plan(P, connectors):
         cx0, cx1, cz0, cz1 = P.core
         long_x = cx1 - cx0 >= cz1 - cz0
         L = (cx1 - cx0) if long_x else (cz1 - cz0)
-        n = max(1, round(L / 6.5))
+        n = max(1, round(L / 11.0))        # few, big rooms (was one per 6.5 m)
         kinds = {1: ["washroom"], 2: ["washroom", "bath"], 3: ["washroom", "common", "bath"],
                  4: ["washroom", "pantry", "common", "bath"]}.get(n)
         if kinds is None:
@@ -533,6 +574,7 @@ class Hostel:
 
     # -------------------------------------------------------------- room kinds per floor
     def assign_rooms(self):
+        # (big rooms: one washroom with showers serves a narrow wing's floor)
         """kinds[(wing, band index, segment index)][level] and core room kinds."""
         self.kinds = {}
         for k, P in enumerate(self.plans):
@@ -550,11 +592,11 @@ class Hostel:
                                       ["washroom", "bath", "laundry", "store", "pantry"][si % 5])
                         elif s.corner or s.width > 4.6:
                             if lv == 0:
-                                ks.append(["common", "games", "reading", "double"][corner_i % 4])
+                                ks.append(["common", "games", "reading", "dorm"][corner_i % 4])
                             elif s.width > 7.6:
-                                ks.append(["study", "common", "games", "study"][(corner_i + lv) % 4])
+                                ks.append(["dorm", "dorm", "common", "dorm", "study"][(corner_i + lv) % 5])
                             else:
-                                ks.append(["double", "study", "double", "common"][(corner_i + lv) % 4])
+                                ks.append(["double", "double", "study"][(corner_i + lv) % 3])
                         else:
                             ks.append("single")
                     if s.corner or s.width > 4.6:
@@ -565,7 +607,7 @@ class Hostel:
                 for si, s in enumerate(band.segs):
                     if s.lobby:
                         for sj, kind in ((si + 1, "warden"), (si - 1, "warden")):
-                            if 0 <= sj < len(band.segs) and self.kinds[(k, bi, sj)][0] == "single":
+                            if 0 <= sj < len(band.segs) and self.kinds[(k, bi, sj)][0] in ROOMY:
                                 self.kinds[(k, bi, sj)][0] = kind
                                 break
             # Narrow wings without a core: washrooms and baths in the middle of the band away
@@ -581,8 +623,8 @@ class Hostel:
                     band = P.bands[bi]
                     mid = (band.lo + band.hi) / 2
                     order = sorted(range(len(band.segs)), key=lambda si: abs((band.segs[si].a0 + band.segs[si].a1) / 2 - mid))
-                    picked = [si for si in order if self.kinds[(k, bi, si)][lv] == "single"][:3]
-                    for si, kind in zip(sorted(picked), ("washroom", "bath", "pantry")):
+                    picked = [si for si in order if self.kinds[(k, bi, si)][lv] in ROOMY][:1]
+                    for si, kind in zip(sorted(picked), ("washroom",)):
                         self.kinds[(k, bi, si)][lv] = kind
         # Room numbers: wing letter, storey, then position.
         for k, P in enumerate(self.plans):
@@ -1322,6 +1364,42 @@ def f_lobby(R):
     room_light(R, 1.2)
 
 
+def f_dorm(R):
+    """A big shared room: cots head to the facade wall in a row (and a second row head to the
+    corridor wall in deep rooms, clear of the door), almirahs between, a long table and chairs
+    down the middle."""
+    fr, hw, D = R.fr, R.hw, R.D
+    step = 1.75
+    n = max(1, int((2 * hw - 0.6) / step))
+    us = [-hw + 0.3 + step * (i + 0.5) for i in range(n)]
+    shift = (2 * hw - 0.6 - step * n) / 2
+    us = [u + shift for u in us]
+    for i, u in enumerate(us):
+        fr.put("Hostel_Bed", u, PART / 2 + 0.05, FL, "in")
+    back = D >= 5.6
+    if back:
+        for u in us:
+            if abs(u - R.door_u) > 1.4:
+                fr.put("Hostel_Bed", u, D - PART / 2 - 0.05, FL, "front")
+    else:
+        for u in us[::2]:
+            if abs(u - R.door_u) > 1.4:
+                fr.wall_item("Almirah", "back", u)
+    for side in ("left", "right"):
+        fr.wall_item("Almirah", side, D * 0.5)
+    lo, hi = 2.2, (D - 2.2 if back else D - 0.8)
+    if 2 * hw > 7.0 and hi - lo > 1.6:
+        fr.put("Table_Meeting", 0.0, (lo + hi) / 2, FL, "in")
+    fr.wall_item("Notice_Board", "left", D * 0.25)
+    curtains(R)
+    fans(R, 3.4)
+    I.ceiling_grid(R.rect, 3.2, "Tube_Light", y=CEIL)
+    room_light(R, 0.95)
+
+
+ROOMY = ("single", "double", "dorm", "common", "games", "reading", "study")
+
+
 def wet_rows(R):
     """v range for fittings along the side walls, leaving the doorway clear."""
     v_lo = 0.15 + (1.2 if R.door_wall == "front" else 0.0)
@@ -1440,12 +1518,12 @@ def f_stair(R):
     pass
 
 
-FURNISH = {"single": f_single, "double": f_double, "common": f_common, "games": f_games,
+FURNISH = {"single": f_single, "double": f_double, "dorm": f_dorm, "common": f_common, "games": f_games,
            "reading": f_reading, "study": f_reading, "warden": f_warden, "lobby": f_lobby,
            "washroom": f_washroom, "bath": f_bath, "pantry": f_pantry, "laundry": f_laundry,
            "store": f_store, "passage": f_passage, "stair": f_stair}
 
-NAMES = {"single": "Room", "double": "Double Room", "common": "Common Room", "games": "Games Room",
+NAMES = {"single": "Room", "double": "Double Room", "dorm": "Dormitory", "common": "Common Room", "games": "Games Room",
          "reading": "Reading Room", "study": "Study Room", "warden": "Warden's Office", "lobby": "Entrance Lobby",
          "washroom": "Washroom", "bath": "Bathing Area", "pantry": "Pantry", "laundry": "Laundry",
          "store": "Store", "passage": "Passage", "stair": "Stair", "slot": "Sit-out"}

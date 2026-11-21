@@ -10,7 +10,7 @@ namespace Jagti.World
     ///           thinner grass. A fallback for when Medium drops under 30 fps.
     ///   Medium: 80 % scale, half-resolution SSAO, cheap bloom, FXAA, grass to 55 m. A fallback.
     ///   High:   the default (the owner asked for quality over frame rate, 2026-11-20): full scale,
-    ///           long shadows, SMAA, a touch of lens fringe, full grass, flowers and clumps to 90 m,
+    ///           long shadows, SMAA, a touch of lens fringe, full grass, flowers and clumps to 120 m,
     ///           and trees keep their full detail further out.
     /// Tone mapping, colour grading and vignette stay on in every tier: they run in one pass that
     /// costs about the same with or without them.
@@ -115,7 +115,7 @@ namespace Jagti.World
 
             if (terrain != null)
             {
-                terrain.detailObjectDistance = low ? 30f : high ? 90f : 55f;
+                terrain.detailObjectDistance = low ? 30f : high ? 120f : 60f;
                 terrain.detailObjectDensity = low ? 0.4f : high ? 1f : 0.7f;
                 terrain.heightmapPixelError = high ? 1f : 2f;
             }

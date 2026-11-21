@@ -98,7 +98,7 @@ namespace Jagti.EditorTools
             terrain.treeDistance = 400f;
             terrain.treeBillboardDistance = 400f;
             terrain.treeMaximumFullLODCount = 2000;
-            terrain.detailObjectDistance = 90f;   // High; VisualQuality sets each tier
+            terrain.detailObjectDistance = 120f;   // High; VisualQuality sets each tier
             terrain.detailObjectDensity = 1f;
             terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.ContributeGI | StaticEditorFlags.OccludeeStatic);
@@ -296,11 +296,11 @@ namespace Jagti.EditorTools
         // them through Terrain.detailObjectDensity (VisualQuality), which each prototype obeys.
         static readonly DetailLayer[] DetailLayers =
         {
-            new DetailLayer("Lawn grass", 12f),
-            new DetailLayer("Wild grass", 8f),
-            new DetailLayer("Yellow flowers", 4f),
-            new DetailLayer("White flowers", 4f),
-            new DetailLayer("Grass clumps", 2.5f),
+            new DetailLayer("Lawn grass", 20f),
+            new DetailLayer("Wild grass", 14f),
+            new DetailLayer("Yellow flowers", 5f),
+            new DetailLayer("White flowers", 5f),
+            new DetailLayer("Grass clumps", 6f),
         };
 
         /// <summary>
@@ -312,9 +312,9 @@ namespace Jagti.EditorTools
         /// </summary>
         static DetailPrototype[] DetailPrototypes()
         {
-            var lawn = Billboard(ProceduralAssets.GrassTexture("Grass_Lawn", 34, 0.55f, 2.0f, 16f, 12, false),
+            var lawn = Billboard(ProceduralAssets.GrassTexture("Grass_Lawn", 56, 0.55f, 2.0f, 16f, 12, false),
                                  new Color(0.50f, 0.68f, 0.30f), new Color(0.70f, 0.70f, 0.40f), 0.35f, 0.65f, 0.10f, 0.25f, 0.5f);
-            var wild = Billboard(ProceduralAssets.GrassTexture("Grass_Wild", 20, 0.4f, 2.6f, 36f, 13, true),
+            var wild = Billboard(ProceduralAssets.GrassTexture("Grass_Wild", 34, 0.4f, 2.6f, 36f, 13, true),
                                  new Color(0.62f, 0.66f, 0.36f), new Color(0.86f, 0.76f, 0.50f), 0.55f, 1.1f, 0.30f, 0.75f, 0.6f);
             var yellow = Billboard(ProceduralAssets.FlowerTexture("Flowers_Yellow", new Color(1f, 0.72f, 0.12f), new Color(0.85f, 0.42f, 0.05f), 5, 14),
                                    new Color(1f, 1f, 1f), new Color(0.92f, 0.86f, 0.74f), 0.35f, 0.55f, 0.22f, 0.40f, 0.8f);

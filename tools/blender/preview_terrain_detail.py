@@ -9,7 +9,7 @@ each view twice:
   after:  the ground painted from the four terrain layers the way CampusTerrainBuilder sets them
           up (tiled layer textures, mask-map occlusion, height blending between layers) and the
           five detail layers from terrain_details.bytes (lawn grass, wild grass, yellow and white
-          flowers as camera-facing cards, mesh grass clumps), drawn to 90 m as on High.
+          flowers as camera-facing cards, mesh grass clumps), drawn to 120 m as on High.
 
 The layer textures, grass cards, flower cards and the clump mesh follow the recipes in
 Assets/Editor/ProceduralAssets.cs (GroundTexture, GrassTexture, FlowerTexture, GrassClumpPrefab)
@@ -35,7 +35,10 @@ VIEWS = {
     "boys_hill": (60, -455, 1.7, 160, -470, 10, 24),
     "academic_lawn": (40, 330, 1.7, 100, 300, 4, 24),
     "west_meadow": (-250, -62, 1.6, -150, -75, -38, 24),
+    # 2026-11-21: the bank below the retaining wall, long grass and leaf-card scrub.
+    "drop_bank": (200, -175, 1.6, 176, -200, 2.0, 24),
 }
+AFTER_ONLY = "--after-only" in sys.argv     # just the new look, saved as detail_<view>.png
 wanted = [a for a in sys.argv[1:] if a in VIEWS] or ["west_meadow", "mess_island", "boys_hill"]
 
 sys.argv = [TOUR, "--fast"]
@@ -176,15 +179,15 @@ def save_rgba(name, px):
 # CampusTerrainBuilder.DetailPrototypes / DetailLayers: card, healthy, dry, width, height,
 # noise spread, tufts per cell at full density.
 DETAILS = [
-    (grass_card("Grass_Lawn", 34, 0.55, 2.0, 16, 12, False), (0.50, 0.68, 0.30), (0.70, 0.70, 0.40),
-     (0.35, 0.65), (0.10, 0.25), 0.5, 12),
-    (grass_card("Grass_Wild", 20, 0.4, 2.6, 36, 13, True), (0.62, 0.66, 0.36), (0.86, 0.76, 0.50),
-     (0.55, 1.1), (0.30, 0.75), 0.6, 8),
+    (grass_card("Grass_Lawn", 56, 0.55, 2.0, 16, 12, False), (0.50, 0.68, 0.30), (0.70, 0.70, 0.40),
+     (0.35, 0.65), (0.10, 0.25), 0.5, 20),
+    (grass_card("Grass_Wild", 34, 0.4, 2.6, 36, 13, True), (0.62, 0.66, 0.36), (0.86, 0.76, 0.50),
+     (0.55, 1.1), (0.30, 0.75), 0.6, 14),
     (flower_card("Flowers_Yellow", (1, 0.72, 0.12), (0.85, 0.42, 0.05), 5, 14), (1, 1, 1), (0.92, 0.86, 0.74),
-     (0.35, 0.55), (0.22, 0.40), 0.8, 4),
+     (0.35, 0.55), (0.22, 0.40), 0.8, 5),
     (flower_card("Flowers_White", (0.97, 0.96, 0.92), (1, 0.82, 0.2), 6, 15), (1, 1, 1), (0.9, 0.88, 0.8),
-     (0.25, 0.4), (0.16, 0.28), 0.8, 4),
-    ("clump", (0.55, 0.68, 0.32), (0.80, 0.72, 0.46), (0.8, 1.3), (0.8, 1.3), 0.5, 2.5),
+     (0.25, 0.4), (0.16, 0.28), 0.8, 5),
+    ("clump", (0.55, 0.68, 0.32), (0.80, 0.72, 0.46), (0.8, 1.3), (0.8, 1.3), 0.5, 6),
 ]
 OLD = (grass_card("Grass_Blades", 18, 0.45, 2.5, 30, 11, False), (0.55, 0.66, 0.32), (0.78, 0.70, 0.45),
        (0.5, 1.0), (0.3, 0.7), 0.4, 7)
@@ -257,10 +260,10 @@ def card_material(name, path):
 
 
 def clump_object():
-    """ProceduralAssets.GrassClumpPrefab: 11 tapering, leaning blades, about 0.55 m tall."""
+    """ProceduralAssets.GrassClumpPrefab: 20 tapering, leaning blades, about 0.55 m tall."""
     r = random.Random(21)
     verts, faces, ts = [], [], []
-    for b in range(11):
+    for b in range(20):
         yaw = b * 2.4 + r.random() * 0.6
         height = 0.35 + 0.25 * r.random()
         lean = 0.12 + 0.22 * r.random()
@@ -493,19 +496,25 @@ for name in wanted:
     fwd = Vector((tgt.x - eye.x, tgt.y - eye.y)).normalized()
     shots = []
     print("view", name)
-    before = detail_set("Old", eye, [OLD], [old_proto], 45.0, old=True)
-    scene.render.filepath = os.path.join(OUT, "detail_%s_before.png" % name)
-    bpy.ops.render.render(write_still=True)
-    shots.append(scene.render.filepath)
-    for o in before:
-        bpy.data.objects.remove(o)
-    after = detail_set("New", eye, DETAILS, card_protos, 90.0)
+    if not AFTER_ONLY:
+        before = detail_set("Old", eye, [OLD], [old_proto], 45.0, old=True)
+        scene.render.filepath = os.path.join(OUT, "detail_%s_before.png" % name)
+        bpy.ops.render.render(write_still=True)
+        shots.append(scene.render.filepath)
+        for o in before:
+            bpy.data.objects.remove(o)
+    after = detail_set("New", eye, DETAILS, card_protos, 120.0)
     painted = painted_ground(eye, fwd)
     scene.render.filepath = os.path.join(OUT, "detail_%s_after.png" % name)
     bpy.ops.render.render(write_still=True)
     shots.append(scene.render.filepath)
     for o in after + [painted]:
         bpy.data.objects.remove(o)
+    if AFTER_ONLY:
+        out = os.path.join(OUT, "detail_%s.png" % name)
+        Image.open(shots[0]).save(out)
+        print("wrote", out)
+        continue
     a, b = Image.open(shots[0]).convert("RGB"), Image.open(shots[1]).convert("RGB")
     sheet = Image.new("RGB", (a.width + b.width + 6, a.height), (255, 255, 255))
     sheet.paste(a, (0, 0))

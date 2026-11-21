@@ -23,10 +23,14 @@ import bmesh
 import numpy as np
 from mathutils import Vector
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import plants  # noqa: E402  (leaf-card trees and leaf materials, the mirror of Vegetation.cs)
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DATA = os.path.join(ROOT, "Assets", "Data")
 OUT = os.path.join(os.path.dirname(__file__), "preview")
 FAST = "--fast" in sys.argv
+HALF = "--half" in sys.argv      # half size with enough samples to judge foliage (about a minute a view)
 
 info = json.load(open(os.path.join(DATA, "campus_terrain.json")))
 layout = json.load(open(os.path.join(DATA, "campus_layout.json")))
@@ -325,6 +329,44 @@ for a in layout["areas"]:
 # ------------------------------------------------------------------ models
 
 
+_RUBBLE = []
+
+
+def rubble_material():
+    """Random rubble stonework (Unity tiles a rubble texture): grey-brown stones of mixed tone
+    with dark mortar, from a Voronoi pattern in object space."""
+    if _RUBBLE:
+        return _RUBBLE[0]
+    m = bpy.data.materials.new("Rubble_Stone_Preview")
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    bsdf.inputs["Roughness"].default_value = 0.95
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    vor = nt.nodes.new("ShaderNodeTexVoronoi")
+    vor.feature = "DISTANCE_TO_EDGE"
+    vor.inputs["Scale"].default_value = 3.2
+    nt.links.new(tc.outputs["Object"], vor.inputs["Vector"])
+    vcol = nt.nodes.new("ShaderNodeTexVoronoi")
+    vcol.inputs["Scale"].default_value = 3.2
+    nt.links.new(tc.outputs["Object"], vcol.inputs["Vector"])
+    tone = nt.nodes.new("ShaderNodeValToRGB")
+    tone.color_ramp.elements[0].color = (0.30, 0.27, 0.22, 1)
+    tone.color_ramp.elements[1].color = (0.62, 0.58, 0.50, 1)
+    nt.links.new(vcol.outputs["Color"], tone.inputs["Fac"])
+    mortar = nt.nodes.new("ShaderNodeMath")
+    mortar.operation = "GREATER_THAN"
+    mortar.inputs[1].default_value = 0.035
+    nt.links.new(vor.outputs["Distance"], mortar.inputs[0])
+    mix = nt.nodes.new("ShaderNodeMixRGB")
+    mix.inputs[1].default_value = (0.16, 0.15, 0.13, 1)
+    nt.links.new(mortar.outputs[0], mix.inputs[0])
+    nt.links.new(tone.outputs["Color"], mix.inputs[2])
+    nt.links.new(mix.outputs[0], bsdf.inputs["Base Color"])
+    _RUBBLE.append(m)
+    return m
+
+
 def import_fbx(path):
     """Imports an FBX and joins it into one object at the origin (Blender local axes as exported)."""
     before = set(bpy.data.objects)
@@ -344,6 +386,13 @@ def import_fbx(path):
         bpy.ops.object.join()
     ob = bpy.context.view_layer.objects.active
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    # Leaf-card slots get the alpha-cut leaf atlases (BuildingMaterials does the same in Unity).
+    for i, m in enumerate(ob.data.materials):
+        base = m.name.split(".")[0] if m else ""
+        if base in plants.LEAF_SLOTS:
+            ob.data.materials[i] = plants.leaf_material(base, plants.LEAF_SLOTS[base])
+        elif base == "Rubble_Stone":
+            ob.data.materials[i] = rubble_material()
     for m in ob.data.materials:
         if m and m.node_tree and "Principled BSDF" in m.node_tree.nodes:
             p = m.node_tree.nodes["Principled BSDF"]
@@ -408,39 +457,9 @@ print("cover", place_props(os.path.join(DATA, "cover_props.json")))
 
 
 def tree_proto(kind):
-    bark = material("Bark", (0.22, 0.16, 0.11))
-    leaf = material("Leaf%d" % kind, [(0.13, 0.25, 0.08), (0.10, 0.20, 0.09), (0.16, 0.26, 0.10), (0.20, 0.30, 0.10)][kind])
-    bm = bmesh.new()
-    M = __import__("mathutils").Matrix
-    if kind in (1, 2):   # eucalyptus and chir pine (as ProceduralAssets.cs): tall trunk, crown high up
-        h = 12.0 if kind == 1 else 11.5
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=0.24, radius2=0.08, depth=h,
-                              matrix=M.Translation((0, 0, h / 2)))
-        clumps = ([(0, 0, 11.5, 1.9, 2.8), (0.8, -0.4, 9.2, 1.4, 1.6), (-0.7, 0.6, 8.4, 1.1, 1.3)] if kind == 1 else
-                  [(0, 0, 11.2, 1.7, 1.0), (1.3, 0.4, 9.6, 1.4, 0.75), (-1.1, -0.6, 8.8, 1.4, 0.7), (0.3, 1.2, 7.6, 1.1, 0.6)])
-        for dx, dy, dz, r, rz in clumps:
-            bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.0,
-                                       matrix=M.Translation((dx, dy, dz)) @ M.Diagonal((r, r, rz, 1.0)))
-    elif kind == 3:      # shrubs
-        bmesh.ops.create_icosphere(bm, subdivisions=1, radius=1.2,
-                                   matrix=__import__("mathutils").Matrix.Translation((0, 0, 0.8)))
-    else:                # broadleaf: trunk and a lumpy crown
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=0.3, radius2=0.2, depth=4,
-                              matrix=__import__("mathutils").Matrix.Translation((0, 0, 2)))
-        for (dx, dy, dz, r) in [(0, 0, 5.6, 2.6), (1.4, 0.5, 5.0, 1.8), (-1.2, -0.8, 5.2, 1.9), (0.3, -1.3, 6.4, 1.7)]:
-            bmesh.ops.create_icosphere(bm, subdivisions=2, radius=r,
-                                       matrix=__import__("mathutils").Matrix.Translation((dx, dy, dz)))
-    me = bpy.data.meshes.new("Tree%d" % kind)
-    bm.to_mesh(me)
-    me.materials.append(bark)
-    me.materials.append(leaf)
-    # Faces above the trunk get the leaf material.
-    for p in me.polygons:
-        if p.center.z > ({1: 6.5, 2: 6.5}.get(kind, 3.0) if kind != 3 else -1):
-            p.material_index = 1
-        p.use_smooth = True
-    ob = bpy.data.objects.new("TreeProto%d" % kind, me)
-    link(ob)
+    """The game's tree, bush or grass clump of this kind (plants.py mirrors Vegetation.cs:
+    leaf cards on branches, not blobs), hidden and used as an instance."""
+    ob = plants.plant_object(kind, coarse=False, name="TreeProto%d" % kind)
     ob.location = (0, 0, -800)
     ob.hide_render = True
     return ob
@@ -485,13 +504,13 @@ def instancer(name, proto, pts, scales):
 
 
 t = info["trees"]
-per = {k: ([], []) for k in range(4)}
+per = {k: ([], []) for k in range(len(plants.KINDS))}
 for k in range(0, len(t), 4):
     x, z, kind, s = t[k], t[k + 1], int(t[k + 2]), t[k + 3]
     if not (-900 < x < 950 and -1000 < z < 960):
         continue
     per[kind][0].append((x, z, ground(x, z) - 0.2))
-    per[kind][1].append(s * (0.55 if kind == 3 else 1.0))
+    per[kind][1].append(s)
 for kind, (pts, scales) in per.items():
     if pts:
         instancer("Trees%d" % kind, tree_proto(kind), pts, scales)
@@ -527,10 +546,10 @@ sun_o = link(bpy.data.objects.new("Sun", sun))
 sun_o.rotation_euler = (math.radians(52), 0, math.radians(150))
 
 scene.render.engine = "CYCLES"
-scene.cycles.samples = 8 if FAST else 64
+scene.cycles.samples = 8 if FAST else 32 if HALF else 64
 scene.cycles.use_denoising = True
 scene.cycles.max_bounces = 4
-scene.render.resolution_x, scene.render.resolution_y = (800, 450) if FAST else (1600, 900)
+scene.render.resolution_x, scene.render.resolution_y = (800, 450) if FAST or HALF else (1600, 900)
 scene.view_settings.view_transform = "AgX" if "AgX" in [i.identifier for i in scene.view_settings.bl_rna.properties["view_transform"].enum_items] else "Filmic"
 scene.view_settings.look = "None"
 scene.view_settings.exposure = -0.6
@@ -602,6 +621,10 @@ VIEWS = {
     # (owner's comments on the plans, 2026-11-20).
     "boys_hill": (60, -455, 1.7, 160, -470, 12, 24),
     "girls_cliff": (130, -205, 1.7, 200, -200, 8, 24),
+    # 2026-11-21 (owner): that "cliff" is a drop, the ground falling away east of the track and
+    # the girls' hostels behind a stone retaining wall; and leaf-card trees and bushes.
+    "drop_wall": (196, -168, 1.7, 171, -205, 3.5, 24),
+    "drop_aerial": (232, -150, 22, 172, -200, -4, 24),
 }
 # Straight-down plans: centre x, z, width shown (m), and which world direction is up in the image.
 # The girls' hostels plan is turned like the scale-model photo (west at the top).

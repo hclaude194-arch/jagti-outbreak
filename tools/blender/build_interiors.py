@@ -343,22 +343,18 @@ def plan():
     WALLS.append(((XW, QZ0), (QX0, QZ0), [((XW + QX0) / 2 - XW, 1.0)]))
     WALLS.append(((QX1, QZ0), (XE, QZ0), [(2.0, 1.0)]))
 
-    # West outer band: faculty cabins, an exhibition gallery (the auditorium foyer later), cabins.
+    # West outer band: an open faculty office, an exhibition gallery (the auditorium foyer
+    # later), another faculty office. (Owner, 2026-11-21: the buildings had far too many rooms;
+    # these were eight separate cabins.)
     g0, g1 = wz(254.0), wz(309.0)
-    cab_s = [wz(v) for v in (QZ0 + (g0 - QZ0) * k / 4 for k in range(1, 4))]
-    cab_n = [wz(v) for v in (g1 + (QZ1 - g1) * k / 4 for k in range(1, 4))]
-    zs = [QZ0] + cab_s + [g0]
-    for k in range(len(zs) - 1):
-        room("Faculty Cabin W%d" % (k + 1), "cabin", XW, QX0, zs[k], zs[k + 1], front="W", floor="Floor_Wood")
+    room("Faculty Offices W1", "faculty", XW, QX0, QZ0, g0, front="W", floor="Floor_Wood")
     room("Gallery", "gallery", XW, QX0, g0, g1, front="W", floor="Floor_Tile")
-    zn = [g1] + cab_n + [QZ1]
-    for k in range(len(zn) - 1):
-        room("Faculty Cabin W%d" % (k + 5), "cabin", XW, QX0, zn[k], zn[k + 1], front="W", floor="Floor_Wood")
-    for z in zs[1:] + zn[:-1]:
+    room("Faculty Offices W2", "faculty", XW, QX0, g1, QZ1, front="W", floor="Floor_Wood")
+    for z in (g0, g1):
         WALLS.append(((XW, z), (QX0, z), []))
-    doors = [((a + b_) / 2 - QZ0, 1.0) for a, b_ in zip(zs, zs[1:])]
+    doors = [(2.5, 1.2), (g0 - 2.5 - QZ0, 1.2)]
     doors += [(g0 + 4.0 - QZ0, 1.8), ((g0 + g1) / 2 - QZ0, 1.8), (g1 - 4.0 - QZ0, 1.8)]
-    doors += [((a + b_) / 2 - QZ0, 1.0) for a, b_ in zip(zn, zn[1:])]
+    doors += [(g1 + 2.5 - QZ0, 1.2), (QZ1 - 2.5 - QZ0, 1.2)]
     WALLS.append(((QX0, QZ0), (QX0, QZ1), doors))
 
     # East outer band: four case rooms and the passage to block 1 on the east front.
@@ -381,15 +377,12 @@ def plan():
     mz = (IZ0 + IZ1) / 2
     # North band (X runs, between Z = CZ1 and KZ1).
     a0, a1 = snap(mx - 1.8, [S_CN]), snap(mx + 1.8, [S_CN])
-    cn = [KX0] + [snap(v, [S_CN]) if CX0 < v < CX1 else v for v in (KX0 + 4.0, KX0 + 8.0, KX0 + 12.0, KX0 + 16.0)] + [a0]
-    for k in range(len(cn) - 1):
-        kind = "cabin" if k < 4 else "admin"
-        room(("Faculty Cabin N%d" % (k + 1)) if k < 4 else "Admin Office", kind, cn[k], cn[k + 1], CZ1, KZ1,
-             front="S", floor="Floor_Wood" if k < 4 else "Floor_Tile")
-    ce = [a1, snap(a1 + 14.5, [S_CN])] + [snap(v, [S_CN]) if CX0 < v < CX1 else v for v in (KX1 - 12.0, KX1 - 8.0, KX1 - 4.0)] + [KX1]
+    cn = [KX0, snap(KX0 + 16.0, [S_CN]) if CX0 < KX0 + 16.0 < CX1 else KX0 + 16.0, a0]
+    room("Faculty Offices N1", "faculty", cn[0], cn[1], CZ1, KZ1, front="S", floor="Floor_Wood")
+    room("Admin Office", "admin", cn[1], cn[2], CZ1, KZ1, front="S", floor="Floor_Tile")
+    ce = [a1, snap(a1 + 14.5, [S_CN]), KX1]
     room("Meeting Room", "meeting", ce[0], ce[1], CZ1, KZ1, front="E", floor="Carpet")
-    for k in range(1, len(ce) - 1):
-        room("Faculty Cabin N%d" % (k + 4), "cabin", ce[k], ce[k + 1], CZ1, KZ1, front="S", floor="Floor_Wood")
+    room("Faculty Offices N2", "faculty", ce[1], ce[2], CZ1, KZ1, front="S", floor="Floor_Wood")
     for x in cn[1:] + ce[:-1]:
         WALLS.append(((x, CZ1), (x, KZ1), []))
     CORRIDORS.append((a0, a1, CZ1, KZ1))
@@ -405,13 +398,12 @@ def plan():
     room("Toilets (Women)", "toilet_w", t1, t2, KZ0, CZ0, front="N", floor="Floor_Tile")
     room("Seminar Room 1", "seminar", t2, b0, KZ0, CZ0, front="W", floor="Carpet")
     room("Seminar Room 2", "seminar", b1, t3, KZ0, CZ0, front="E", floor="Carpet")
-    room("Server Room", "server", t3, t4, KZ0, CZ0, front="N", floor="Floor_Tile")
-    room("Housekeeping Store", "store", t4, KX1, KZ0, CZ0, front="N", floor="Floor_Tile")
-    for x in (t1, t2, b0, b1, t3, t4):
+    room("Server Room", "server", t3, KX1, KZ0, CZ0, front="N", floor="Floor_Tile")
+    for x in (t1, t2, b0, b1, t3):
         WALLS.append(((x, KZ0), (x, CZ0), []))
     CORRIDORS.append((b0, b1, KZ0, CZ0))
     WALLS.append(((KX0, KZ0), (b0, KZ0), [((KX0 + t1) / 2 - KX0, 1.0), ((t1 + t2) / 2 - KX0, 1.0), (b0 - 2.0 - KX0, 1.0)]))
-    WALLS.append(((b1, KZ0), (KX1, KZ0), [(2.0, 1.0), ((t3 + t4) / 2 - b1, 1.0), ((t4 + KX1) / 2 - b1, 1.0)]))
+    WALLS.append(((b1, KZ0), (KX1, KZ0), [(2.0, 1.0), ((t3 + t4) / 2 - b1, 1.2)]))
 
     # West band (Z runs, between X = KX0 and CX0) and east band.
     for side, X0, X1, spans, kx in (("W", KX0, CX0, S_CW, KX0), ("E", CX1, KX1, S_CE, KX1)):
@@ -419,16 +411,14 @@ def plan():
         q0, q1 = snap(IZ0 + 18.0, [spans]), snap(IZ1 - 18.0, [spans])
         zz = [CZ0, q0, c0]
         zz2 = [c1, q1, CZ1]
-        names = ["Syndicate Room %s%d" % (side, k) for k in range(1, 5)]
-        room(names[0], "syndicate", X0, X1, CZ0, q0, front="S")
-        room(names[1], "syndicate", X0, X1, q0, c0, front="N")
-        room(names[2], "syndicate", X0, X1, c1, q1, front="S")
-        room(names[3], "syndicate", X0, X1, q1, CZ1, front="N")
-        for z in (q0, c0, c1, q1):
+        # Two big syndicate rooms a side (were four).
+        room("Syndicate Room %s1" % side, "syndicate", X0, X1, CZ0, c0, front="S")
+        room("Syndicate Room %s2" % side, "syndicate", X0, X1, c1, CZ1, front="N")
+        for z in (c0, c1):
             WALLS.append(((X0, z), (X1, z), []))
         CORRIDORS.append((X0, X1, c0, c1))
-        WALLS.append(((kx, KZ0), (kx, c0), [((CZ0 + q0) / 2 - KZ0, 1.0), ((q0 + c0) / 2 - KZ0, 1.0)]))
-        WALLS.append(((kx, c1), (kx, KZ1), [((c1 + q1) / 2 - c1, 1.0), ((q1 + CZ1) / 2 - c1, 1.0)]))
+        WALLS.append(((kx, KZ0), (kx, c0), [((CZ0 + q0) / 2 - KZ0, 1.2), (c0 - 2.0 - KZ0, 1.2)]))
+        WALLS.append(((kx, c1), (kx, KZ1), [(2.0, 1.2), ((q1 + CZ1) / 2 - c1, 1.2)]))
         # Short walls closing the corner rooms of the north and south bands.
         WALLS.append(((X0, CZ1), (X1, CZ1), []))
         WALLS.append(((X0, CZ0), (X1, CZ0), []))
@@ -2133,6 +2123,42 @@ def f_cabin(r):
     room_lights(r["rect"], per=40.0)
 
 
+def f_faculty(r):
+    """An open faculty office: pairs of desks facing each other in rows along the room, a
+    meeting table at the far end, bookshelves and filing cabinets on the walls."""
+    fr = Frame(r["rect"], r["front"])
+    w, D = fr.width, fr.depth
+    hw = w / 2
+    end = 5.0 if w > 14.0 else 0.0           # the meeting corner at the +u end
+    u = -hw + 1.6
+    while u < hw - end - 1.4:
+        for v, face, dv in ((1.6, "in", -0.65), (2.6, "front", 0.65)):
+            fr.put("Desk_Computer", u, v, FL, face)
+            fr.put("Chair_Office", u, v + dv, FL, face)
+        if D > 6.2:
+            fr.put("Desk_Computer", u, D - 1.4, FL, "front")
+            fr.put("Chair_Office", u, D - 2.05, FL, "in")
+        u += 2.4
+    if end:
+        v = D / 2
+        fr.put("Table_Meeting", hw - 2.6, v, FL, "right")
+        for k in range(3):
+            for side in (-1, 1):
+                fr.put("Chair_Office", hw - 2.6 + side * 1.0, v - 1.0 + k * 1.0, FL, "left" if side > 0 else "right")
+        fr.wall_item("Whiteboard", "right", v)
+    for k in range(int((w - end - 2.0) / 1.1)):
+        if k % 3 == 2:
+            fr.wall_item("Filing_Cabinet", "front", -hw + 1.0 + 1.1 * k)
+    fr.wall_item("Bookshelf", "left", 1.2)
+    fr.wall_item("Bookshelf", "left", 2.3)
+    fr.wall_item("Notice_Board", "left", D - 1.5)
+    fr.put("Water_Cooler", -hw + 0.45, D - 0.5, FL, "front")
+    fr.put("Plant_Pot", hw - 0.5, 0.5, FL)
+    fr.wall_item("AC_Unit", "back", 0.0, y=FL + 0.2)
+    ceiling_grid(r["rect"], 2.8)
+    room_lights(r["rect"], per=40.0)
+
+
 def f_admin(r):
     fr = Frame(r["rect"], r["front"])
     for i in range(3):
@@ -2525,7 +2551,7 @@ def f_foyer(r):
 
 
 FURNISH = {
-    "case": f_case, "classroom": f_classroom, "cabin": f_cabin, "admin": f_admin, "meeting": f_meeting,
+    "case": f_case, "classroom": f_classroom, "cabin": f_cabin, "faculty": f_faculty, "admin": f_admin, "meeting": f_meeting,
     "syndicate": f_syndicate, "seminar": f_seminar, "complab": f_complab, "reading": f_reading, "cafe": f_cafe,
     "lounge": f_lounge, "lobby": f_lobby, "toilet_m": lambda r: f_toilet(r, True), "toilet_w": lambda r: f_toilet(r, False),
     "server": f_server, "store": f_store, "research": f_research, "activity": f_activity, "gallery": f_gallery,
