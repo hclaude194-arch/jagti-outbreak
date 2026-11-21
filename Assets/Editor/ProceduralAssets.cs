@@ -18,6 +18,7 @@ namespace Jagti.EditorTools
         public static void ResetFolder()
         {
             heightSource.Clear();
+            Vegetation.Reset();
             if (AssetDatabase.IsValidFolder(Folder)) AssetDatabase.DeleteAsset(Folder);
             EnsureFolder(Folder);
         }
@@ -206,7 +207,7 @@ namespace Jagti.EditorTools
         }
 
         /// <summary>
-        /// A clump of real grass blades for terrain detail (mesh, Grass mode), about 0.55 m tall:
+        /// A clump of 20 real grass blades for terrain detail (mesh, Grass mode), about 0.55 m tall:
         /// curved, tapering strips leaning out from the root. Vertex alpha runs 0 at the root to 1 at
         /// the tip, which the terrain's grass shader uses to wave the tips only; normals lean
         /// upwards so the clump is lit softly like the ground under it.
@@ -214,7 +215,7 @@ namespace Jagti.EditorTools
         /// </summary>
         public static GameObject GrassClumpPrefab()
         {
-            const int blades = 11, rows = 4;
+            const int blades = 20, rows = 4;
             var verts = new List<Vector3>();
             var normals = new List<Vector3>();
             var uvs = new List<Vector2>();
@@ -621,11 +622,28 @@ namespace Jagti.EditorTools
         /// </summary>
         public static Material FoliageMaterial(string name, Color color, Texture2D texture, float flutter, float bend)
         {
+            return FoliageMaterial(name, color, texture, flutter, bend, 0f);
+        }
+
+        /// <summary>cutoff above 0: an alpha-cut leaf card material, drawn from both sides, whose
+        /// back faces keep their normals (the cards carry normals bent out from the crown).</summary>
+        public static Material FoliageMaterial(string name, Color color, Texture2D texture, float flutter, float bend, float cutoff)
+        {
             var shader = Shader.Find("Jagti/Foliage");
             if (shader == null || !shader.isSupported || ShaderUtil.ShaderHasError(shader))
             {
                 if (shader != null) Debug.LogWarning("[Jagti] Jagti/Foliage shader did not compile; trees use URP/Lit and stay still.");
-                return LitMaterial(name, color, texture);
+                var lit = LitMaterial(name, color, texture);
+                if (cutoff > 0f)
+                {
+                    if (lit.HasProperty("_AlphaClip")) lit.SetFloat("_AlphaClip", 1f);
+                    if (lit.HasProperty("_Cutoff")) lit.SetFloat("_Cutoff", cutoff);
+                    if (lit.HasProperty("_Cull")) lit.SetFloat("_Cull", 0f);
+                    lit.EnableKeyword("_ALPHATEST_ON");
+                    lit.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                    lit.doubleSidedGI = true;
+                }
+                return lit;
             }
             var mat = new Material(shader) { name = name, enableInstancing = true };
             mat.SetColor("_BaseColor", color);
@@ -633,6 +651,15 @@ namespace Jagti.EditorTools
             mat.SetFloat("_Flutter", flutter);
             mat.SetFloat("_Bend", bend);
             mat.SetFloat("_Translucency", flutter > 0f ? 0.35f : 0f);
+            if (cutoff > 0f)
+            {
+                mat.SetFloat("_Cutoff", cutoff);
+                mat.SetFloat("_Cull", 0f);
+                mat.SetFloat("_BackFlip", 0f);
+                mat.SetFloat("_Translucency", 0.5f);
+                mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                mat.doubleSidedGI = true;
+            }
             EnsureFolder(Folder + "/Materials");
             AssetDatabase.CreateAsset(mat, Folder + "/Materials/" + name + ".mat");
             return mat;
@@ -640,235 +667,14 @@ namespace Jagti.EditorTools
 
         // ------------------------------------------------------------------ trees
 
-        public enum TreeKind { Broadleaf = 0, Eucalyptus = 1, Pine = 2, Shrub = 3 }
+        /// <summary>The terrain's tree kinds, in the order generate_terrain.py writes them.</summary>
+        public enum TreeKind { Broadleaf = 0, Eucalyptus = 1, Pine = 2, Shrub = 3, FlowerShrub = 4, TallGrass = 5 }
 
-        /// <summary>Makes the four tree prefabs, in TreeKind order.</summary>
+        /// <summary>Makes the tree prefabs, in TreeKind order (Vegetation.cs: branching trunks and
+        /// crowns of alpha-cut leaf cards, 2026-11-21; the blob crowns read as cubes).</summary>
         public static GameObject[] TreePrefabs()
         {
-            var leafTex = GroundTexture("Leaves", new Color(0.55f, 0.6f, 0.5f), new Color(0.85f, 0.88f, 0.8f), Color.white, 8, 0.6f, 40);
-            var barkTex = GroundTexture("Bark", new Color(0.6f, 0.58f, 0.55f), new Color(0.85f, 0.83f, 0.8f), Color.white, 4, 0.5f, 41, true);
-
-            // Bark and leaves share the wind shader (Jagti/Foliage), so the trunk bends with its crown.
-            var bark = FoliageMaterial("Tree_Bark", new Color(0.36f, 0.28f, 0.21f), barkTex, 0f, 1f);
-            var paleBark = FoliageMaterial("Tree_Bark_Eucalyptus", new Color(0.76f, 0.72f, 0.64f), barkTex, 0f, 1.2f);
-            var leavesBroad = FoliageMaterial("Tree_Leaves_Broadleaf", new Color(0.24f, 0.36f, 0.13f), leafTex, 1f, 1f);
-            var leavesEuca = FoliageMaterial("Tree_Leaves_Eucalyptus", new Color(0.40f, 0.48f, 0.31f), leafTex, 1f, 1.2f);
-            var leavesPine = FoliageMaterial("Tree_Leaves_Pine", new Color(0.17f, 0.28f, 0.15f), leafTex, 0.6f, 0.8f);
-            var leavesShrub = FoliageMaterial("Tree_Leaves_Shrub", new Color(0.36f, 0.40f, 0.18f), leafTex, 0.7f, 2.5f);
-
-            EnsureFolder(Folder + "/Trees");
-            return new[]
-            {
-                SaveTree("Tree_Broadleaf", BuildBroadleaf(false), BuildBroadleaf(true), bark, leavesBroad, 0.25f, 3.5f, 0.22f, 0.012f),
-                SaveTree("Tree_Eucalyptus", BuildEucalyptus(false), BuildEucalyptus(true), paleBark, leavesEuca, 0.2f, 10f, 0.25f, 0.01f),
-                SaveTree("Tree_Pine", BuildPine(false), BuildPine(true), bark, leavesPine, 0.22f, 11f, 0.25f, 0.01f),
-                SaveTree("Tree_Shrub", BuildShrub(false), BuildShrub(true), bark, leavesShrub, 0f, 0f, 0.12f, 0.02f),
-            };
-        }
-
-        /// <summary>
-        /// A tree prefab with two levels of detail (the realistic-graphics video's LOD lesson): the
-        /// full mesh close up, a coarse one (about a third of the triangles) once the tree is under
-        /// `near` of the screen's height, and nothing under `cull`, so the thousands of scrub bushes
-        /// past ~100 m and far trees cost nothing. The quality tiers scale both through lodBias.
-        /// The LOD children sit at the root's origin, so the wind shader's pivot is unchanged.
-        /// </summary>
-        static GameObject SaveTree(string name, Mesh mesh, Mesh coarse, Material bark, Material leaves,
-                                   float trunkRadius, float trunkHeight, float near, float cull)
-        {
-            AssetDatabase.CreateAsset(mesh, Folder + "/Trees/" + name + "_Mesh.asset");
-            AssetDatabase.CreateAsset(coarse, Folder + "/Trees/" + name + "_Mesh_LOD1.asset");
-            var go = new GameObject(name);
-            var lods = new LOD[2];
-            var meshes = new[] { mesh, coarse };
-            for (int i = 0; i < 2; i++)
-            {
-                var child = new GameObject(name + "_LOD" + i);
-                child.transform.SetParent(go.transform, false);
-                child.AddComponent<MeshFilter>().sharedMesh = meshes[i];
-                var r = child.AddComponent<MeshRenderer>();
-                r.sharedMaterials = new[] { bark, leaves };
-                lods[i] = new LOD(i == 0 ? near : cull, new Renderer[] { r });
-            }
-            var group = go.AddComponent<LODGroup>();
-            group.fadeMode = LODFadeMode.None;
-            group.SetLODs(lods);
-            group.RecalculateBounds();
-            if (trunkRadius > 0f)
-            {
-                var capsule = go.AddComponent<CapsuleCollider>();
-                capsule.radius = trunkRadius + 0.05f;
-                capsule.height = trunkHeight;
-                capsule.center = new Vector3(0f, trunkHeight / 2f, 0f);
-            }
-            var prefab = PrefabUtility.SaveAsPrefabAsset(go, Folder + "/Trees/" + name + ".prefab");
-            Object.DestroyImmediate(go);
-            return prefab;
-        }
-
-        class MeshBuilder
-        {
-            public readonly List<Vector3> vertices = new List<Vector3>();
-            public readonly List<Vector2> uvs = new List<Vector2>();
-            public readonly List<int> bark = new List<int>();
-            public readonly List<int> leaves = new List<int>();
-            readonly System.Random random;
-            readonly bool coarse;   // LOD1: fewer sides and rings everywhere
-
-            public MeshBuilder(int seed, bool coarse = false)
-            {
-                random = new System.Random(seed);
-                this.coarse = coarse;
-            }
-
-            float Rand(float min, float max)
-            {
-                return min + (float)random.NextDouble() * (max - min);
-            }
-
-            public void Trunk(Vector3 bottom, float r0, float r1, float height, int sides = 7)
-            {
-                if (coarse) sides = Mathf.Max(4, sides / 2 + 1);
-                int start = vertices.Count;
-                for (int ring = 0; ring <= 1; ring++)
-                {
-                    float r = ring == 0 ? r0 : r1;
-                    for (int s = 0; s <= sides; s++)
-                    {
-                        float a = s / (float)sides * Mathf.PI * 2f;
-                        vertices.Add(bottom + new Vector3(Mathf.Cos(a) * r, ring * height, Mathf.Sin(a) * r));
-                        uvs.Add(new Vector2(s / (float)sides, ring * height / 2f));
-                    }
-                }
-                int row = sides + 1;
-                for (int s = 0; s < sides; s++)
-                {
-                    int a = start + s, b = start + s + 1, c = start + row + s, d = start + row + s + 1;
-                    bark.Add(a); bark.Add(c); bark.Add(b);
-                    bark.Add(b); bark.Add(c); bark.Add(d);
-                }
-            }
-
-            /// <summary>A lumpy low-poly sphere of foliage.</summary>
-            public void Blob(Vector3 centre, Vector3 radii, float jitter, int lat = 6, int lon = 9)
-            {
-                if (coarse)
-                {
-                    lat = Mathf.Max(3, lat / 2 + 1);
-                    lon = Mathf.Max(5, lon / 2 + 1);
-                }
-                int start = vertices.Count;
-                for (int i = 0; i <= lat; i++)
-                {
-                    float v = i / (float)lat;
-                    float theta = v * Mathf.PI;
-                    for (int j = 0; j <= lon; j++)
-                    {
-                        float u = j / (float)lon;
-                        float phi = u * Mathf.PI * 2f;
-                        var dir = new Vector3(Mathf.Sin(theta) * Mathf.Cos(phi), -Mathf.Cos(theta), Mathf.Sin(theta) * Mathf.Sin(phi));
-                        float bump = (i == 0 || i == lat || j == lon) ? 1f : 1f + Rand(-jitter, jitter);
-                        vertices.Add(centre + Vector3.Scale(dir, radii) * bump);
-                        uvs.Add(new Vector2(u * 2f, v));
-                    }
-                }
-                // Close the seam: the last column repeats the first column's position.
-                for (int i = 0; i <= lat; i++)
-                {
-                    vertices[start + i * (lon + 1) + lon] = vertices[start + i * (lon + 1)];
-                }
-                for (int i = 0; i < lat; i++)
-                {
-                    for (int j = 0; j < lon; j++)
-                    {
-                        int a = start + i * (lon + 1) + j, b = a + 1, c = a + lon + 1, d = c + 1;
-                        leaves.Add(a); leaves.Add(c); leaves.Add(b);
-                        leaves.Add(b); leaves.Add(c); leaves.Add(d);
-                    }
-                }
-            }
-
-            /// <summary>An open cone of needles for the pine.</summary>
-            public void Cone(Vector3 bottom, float radius, float height, int sides = 9)
-            {
-                int start = vertices.Count;
-                for (int s = 0; s <= sides; s++)
-                {
-                    float a = s / (float)sides * Mathf.PI * 2f;
-                    float r = radius * (s == sides ? 1f : Rand(0.85f, 1.15f));
-                    vertices.Add(bottom + new Vector3(Mathf.Cos(a) * r, Rand(-0.25f, 0.1f), Mathf.Sin(a) * r));
-                    uvs.Add(new Vector2(s / (float)sides * 2f, 0f));
-                }
-                vertices[start + sides] = vertices[start];
-                int tip = vertices.Count;
-                vertices.Add(bottom + Vector3.up * height);
-                uvs.Add(new Vector2(0.5f, 1f));
-                int centre = vertices.Count;
-                vertices.Add(bottom + Vector3.up * 0.3f);
-                uvs.Add(new Vector2(0.5f, 0.5f));
-                for (int s = 0; s < sides; s++)
-                {
-                    leaves.Add(start + s); leaves.Add(tip); leaves.Add(start + s + 1);
-                    leaves.Add(start + s); leaves.Add(start + s + 1); leaves.Add(centre);
-                }
-            }
-
-            public Mesh ToMesh(string name)
-            {
-                var mesh = new Mesh { name = name, subMeshCount = 2 };
-                mesh.SetVertices(vertices);
-                mesh.SetUVs(0, uvs);
-                mesh.SetTriangles(bark, 0);
-                mesh.SetTriangles(leaves, 1);
-                mesh.RecalculateNormals();
-                mesh.RecalculateBounds();
-                return mesh;
-            }
-        }
-
-        // Neem / sheesham: short trunk, wide rounded crown, about 7.5 m.
-        static Mesh BuildBroadleaf(bool coarse)
-        {
-            var b = new MeshBuilder(1, coarse);
-            b.Trunk(Vector3.zero, 0.26f, 0.15f, 4.2f);
-            b.Blob(new Vector3(0f, 5.2f, 0f), new Vector3(3.0f, 2.2f, 3.0f), 0.18f);
-            b.Blob(new Vector3(1.6f, 4.5f, 0.7f), new Vector3(2.0f, 1.6f, 2.0f), 0.2f, 5, 8);
-            b.Blob(new Vector3(-1.4f, 4.7f, -0.9f), new Vector3(2.1f, 1.7f, 2.0f), 0.2f, 5, 8);
-            return b.ToMesh(coarse ? "Broadleaf_LOD1" : "Broadleaf");
-        }
-
-        // Eucalyptus: tall pale trunk, thin high crown, about 14 m.
-        static Mesh BuildEucalyptus(bool coarse)
-        {
-            var b = new MeshBuilder(2, coarse);
-            b.Trunk(Vector3.zero, 0.22f, 0.09f, 12f);
-            b.Blob(new Vector3(0f, 11.5f, 0f), new Vector3(1.9f, 2.8f, 1.9f), 0.22f);
-            b.Blob(new Vector3(0.8f, 9.2f, -0.4f), new Vector3(1.4f, 1.6f, 1.4f), 0.22f, 5, 8);
-            b.Blob(new Vector3(-0.7f, 8.4f, 0.6f), new Vector3(1.1f, 1.3f, 1.1f), 0.22f, 5, 7);
-            return b.ToMesh(coarse ? "Eucalyptus_LOD1" : "Eucalyptus");
-        }
-
-        // Chir pine as it grows on the hills here: a tall straight trunk bare for most of its
-        // height and an open, uneven crown of flat clumps near the top (not a cone), about 13 m.
-        static Mesh BuildPine(bool coarse)
-        {
-            var b = new MeshBuilder(3, coarse);
-            b.Trunk(Vector3.zero, 0.24f, 0.08f, 11.5f);
-            b.Blob(new Vector3(0f, 11.2f, 0f), new Vector3(1.7f, 1.0f, 1.6f), 0.25f, 5, 8);
-            b.Blob(new Vector3(1.3f, 9.6f, 0.4f), new Vector3(1.5f, 0.75f, 1.2f), 0.25f, 4, 7);
-            b.Blob(new Vector3(-1.1f, 8.8f, -0.6f), new Vector3(1.4f, 0.7f, 1.3f), 0.25f, 4, 7);
-            b.Blob(new Vector3(0.3f, 7.6f, 1.2f), new Vector3(1.1f, 0.6f, 1.0f), 0.25f, 4, 7);
-            return b.ToMesh(coarse ? "Pine_LOD1" : "Pine");
-        }
-
-        // Lantana / scrub bush, about 1.8 m.
-        static Mesh BuildShrub(bool coarse)
-        {
-            var b = new MeshBuilder(4, coarse);
-            b.Trunk(Vector3.zero, 0.08f, 0.05f, 0.5f, 5);
-            b.Blob(new Vector3(0f, 0.85f, 0f), new Vector3(1.3f, 0.95f, 1.3f), 0.25f, 5, 8);
-            b.Blob(new Vector3(0.8f, 0.6f, 0.4f), new Vector3(0.8f, 0.65f, 0.8f), 0.25f, 4, 7);
-            return b.ToMesh(coarse ? "Shrub_LOD1" : "Shrub");
+            return Vegetation.TreePrefabs();
         }
     }
 }

@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_buildings as B  # noqa: E402  (imports bpy first)
 import build_interiors as I  # noqa: E402
 from build_interiors import bx, cyl, obox, new, export_model  # noqa: E402
+import plants  # noqa: E402  (leaf cards, the mirror of Vegetation.cs)
 
 import numpy as np  # noqa: E402
 
@@ -94,10 +95,39 @@ def p_garden_lamp():
     return m
 
 
+def frond(m, cx, cz, y, ang, length, width, rise, droop, tile, shade=False):
+    """A palm frond: two cards (the Palm_Frond texture runs along u from the stalk to the tip),
+    the inner half rising, the outer half drooping, so it arches out from the crown."""
+    ca, sa = math.cos(ang), math.sin(ang)
+    side = (-sa, ca)
+    half = length / 2
+    mid = (cx + ca * half, cz + sa * half, y + rise)
+    tip = (cx + ca * length, cz + sa * length, y + rise - droop)
+    for (p0, p1, u0, u1, w0, w1) in (((cx, cz, y), mid, 0.0, 0.5, width * 0.6, width), (mid, tip, 0.5, 1.0, width, width * 0.5)):
+        pts = []
+        uvs = []
+        for (P, u, w) in ((p0, u0, w0), (p1, u1, w1)):
+            for sgn, v in ((-1, 0.0), (1, 1.0)):
+                X, Z = P[0] + side[0] * sgn * w / 2, P[1] + side[1] * sgn * w / 2
+                bx_, by_ = m.b(X, Z)
+                pts.append((bx_, by_, P[2] + (0.04 if sgn > 0 else -0.04) * (1 if u > 0 else 0)))
+                uvs.append(plants.atlas_uv(tile, shade, u, v))
+        m.quad([pts[0], pts[2], pts[3], pts[1]], "Palm_Frond", [uvs[0], uvs[2], uvs[3], uvs[1]])
+
+
+def palm_crown(m, cx, cz, top, n, length, rnd):
+    for k in range(n):
+        a = 2 * math.pi * k / n + rnd.uniform(-0.2, 0.2)
+        frond(m, cx, cz, top, a, length * rnd.uniform(0.85, 1.1), length * 0.5, rnd.uniform(0.25, 0.5), rnd.uniform(0.6, 1.0), k & 1, k % 3 == 0)
+    for k in range(3):     # young fronds standing up in the middle
+        a = 2 * math.pi * k / 3 + 0.5
+        frond(m, cx, cz, top - 0.1, a, length * 0.45, length * 0.3, 0.6, 0.0, k & 1)
+
+
 @oprop("Palm_Small")
 def p_palm_small():
-    """A young palm about 3 m high: a ringed trunk, slightly leaning, and a crown of drooping
-    fronds made of thin leaf blades."""
+    """A young palm about 3 m high: a ringed trunk, slightly leaning, and a crown of arching
+    fronds (Palm_Frond leaf cards)."""
     m = new("Palm_Small")
     rnd = random.Random(31)
     lean = 0.0
@@ -106,15 +136,8 @@ def p_palm_small():
         cyl(m, lean, 0.0, 0.11 - 0.008 * k, z0, z1, "Wood", seg=7)
         lean += 0.025
     top = 2.7
-    cyl(m, lean, 0.0, 0.16, top - 0.3, top + 0.1, "Foliage", seg=7)
-    for k in range(9):
-        a = 2 * math.pi * k / 9 + rnd.uniform(-0.15, 0.15)
-        ca, sa = math.cos(a), math.sin(a)
-        # Each frond: three blades getting narrower, rising a little then drooping.
-        for j, (r0, r1, dz, w) in enumerate(((0.05, 0.6, 0.12, 0.2), (0.55, 1.1, 0.02, 0.17), (1.05, 1.5, -0.3, 0.11))):
-            x0, x1 = lean + ca * r0, lean + ca * r1
-            y0, y1 = sa * r0, sa * r1
-            obox(m, (x0 + x1) / 2, (y0 + y1) / 2, (r1 - r0) / 2 + 0.06, w, a, top + dz - 0.04, top + dz + 0.04, "Foliage")
+    cyl(m, lean, 0.0, 0.13, top - 0.3, top + 0.05, "Wood", seg=7)
+    palm_crown(m, lean, 0.0, top, 9, 1.7, rnd)
     return m
 
 
@@ -309,10 +332,9 @@ def p_planter_box():
     bx(m, -0.8, 0.8, -0.3, 0.3, 0.0, 0.55, "Stone")
     bx(m, -0.72, 0.72, -0.22, 0.22, 0.55, 0.56, "Planter")
     rnd = random.Random(7)
-    for i in range(5):
-        x = -0.6 + i * 0.3
-        h = rnd.uniform(0.3, 0.5)
-        bx(m, x - 0.14, x + 0.14, -0.17, 0.17, 0.56, 0.56 + h, "Foliage")
+    for i in range(3):
+        x = -0.5 + i * 0.5
+        plants.prop_cards(m, plants.bush_cards(rnd, x, 0.0, 0.5, 0.32, rnd.uniform(0.35, 0.5), 0.22, 12, 0.5), "Leaf_Shrub")
     return m
 
 
@@ -332,17 +354,17 @@ def p_kerbed_bed():
         bx(m, x, x + t, -W + t, W - t, 0.0, h, "Plastic" if k else "Ceramic")
     bx(m, -L + t, L - t, -W + t, W - t, 0.0, 0.12, "Planter")
     rnd = random.Random(11)
-    x = -L + 0.5
+    x = -L + 0.55
+    k = 0
     while x < L - 0.5:
-        hh = rnd.uniform(0.35, 0.6)
-        bx(m, x - 0.22, x + 0.22, -0.3, 0.3, 0.12, 0.12 + hh, "Foliage")
-        x += 0.55
+        if abs(abs(x) - 1.6) > 0.35:
+            slot = ("Leaf_Shrub", "Leaf_Red", "Leaf_Flower")[k % 3]
+            plants.prop_cards(m, plants.bush_cards(rnd, x, 0.0, 0.1, 0.32, rnd.uniform(0.35, 0.55), 0.42, 12, 0.5), slot)
+            k += 1
+        x += 0.6
     for x in (-1.6, 1.6):
         cyl(m, x, 0.0, 0.07, 0.12, 1.6, "Wood")
-        for a in range(5):
-            ang = a * 2 * math.pi / 5
-            bx(m, x + 0.45 * math.cos(ang) - 0.25, x + 0.45 * math.cos(ang) + 0.25,
-               0.45 * math.sin(ang) - 0.08, 0.45 * math.sin(ang) + 0.08, 1.5, 1.56, "Foliage")
+        palm_crown(m, x, 0.0, 1.6, 7, 1.1, rnd)
     return m
 
 
@@ -405,12 +427,11 @@ def p_shrub_border():
         x0 = -1.0 + 0.5 * i
         bx(m, x0, x0 + 0.5, -0.6, -0.42, 0.0, 0.2, "Ceramic" if i % 2 == 0 else "Plastic")
     rnd = random.Random(17)
-    x = -1.0
-    while x < 0.99:
-        w = rnd.uniform(0.35, 0.5)
-        h = rnd.uniform(0.45, 0.65)
-        bx(m, x, min(1.0, x + w), -0.4, 0.25, 0.0, h, "Shrub_Red" if rnd.random() < 0.7 else "Foliage")
-        x += w
+    x = -0.75
+    while x < 0.8:
+        slot = "Leaf_Red" if rnd.random() < 0.7 else "Leaf_Shrub"
+        plants.prop_cards(m, plants.bush_cards(rnd, x, -0.08, 0.0, 0.36, rnd.uniform(0.45, 0.6), 0.34, 14, 0.5), slot)
+        x += 0.5
     return m
 
 
@@ -426,7 +447,7 @@ def p_young_tree():
         ex, ez = 0.6 * math.cos(a), 0.6 * math.sin(a)
         obox(m, ex / 2, ez / 2, 0.36, 0.035, a, 1.6, 2.5 + 0.2 * k, "Wood")
         cx, cz = ex * 1.15, ez * 1.15
-        bx(m, cx - 0.45, cx + 0.45, cz - 0.4, cz + 0.4, 2.5 + 0.2 * k, 3.1 + 0.25 * k, "Foliage")
+        plants.prop_cards(m, plants.bush_cards(rnd, cx, cz, 2.45 + 0.2 * k, 0.55, 0.5, 0.55, 10, 0.75), "Leaf_Broad")
     return m
 
 
@@ -615,6 +636,142 @@ def walk(poly, step, start=0.0):
             d0 += step
         acc += L
     return out
+
+
+# ------------------------------------------------------------------ retaining walls on the drops
+# Owner, 2026-11-21: east of the track and the girls' hostels the ground falls hard away at an
+# edge held by a stone retaining wall. generate_terrain.py shapes the drop and lists the edge in
+# campus_terrain.json (`retainingWalls`); the wall is built here as one prop per edge, in world
+# metres from its first point, with every height read off the heightmap: a paved sandstone
+# coping over the step in the ground (from `coping` to `face` metres out from the edge line), a
+# rubble parapet with a concrete cap on its outer edge, the battered rubble face down to below
+# the ground at its foot, dressed-stone piers every PIER_STEP m and weep pipes along the foot.
+PIER_STEP = 9.0
+WALL_STEP = 2.5
+MATS = B.MATERIALS
+
+
+def _face(m, corners, mat, hint):
+    """A face through world (X, Z, height) corners; hint is the outward normal in world (x, y, z)."""
+    pts = []
+    for X, Z, y in corners:
+        bx_, by_ = m.b(X, Z)
+        pts.append((bx_, by_, y))
+    m.face(pts, mat, (-hint[0], -hint[2], hint[1]))
+
+
+def wall_stations(w):
+    """Points every WALL_STEP m along the edge line with their east (low side) normals."""
+    line = [tuple(p) for p in w["points"]]
+    out = []
+    for (ax, az), (bx_, bz) in zip(line, line[1:]):
+        ln = math.hypot(bx_ - ax, bz - az)
+        n = max(1, int(round(ln / WALL_STEP)))
+        for k in range(n):
+            t = k / n
+            out.append((ax + (bx_ - ax) * t, az + (bz - az) * t))
+    out.append(line[-1])
+    st = []
+    for i, (x, z) in enumerate(out):
+        a, b_ = out[max(0, i - 1)], out[min(len(out) - 1, i + 1)]
+        dx, dz = b_[0] - a[0], b_[1] - a[1]
+        ln = math.hypot(dx, dz)
+        nx, nz = -dz / ln, dx / ln
+        if nx < 0:                           # the low side is east
+            nx, nz = -nx, -nz
+        st.append((x, z, nx, nz))
+    return st
+
+
+def retaining_wall(w, name):
+    m = new(name)
+    ox, oz = w["points"][0]
+    g0 = ground(ox, oz)
+    face, cop = w["face"], w["coping"]
+    PAR, CAP = 1.0, 0.1
+    rows = []
+    along = 0.0
+    st = wall_stations(w)
+    for i, (x, z, nx, nz) in enumerate(st):
+        if i:
+            along += math.hypot(x - st[i - 1][0], z - st[i - 1][1])
+
+        def at(f):
+            return (x + nx * f - ox, z + nz * f - oz)
+
+        top = max(ground(x + nx * f, z + nz * f) for f in (cop - 0.4, cop, 0.0, 0.8)) + 0.06 - g0
+        foot = min(ground(x + nx * f, z + nz * f) for f in (face + 0.3, face + 1.2)) - 0.7 - g0
+        foot = min(foot, top - 1.2)
+        rows.append(dict(s=along, inner=at(cop), par_in=at(face - 0.45), par_out=at(face),
+                         toe=at(face + 0.06 * (top - foot)), top=top, foot=foot, n=(nx, nz)))
+    for r0, r1 in zip(rows, rows[1:]):
+        nx, nz = r0["n"]
+        out_, in_ = (nx, 0.0, nz), (-nx, 0.0, -nz)
+        t0, t1 = r0["top"], r1["top"]
+        c0, c1 = t0 + PAR, t1 + PAR
+        # Coping walk over the step in the ground, with a lip on the lawn side.
+        _face(m, [(*r0["inner"], t0), (*r1["inner"], t1), (*r1["par_in"], t1), (*r0["par_in"], t0)], "Stone", (0, 1, 0))
+        _face(m, [(*r0["inner"], t0 - 0.35), (*r1["inner"], t1 - 0.35), (*r1["inner"], t1), (*r0["inner"], t0)], "Stone", in_)
+        # Parapet with a concrete cap.
+        _face(m, [(*r0["par_in"], t0), (*r1["par_in"], t1), (*r1["par_in"], c1), (*r0["par_in"], c0)], "Rubble_Stone", in_)
+        _face(m, [(*r0["par_in"], c0), (*r1["par_in"], c1), (*r1["par_in"], c1 + CAP), (*r0["par_in"], c0 + CAP)], "Concrete", in_)
+        _face(m, [(*r0["par_in"], c0 + CAP), (*r1["par_in"], c1 + CAP), (*r1["par_out"], c1 + CAP), (*r0["par_out"], c0 + CAP)],
+              "Concrete", (0, 1, 0))
+        _face(m, [(*r0["par_out"], c0), (*r1["par_out"], c1), (*r1["par_out"], c1 + CAP), (*r0["par_out"], c0 + CAP)], "Concrete", out_)
+        # The face: rubble from below the ground at its foot up to the cap, battered out at the foot.
+        _face(m, [(*r0["toe"], r0["foot"]), (*r1["toe"], r1["foot"]), (*r1["par_out"], c1), (*r0["par_out"], c0)],
+              "Rubble_Stone", out_)
+    # Ends: the end of the coping and face, and of the parapet.
+    for r, sgn in ((rows[0], -1.0), (rows[-1], 1.0)):
+        nx, nz = r["n"]
+        hint = (sgn * nz, 0.0, -sgn * nx)
+        t = r["top"]
+        _face(m, [(*r["inner"], t - 0.35), (*r["inner"], t), (*r["par_out"], t), (*r["toe"], r["foot"])], "Rubble_Stone", hint)
+        _face(m, [(*r["par_in"], t), (*r["par_out"], t), (*r["par_out"], t + PAR + CAP), (*r["par_in"], t + PAR + CAP)],
+              "Rubble_Stone", hint)
+    # Dressed sandstone piers standing proud of the face, and weep pipes near the foot.
+    total = rows[-1]["s"]
+
+    def row_at(s):
+        return rows[max(1, min(len(rows) - 1, next((j for j, r in enumerate(rows) if r["s"] >= s), len(rows) - 1)))]
+
+    s = PIER_STEP / 2
+    while s < total - 2.0:
+        r = row_at(s)
+        nx, nz = r["n"]
+        tx, tz = nz, -nx
+        fx, fz = r["par_out"]
+        reach = 0.42 + 0.06 * (r["top"] - r["foot"])
+        corners = [(fx + tx * u + nx * v, fz + tz * u + nz * v) for u, v in ((-0.45, -0.1), (0.45, -0.1), (0.45, reach), (-0.45, reach))]
+        poly = [m.b(X, Z) for X, Z in corners]
+        if (poly[1][0] - poly[0][0]) * (poly[2][1] - poly[0][1]) - (poly[1][1] - poly[0][1]) * (poly[2][0] - poly[0][0]) < 0:
+            poly.reverse()
+        m.prism(poly, r["foot"], r["top"] + PAR + CAP + 0.14, "Stone", "Concrete")
+        s += PIER_STEP
+    s = 1.5
+    while s < total - 1.0:
+        ph = (s - PIER_STEP / 2) % PIER_STEP
+        if 1.2 < ph < PIER_STEP - 1.2:
+            r = row_at(s)
+            nx, nz = r["n"]
+            X, Z = r["toe"]
+            y = r["foot"] + 1.3
+            obox(m, X + nx * 0.1, Z + nz * 0.1, 0.5, 0.12, math.atan2(nz, nx), y - 0.06, y + 0.06, "Plastic")
+        s += 3.0
+    return m
+
+
+RETAINING = []
+for _i, _w in enumerate(TER.get("retainingWalls", [])):
+    _name = "Retaining_Wall_%d" % _i
+    RETAINING.append((_name, _w))
+    oprop(_name, solid=False)((lambda w=_w, n=_name: retaining_wall(w, n)))
+
+
+def retaining_walls():
+    for name, w in RETAINING:
+        ox, oz = w["points"][0]
+        place(name, ox, oz, 0.0)
 
 
 def yaw_to(dx, dz):
@@ -1189,6 +1346,7 @@ def shop_signs():
 
 def main():
     os.makedirs(I.PROP_DIR, exist_ok=True)
+    retaining_walls()
     courts()
     court_walls()
     vipanan_forecourt()

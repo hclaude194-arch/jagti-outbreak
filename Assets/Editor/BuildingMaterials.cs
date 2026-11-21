@@ -78,6 +78,8 @@ namespace Jagti.EditorTools
                 ProceduralAssets.AddMacroVariation(mats[key], 0.17f);
             }
             InteriorMaterials.AddTo(mats);
+            // Leaf cards on the street planting and the courtyard hedges (Vegetation.cs).
+            foreach (var slot in Vegetation.LeafSlots.Keys) mats[slot] = Vegetation.LeafMaterial(slot);
             return mats;
         }
 

@@ -43,6 +43,7 @@ ROOM_LOOT = {
     # hostels
     "single": ("residential", 0.0, 0.32),   # one point per room, rolled at a low chance
     "double": ("residential", 0.0, 0.45),
+    "dorm": ("residential", 0.9, 0.45),     # big shared rooms (2026-11-21)
     "common": ("residential", 1.0, 0.7),
     "study": ("residential", 1.0, 0.6),
     "laundry": ("residential", 0.8, 0.55),
@@ -59,6 +60,7 @@ ROOM_LOOT = {
     "research": ("academic", 0.9, 0.65),
     "meeting": ("office", 1.0, 0.7),
     "cabin": ("office", 1.4, 0.55),
+    "faculty": ("office", 0.7, 0.6),
     "admin": ("office", 1.0, 0.8),
     "board": ("office", 0.8, 0.9),
     "director": ("office", 1.4, 1.0),
@@ -103,7 +105,7 @@ ROOM_LOOT = {
 
 # Room kind -> chance that the room gets a stash spot at all (the spot itself spawns at STASH_CHANCE).
 STASH_ROOMS = {
-    "single": 0.035, "double": 0.12, "common": 0.5, "study": 0.35, "lounge": 0.5, "laundry": 0.25,
+    "single": 0.035, "double": 0.12, "dorm": 0.3, "faculty": 0.6, "common": 0.5, "study": 0.35, "lounge": 0.5, "laundry": 0.25,
     "warden": 0.8, "classroom": 0.25, "seminar": 0.35, "syndicate": 0.15, "case": 0.3, "reading": 0.4,
     "stacks": 0.6, "complab": 0.5, "research": 0.4, "meeting": 0.5, "cabin": 0.25, "admin": 0.7,
     "board": 1.0, "director": 1.0, "server": 0.8, "staff": 0.6, "activity": 0.6, "store": 0.45,

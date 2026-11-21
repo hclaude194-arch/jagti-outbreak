@@ -94,7 +94,7 @@ for k in range(0, len(t), 4):
     if abs(x - 40) > 650 or abs(z) > 900:
         continue
     o = bpy.data.objects.new("T", proto.data)
-    sc = s * (0.45 if kind == 3 else 1.0)
+    sc = s * (0.45 if kind >= 3 else 1.0)
     o.scale = (sc, sc, sc * (1.6 if kind in (1, 2) else 1.0))
     o.location = (x, z, ground(x, z) + 3.0 * o.scale[2] + (1.5 if kind != 3 else -1.0))
     scene.collection.objects.link(o)

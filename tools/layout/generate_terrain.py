@@ -307,25 +307,43 @@ for x0, x1, z0, z1, th, ramp, ramp_z in TERRACE_PADS:
 
 # Scarps on the campus's east side (owner, 2026-11-20, on the hostel plans; the satellite shows
 # the shadowed face east of the boys' hostel road): east of Hostel East Road the ground rises as
-# a steep wooded face almost as tall as the hostels, and east of the track and the girls'
-# hostels it is a cliff. Each is (foot line in map coords, running north to south with the face
-# on its east side; level at the foot; level on top; run of the face m; width of the top m).
+# a steep wooded face almost as tall as the hostels. Each is (foot line in map coords, running
+# north to south with the face on its east side; level at the foot; level on top; run of the
+# face m; width of the top m).
 # West of the foot the ground is held level for FOOT_FLAT m so the face rises from flat ground;
 # the top keeps its level for the given width, then gives way to the ground beyond (the wall
 # and the drop to the ravines). Both ends fade over SCARP_TAPER m along the foot.
 SCARPS = [
     ([[528, 1378], [526, 1420], [526, 1500], [529, 1562]], 27.8, 46.0, 14.0, 34.0),
-    ([[584, 1138], [583, 1190], [581, 1240]], 30.0, 44.0, 12.0, 30.0),
 ]
+# Drops (owner, 2026-11-21): east of the track and the girls' hostels the "cliff" is not a hill
+# but an edge where the ground falls hard away, held by a stone retaining wall. Each is (edge
+# line in map coords, north to south with the low side to the east; level on the campus side;
+# level at the bottom; run of the slope below the wall m; width of the low ground m).
+# The campus side is held level up to the edge; the wall's face stands DROP_FACE m out from the
+# edge line and the ground at its foot is DROP_WALL_H lower, then a steep rough slope runs down
+# to the bottom level, which gives way to the ground beyond (the perimeter wall and the ravines).
+# build_outdoor.py builds the wall along `retainingWalls` in campus_terrain.json.
+DROPS = [
+    ([[584, 1132], [583, 1190], [581, 1248]], 30.0, 13.0, 16.0, 26.0),
+]
+DROP_FACE = 4.0       # the wall's face, out from the edge line
+DROP_STEP = 1.5       # where the ground steps down, under the wall's coping (one heightmap cell
+                      # either side of it slopes, so the coping runs from DROP_COPING to the face)
+DROP_COPING = -0.9
+DROP_WALL_H = 5.5     # the stone face, from its foot to the campus ground
 FOOT_FLAT = 22.0
 scarp_mask = np.zeros(X.shape)   # 1 on the faces and tops: wooded like the ravines (satellite)
 SCARP_TAPER = 30.0
-for foot, base, top, run, top_w in SCARPS:
+
+
+def line_frame(foot, x_pad, reach):
+    """Window and signed distance (+ east of a line running south), distance along it and its
+    length, for the cells near a north-south line given in map coords."""
     pts = np.array([L.to_world(x, y) for x, y in foot], float)
     seg_len = np.hypot(*(pts[1:] - pts[:-1]).T)
     total = seg_len.sum()
-    reach = run + top_w + 40.0
-    x0, x1 = pts[:, 0].min() - FOOT_FLAT - 5, pts[:, 0].max() + reach
+    x0, x1 = pts[:, 0].min() - x_pad, pts[:, 0].max() + reach
     z0, z1 = pts[:, 1].min() - 5, pts[:, 1].max() + 5
     cols = slice(max(0, int((x0 - MIN_X) / CELL)), min(RES, int((x1 - MIN_X) / CELL) + 2))
     rows = slice(max(0, int((z0 - MIN_Z) / CELL)), min(RES, int((z1 - MIN_Z) / CELL) + 2))
@@ -346,7 +364,11 @@ for foot, base, top, run, top_w in SCARPS:
         f_side = np.where(closer, np.sign(cross + 1e-9), f_side)
         f_along = np.where(closer, s0 + t, f_along)
         s0 += ln
-    f_sd = f_best * f_side      # + on the face's f_side
+    return rows, cols, f_best * f_side, f_along, total, pts
+
+
+for foot, base, top, run, top_w in SCARPS:
+    rows, cols, f_sd, f_along, total, _ = line_frame(foot, FOOT_FLAT + 5, run + top_w + 40.0)
     f_taper = smoothstep(0.0, SCARP_TAPER, f_along) * smoothstep(0.0, SCARP_TAPER, total - f_along)
     f_seg = plateau[rows, cols]
     f_rough = 1.2 * n_mid[rows, cols]
@@ -362,6 +384,40 @@ for foot, base, top, run, top_w in SCARPS:
     f_seg = f_seg * (1 - w_face) + face * w_face
     plateau[rows, cols] = f_seg
     scarp_mask[rows, cols] = np.maximum(scarp_mask[rows, cols], w_face * smoothstep(-2.0, 4.0, f_sd))
+
+# The drops. The ground east of the edge is designed outright (the step under the coping must
+# stay sharp), so it is put back after the terrain-wide blur below: DROP_KEEP holds
+# (rows, cols, weight, height) for that.
+DROP_KEEP = []
+RETAINING_WALLS = []
+for foot, base, bottom, run, low_w in DROPS:
+    rows, cols, f_sd, f_along, total, pts = line_frame(foot, FOOT_FLAT + 5, DROP_FACE + run + low_w + 45.0)
+    # The wall runs the edge's full length and the drop fades out over its last 20 m, so the
+    # wall gets lower towards its ends as the ground beyond comes up to meet the campus.
+    f_taper = smoothstep(0.0, 20.0, f_along) * smoothstep(0.0, 20.0, total - f_along)
+    f_seg = plateau[rows, cols]
+    f_rough = n_mid[rows, cols]
+    w_flat = (1 - smoothstep(0.0, FOOT_FLAT, -f_sd)) * (f_sd < DROP_STEP) * f_taper
+    f_seg = f_seg * (1 - w_flat) + base * w_flat
+    foot_h = base - DROP_WALL_H
+    beyond = f_sd - DROP_FACE
+    # Behind the coping the ground steps straight down to the wall's foot; below the wall a
+    # steep, rough slope of scree and scrub falls to the bottom, which rolls on to the boundary.
+    slope_t = smoothstep(0.0, run, beyond) ** 0.7
+    low = foot_h + (bottom - foot_h) * slope_t
+    low += (1.6 * f_rough + 1.8 * n_hills[rows, cols]) * smoothstep(1.5, 6.0, beyond)
+    low = np.where(beyond < 0.0, foot_h, low)
+    low = np.where(f_sd < DROP_STEP, base, low)
+    hold = 1 - smoothstep(run + low_w, run + low_w + 45.0, beyond)
+    w_drop = (f_sd >= DROP_STEP) * f_taper
+    shaped = low * hold + plateau[rows, cols] * (1 - hold)
+    f_seg = f_seg * (1 - w_drop) + shaped * w_drop
+    plateau[rows, cols] = f_seg
+    scarp_mask[rows, cols] = np.maximum(scarp_mask[rows, cols], w_drop * smoothstep(DROP_FACE + 1.0, DROP_FACE + 5.0, f_sd) * hold)
+    keep_w = np.clip(w_flat * (f_sd > -6.0) + w_drop * (1 - smoothstep(DROP_FACE + 8.0, DROP_FACE + 14.0, f_sd)), 0, 1)
+    DROP_KEEP.append((rows, cols, keep_w, f_seg.copy()))
+    RETAINING_WALLS.append(dict(points=[[round(float(x), 2), round(float(z), 2)] for x, z in pts],
+                                face=DROP_FACE, coping=DROP_COPING, campus=base, foot=foot_h))
 
 # Gate slope: the serpentine drive climbs from the gate (about 3 m) up to the ridge.
 gate_ramp = smoothstep(380.0, 528.0, Z)
@@ -392,6 +448,8 @@ farm_mask = smoothstep(-30.0, 20.0, north)
 height = height * (1 - farm_mask) + farm * farm_mask
 height += 0.6 * fbm(RES, 80, 2, SEED + 5)  # small bumps everywhere
 height = blur(height, 1)
+for rows, cols, keep_w, shaped in DROP_KEEP:      # the drops keep their sharp step
+    height[rows, cols] = height[rows, cols] * (1 - keep_w) + shaped * keep_w
 
 
 # ------------------------------------------------------------------ flatten plots and roads
@@ -948,8 +1006,9 @@ print("Detail cover: lawn %.0f%%, wild %.0f%%, flowers %.1f%% / %.1f%%, clumps %
     100 * (details[:, :, k] > 0.2).mean() for k in range(5)))
 
 # ------------------------------------------------------------------ trees
-# Types: 0 broadleaf (neem / sheesham), 1 eucalyptus, 2 chir pine, 3 shrub
-BROAD, EUCA, PINE, SHRUB = 0, 1, 2, 3
+# Types: 0 broadleaf (neem / sheesham), 1 eucalyptus, 2 chir pine, 3 shrub, 4 flowering shrub
+# (bougainvillea, lantana in flower), 5 tall kans grass (Vegetation.cs in Unity)
+BROAD, EUCA, PINE, SHRUB, FLOWER, TALLGRASS = 0, 1, 2, 3, 4, 5
 trees = []
 
 
@@ -1093,6 +1152,40 @@ for kind, x, y in L.TREE_SPOTS:
     tx, tz = L.to_world(x, y)
     trees.append((tx, tz, kind, rng.uniform(0.7, 0.9)))
 
+# Variety and grass (owner, 2026-11-21: "be generous with the details and grass"): some bushes
+# inside the campus are in flower and some are tall grass clumps, and kans grass grows thick on
+# the banks, the drops and the hill and among the scrub outside. Its own random stream, so the
+# trees above keep their places.
+vrng = np.random.default_rng(SEED + 77)
+for k, (x, z, kind, sc) in enumerate(trees):
+    if kind != SHRUB:
+        continue
+    inside = sd_at(x, z) < 0
+    r = vrng.random()
+    if inside and r < 0.35:
+        trees[k] = (x, z, FLOWER, sc * float(vrng.uniform(0.85, 1.05)))
+    elif r > (0.82 if inside else 0.7):
+        trees[k] = (x, z, TALLGRASS, sc * float(vrng.uniform(0.8, 1.15)))
+step = 3.5
+gxs = np.arange(MIN_X + step / 2, MIN_X + SIZE, step)
+gzs = np.arange(MIN_Z + step / 2, MIN_Z + SIZE, step)
+GX, GZ = np.meshgrid(gxs, gzs)
+JX = GX + vrng.uniform(-step / 2, step / 2, GX.shape)
+JZ = GZ + vrng.uniform(-step / 2, step / 2, GZ.shape)
+fi = np.clip(((JZ - MIN_Z) / CELL).round().astype(int), 0, RES - 1)
+fj = np.clip(((JX - MIN_X) / CELL).round().astype(int), 0, RES - 1)
+o = outside[fi, fj]
+banks = smoothstep(9.0, 22.0, slope[fi, fj]) * (1 - smoothstep(40.0, 48.0, slope[fi, fj]))
+gdens = np.where(sd[fi, fj] < 0, 0.16 * banks + 0.35 * scarp_mask[fi, fj] + 0.12 * hill_mask[fi, fj],
+                 (0.05 + 0.2 * banks) * (1 - smoothstep(150, 320, o)) * smoothstep(2, 8, o))
+gdens *= 1 - farm_mask[fi, fj] * 0.8
+gdens *= 1 - lawn_mask[fi, fj]
+keep = vrng.random(GX.shape) < gdens
+keep &= road_dist[fi, fj] > 2.5
+keep &= pad_mask[fi, fj] < 0.05
+for x, z in zip(JX[keep], JZ[keep]):
+    trees.append((float(x), float(z), TALLGRASS if vrng.random() < 0.8 else SHRUB, float(vrng.uniform(0.7, 1.2))))
+
 # ------------------------------------------------------------------ json
 terrain = {
     "info": "Generated by tools/layout/generate_terrain.py. Heights row 0 = min Z. Splat layers: grass, dry grass, soil, rock.",
@@ -1103,8 +1196,11 @@ terrain = {
     "splatResolution": SPLAT_RES,
     "grassResolution": GRASS_RES,
     "detailLayers": ["lawn grass", "wild grass", "yellow flowers", "white flowers", "grass clumps"],
-    "treeTypes": ["broadleaf", "eucalyptus", "pine", "shrub"],
+    "treeTypes": ["broadleaf", "eucalyptus", "pine", "shrub", "flowering shrub", "tall grass"],
     "trees": [round(v, 2) for t in trees for v in t],  # x, z, type, scale
+    # Retaining walls along the drops: the edge line (world x, z, north to south, low side east),
+    # how far out the face stands, and the design levels of the campus side and the wall's foot.
+    "retainingWalls": RETAINING_WALLS,
     # The clock tower walk (see generate_layout.CLOCK_STEPS): its centre line X and width, the
     # tower landing's height, and the walk's outline from the serpentine up to the porch as
     # [Z, height] corners (every step nose and landing end).
@@ -1115,8 +1211,8 @@ terrain = {
 with open(os.path.join(DATA, "campus_terrain.json"), "w") as f:
     json.dump(terrain, f, separators=(",", ":"))
 
-counts = [sum(1 for t in trees if t[2] == k) for k in range(4)]
-print("Heights %.1f..%.1f m, trees %d (broadleaf %d, eucalyptus %d, pine %d, shrub %d)" % (
+counts = [sum(1 for t in trees if t[2] == k) for k in range(6)]
+print("Heights %.1f..%.1f m, trees %d (broadleaf %d, eucalyptus %d, pine %d, shrub %d, flowering %d, tall grass %d)" % (
     height.min(), height.max(), len(trees), *counts))
 inside_h = height[sd < 0]
 print("Campus ground %.1f..%.1f m" % (inside_h.min(), inside_h.max()))
